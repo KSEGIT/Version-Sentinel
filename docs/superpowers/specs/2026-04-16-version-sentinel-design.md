@@ -20,8 +20,8 @@ Prevent Claude Code from adding or bumping package dependencies in any supported
 
 ## Success Criteria
 
-1. Claude cannot add or bump a dependency in any of the 13 covered ecosystems without sidecar proof.
-2. Sidecar proof requires a source URL recorded via `/vs-record`.
+1. Claude cannot add, bump, or downgrade a dependency in any of the 11 covered ecosystem file families without sidecar proof.
+2. Sidecar proof requires a valid source recorded via `/vs-record`: either an `http(s)://` URL OR a string prefixed `intentional:` documenting the reason for a non-latest pin.
 3. `/check-versions` audits the manifest in the current working directory, reports drift, runs offline-safe.
 4. Plugin installs via `/plugin install version-sentinel@<user>/version-sentinel` directly from GitHub.
 5. Plugin fails open on any internal error — never bricks Claude.
@@ -139,7 +139,7 @@ mvn\s+.*-Dartifact=(\S+)
 
 ### Diff strategy (manifest edits)
 
-Hook computes pkg-set diff between `tool_input.old_string` vs `new_string` (Edit) or before-disk vs `new` (Write). Only **newly added** or **version-bumped** deps trigger block. Removals + unchanged = passthrough.
+Hook computes pkg-set diff between `tool_input.old_string` vs `new_string` (Edit) or before-disk vs `new` (Write). Trigger block when: (a) a dependency is newly added, (b) its version string changes (bump OR downgrade — both require a fresh check to confirm intent against current latest). Removals and unchanged entries = passthrough (exit 0).
 
 ### `/check-versions` audit registries
 
@@ -199,7 +199,7 @@ Any hook-internal error (missing dependency tool, parse crash) passes through ra
 | v0.1.0 | npm, pip, pyproject.toml, Cargo.toml, csproj (5 ecosystems) |
 | v0.2.0 | + go.mod, Gemfile, composer.json |
 | v0.3.0 | + Maven, Gradle, legacy Python (Pipfile, setup.py, setup.cfg) |
-| v1.0.0 | All 13 covered + stable sidecar schema |
+| v1.0.0 | All 11 covered + stable sidecar schema |
 
 ## Open Questions
 
