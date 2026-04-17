@@ -1,0 +1,9 @@
+{
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "{{CWD}}/package.json",
+    "old_string": "  \"dependencies\": {\n    \"express\": \"4.19.2\"\n  }",
+    "new_string": "  \"dependencies\": {\n    \"express\": \"4.19.2\",\n    \"lodash\": \"4.17.21\"\n  }",
+    "replace_all": false
+  }
+}

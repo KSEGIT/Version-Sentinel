@@ -1,0 +1,9 @@
+{
+  "tool_name": "MultiEdit",
+  "tool_input": {
+    "file_path": "{{CWD}}/package.json",
+    "edits": [
+      { "old_string": "\"express\": \"4.19.2\"", "new_string": "\"express\": \"4.19.3\"" }
+    ]
+  }
+}
