@@ -51,3 +51,49 @@ parse_pip() {
     fi
   done < "$file"
 }
+
+parse_pyproject() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  python3 - "$file" <<'PY' 2>/dev/null | tr -d '\r'
+import tomllib, sys, re
+with open(sys.argv[1], "rb") as f:
+    data = tomllib.load(f)
+
+VER_RE = re.compile(r"(?:==|~=|>=|<=|>|<|!=|\^|~)?\s*([A-Za-z0-9][A-Za-z0-9._*+-]*)")
+
+def emit(name, raw):
+    name = name.strip()
+    raw = (raw or "").strip()
+    if ";" in raw: raw = raw.split(";", 1)[0].strip()
+    if not raw or raw in ("*", "latest"): return
+    if raw.startswith(("file:", "git+", "http://", "https://", "./", "../", "/")): return
+    if " @ " in raw: return
+    m = VER_RE.match(raw)
+    if not m: return
+    ver = m.group(1)
+    if " " in ver: return
+    print(f"{name}\t{ver}")
+
+def pep508(spec):
+    spec = spec.split(";", 1)[0].strip()
+    m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*(.*)", spec)
+    if m: emit(m.group(1), m.group(2))
+
+for s in (data.get("project", {}).get("dependencies") or []): pep508(s)
+for _g, specs in (data.get("project", {}).get("optional-dependencies") or {}).items():
+    for s in specs: pep508(s)
+
+def poetry_deps(d):
+    for name, spec in (d or {}).items():
+        if name == "python": continue
+        if isinstance(spec, str): emit(name, spec)
+        elif isinstance(spec, dict) and "version" in spec: emit(name, spec["version"])
+
+poetry_deps(data.get("tool", {}).get("poetry", {}).get("dependencies"))
+for _g, gd in (data.get("tool", {}).get("poetry", {}).get("group", {}) or {}).items():
+    poetry_deps(gd.get("dependencies"))
+
+for s in (data.get("tool", {}).get("uv", {}).get("dev-dependencies") or []): pep508(s)
+PY
+}
