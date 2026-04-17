@@ -1,0 +1,7 @@
+# comment line
+click ==8.1.7  ; python_version >= "3.8"
+-r other.txt
+-e git+https://github.com/psf/black.git@main#egg=black
+./local-pkg
+SomeProject@https://example.com/pkg.whl
+PyYAML>=6.0,<7.0

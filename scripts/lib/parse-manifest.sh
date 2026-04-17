@@ -31,3 +31,23 @@ parse_npm() {
       printf '%s\t%s\n' "$pkg" "$ver"
     done
 }
+
+parse_pip() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" ]] && continue
+    case "$line" in
+      -*|*://*|./*|../*|/*) continue ;;
+    esac
+    line="${line%%;*}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ "$line" == *@* && "$line" != *==* ]] && continue
+    if [[ "$line" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)[[:space:]]*(==|~=|\>=|\<=|\>|\<|!=)[[:space:]]*([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
+      local pkg="${BASH_REMATCH[1]}" ver="${BASH_REMATCH[3]}"
+      printf '%s\t%s\n' "$pkg" "$ver"
+    fi
+  done < "$file"
+}
