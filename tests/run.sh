@@ -14,6 +14,15 @@ for t in test_*.sh; do
 done
 
 echo
+echo "=== Integration smoke ==="
+if bash "$(dirname "$0")/integration/smoke.sh"; then
+  total=$((total + 1))
+else
+  total=$((total + 1))
+  failed=$((failed + 1))
+fi
+
+echo
 echo "-----"
 echo "Total: $total, Failed: $failed"
 [[ "$failed" -eq 0 ]]
