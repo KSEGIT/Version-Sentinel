@@ -1,0 +1,12 @@
+{
+  "name": "version-sentinel",
+  "version": "0.1.0",
+  "description": "Hard-blocks dependency additions and version changes until Claude records a WebSearch-verified latest-version check.",
+  "author": {
+    "name": "Daniel Kiska",
+    "url": "https://github.com/DanielKiska"
+  },
+  "repository": "https://github.com/DanielKiska/version-sentinel",
+  "license": "MIT",
+  "keywords": ["dependencies", "packages", "versions", "guardrails", "hooks"]
+}
