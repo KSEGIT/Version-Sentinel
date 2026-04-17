@@ -62,7 +62,9 @@ sidecar_write_entry() {
     --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
     --arg src "$source" --arg at "$checked" \
     '.entries = ((.entries // []) | map(select(.ecosystem != $eco or .pkg != $pkg))
-      + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}])')
+      + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}])') \
+    || { echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
+  [[ -n "$updated" ]] || { echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
   printf '%s\n' "$updated" > "$path"
 }
 
