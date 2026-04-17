@@ -1,6 +1,10 @@
-# version-sentinel
+<p align="center">
+  <img src="assets/logo.svg" alt="Version Sentinel" width="200" />
+</p>
 
-Claude Code plugin that **hard-blocks** dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded.
+<h1 align="center">version-sentinel</h1>
+
+<p align="center">Claude Code plugin that <strong>hard-blocks</strong> dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded.</p>
 
 > If Claude tries to add `"lodash": "^4.17.21"` without looking up the latest version first, the tool call is rejected with exit 2. Claude must run `WebSearch`, then `/vs-record`, then retry. Five ecosystems supported in v0.1.
 
