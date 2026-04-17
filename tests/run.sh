@@ -15,7 +15,7 @@ done
 
 echo
 echo "=== Integration smoke ==="
-if bash "$(dirname "$0")/integration/smoke.sh"; then
+if bash integration/smoke.sh; then
   total=$((total + 1))
 else
   total=$((total + 1))
