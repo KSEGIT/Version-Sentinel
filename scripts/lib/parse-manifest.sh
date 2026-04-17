@@ -141,3 +141,50 @@ parse_csproj() {
     printf '%s\t%s\n' "$inc" "$ver"
   done
 }
+
+ecosystem_for_path() {
+  local path="$1"
+  local base
+  base=$(basename "$path")
+  case "$base" in
+    package.json) echo "npm" ;;
+    requirements*.txt|constraints*.txt) echo "pip" ;;
+    pyproject.toml) echo "pyproject" ;;
+    Cargo.toml) echo "cargo" ;;
+    *.csproj|*.fsproj|*.vbproj) echo "csproj" ;;
+    *) echo "" ;;
+  esac
+}
+
+parse_manifest_by_path() {
+  local path="$1"
+  local eco
+  eco=$(ecosystem_for_path "$path")
+  case "$eco" in
+    npm) parse_npm "$path" ;;
+    pip) parse_pip "$path" ;;
+    pyproject) parse_pyproject "$path" ;;
+    cargo) parse_cargo "$path" ;;
+    csproj) parse_csproj "$path" ;;
+    *) return 0 ;;
+  esac
+}
+
+diff_manifest_sets() {
+  local pre="$1" post="$2"
+  local tmp_pre tmp_post
+  tmp_pre=$(mktemp); tmp_post=$(mktemp)
+  printf '%s\n' "$pre" | sort -u > "$tmp_pre"
+  printf '%s\n' "$post" | sort -u > "$tmp_post"
+  while IFS=$'\t' read -r pkg ver; do
+    [[ -z "$pkg" ]] && continue
+    local pre_ver
+    pre_ver=$(awk -F '\t' -v p="$pkg" '$1==p {print $2; exit}' "$tmp_pre")
+    if [[ -z "$pre_ver" ]]; then
+      printf 'added\t%s\t%s\n' "$pkg" "$ver"
+    elif [[ "$pre_ver" != "$ver" ]]; then
+      printf 'changed\t%s\t%s\n' "$pkg" "$ver"
+    fi
+  done < "$tmp_post"
+  rm -f "$tmp_pre" "$tmp_post"
+}
