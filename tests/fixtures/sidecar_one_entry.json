@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "ecosystem": "npm",
+      "pkg": "lodash",
+      "version": "4.17.21",
+      "source": "https://www.npmjs.com/package/lodash",
+      "checkedAt": "2026-04-16T10:00:00Z"
+    }
+  ]
+}
