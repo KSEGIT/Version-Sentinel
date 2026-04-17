@@ -122,3 +122,22 @@ walk(data.get("dev-dependencies"))
 walk(data.get("build-dependencies"))
 PY
 }
+
+parse_csproj() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  grep -oE '<PackageReference[^/>]*(/>|>)' "$file" 2>/dev/null | while IFS= read -r tag; do
+    local inc ver
+    if [[ "$tag" =~ Include=\"([^\"]+)\" ]]; then
+      inc="${BASH_REMATCH[1]}"
+    else
+      continue
+    fi
+    if [[ "$tag" =~ Version=\"([^\"]+)\" ]]; then
+      ver="${BASH_REMATCH[1]}"
+    else
+      continue
+    fi
+    printf '%s\t%s\n' "$inc" "$ver"
+  done
+}
