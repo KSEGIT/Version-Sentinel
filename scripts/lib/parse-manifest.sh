@@ -97,3 +97,28 @@ for _g, gd in (data.get("tool", {}).get("poetry", {}).get("group", {}) or {}).it
 for s in (data.get("tool", {}).get("uv", {}).get("dev-dependencies") or []): pep508(s)
 PY
 }
+
+parse_cargo() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  python3 - "$file" <<'PY' 2>/dev/null | tr -d '\r'
+import tomllib, sys
+with open(sys.argv[1], "rb") as f:
+    data = tomllib.load(f)
+
+def walk(section):
+    for name, spec in (section or {}).items():
+        if isinstance(spec, str):
+            print(f"{name}\t{spec.lstrip('^~v= ')}")
+        elif isinstance(spec, dict):
+            if "path" in spec or "git" in spec:
+                continue
+            ver = spec.get("version")
+            if isinstance(ver, str):
+                print(f"{name}\t{ver.lstrip('^~v= ')}")
+
+walk(data.get("dependencies"))
+walk(data.get("dev-dependencies"))
+walk(data.get("build-dependencies"))
+PY
+}
