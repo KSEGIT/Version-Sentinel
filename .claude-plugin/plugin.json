@@ -1,6 +1,6 @@
 {
   "name": "version-sentinel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hard-blocks dependency additions and version changes until Claude records a WebSearch-verified latest-version check.",
   "author": {
     "name": "Daniel Kiska",
@@ -9,7 +9,13 @@
   "homepage": "https://github.com/DanielKiska/version-sentinel#readme",
   "repository": "https://github.com/DanielKiska/version-sentinel",
   "license": "MIT",
-  "keywords": ["dependencies", "packages", "versions", "guardrails", "hooks"],
+  "keywords": [
+    "dependencies",
+    "packages",
+    "versions",
+    "guardrails",
+    "hooks"
+  ],
   "userConfig": {
     "disable": {
       "type": "boolean",
