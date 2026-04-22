@@ -25,7 +25,7 @@ registry_latest() {
       ;;
     cargo)
       url="https://crates.io/api/v1/crates/$(printf '%s' "$pkg" | jq -sRr @uri)"
-      json=$(curl -fsSL -A "version-sentinel (+https://github.com/DanielKiska/version-sentinel)" "$url") || return 1
+      json=$(curl -fsSL -A "version-sentinel (+https://github.com/KSEGIT/Version-Sentinel)" "$url") || return 1
       echo "$json" | jq -r '.crate.max_stable_version // empty'
       ;;
     *) return 1 ;;

@@ -27,9 +27,11 @@ Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`,
 ## Install
 
 ```
-/plugin marketplace add DanielKiska/version-sentinel
+/plugin marketplace add https://github.com/KSEGIT/Version-Sentinel.git
 /plugin install version-sentinel@version-sentinel-marketplace
 ```
+
+> The `owner/repo` shorthand (`KSEGIT/Version-Sentinel`) resolves to an SSH clone URL and requires GitHub SSH keys. Use the full HTTPS URL above to clone anonymously.
 
 ## Prerequisites
 

@@ -2,14 +2,14 @@
   "name": "version-sentinel-marketplace",
   "owner": {
     "name": "Daniel Kiska",
-    "url": "https://github.com/DanielKiska"
+    "url": "https://github.com/KSEGIT"
   },
   "plugins": [
     {
       "name": "version-sentinel",
       "source": {
         "source": "github",
-        "repo": "DanielKiska/version-sentinel"
+        "repo": "KSEGIT/Version-Sentinel"
       },
       "description": "Hard-blocks dependency additions until a version check is recorded."
     }

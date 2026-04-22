@@ -21,3 +21,6 @@ venv/
 
 # Sidecar state for any repo cd'd into during testing
 .version-sentinel/
+
+# Local-only design docs / plans (kept out of GitHub)
+docs/superpowers/

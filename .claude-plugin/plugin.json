@@ -4,10 +4,10 @@
   "description": "Hard-blocks dependency additions and version changes until Claude records a WebSearch-verified latest-version check.",
   "author": {
     "name": "Daniel Kiska",
-    "url": "https://github.com/DanielKiska"
+    "url": "https://github.com/KSEGIT"
   },
-  "homepage": "https://github.com/DanielKiska/version-sentinel#readme",
-  "repository": "https://github.com/DanielKiska/version-sentinel",
+  "homepage": "https://github.com/KSEGIT/Version-Sentinel#readme",
+  "repository": "https://github.com/KSEGIT/Version-Sentinel",
   "license": "MIT",
   "keywords": [
     "dependencies",
