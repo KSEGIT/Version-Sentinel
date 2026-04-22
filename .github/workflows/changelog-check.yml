@@ -5,6 +5,7 @@ on:
     paths:
       - '.claude-plugin/plugin.json'
       - 'version.txt'
+      - '.release-please-manifest.json'
       - 'CHANGELOG.md'
 
 jobs:
@@ -27,6 +28,7 @@ jobs:
           grep -qxF '.claude-plugin/plugin.json' <<<"$changed" && \
             git diff "$base" "$head" -- .claude-plugin/plugin.json | grep -qE '^\+.*"version"' && ver_changed=true || true
           grep -qxF 'version.txt' <<<"$changed" && ver_changed=true || true
+          grep -qxF '.release-please-manifest.json' <<<"$changed" && ver_changed=true || true
           grep -qxF 'CHANGELOG.md' <<<"$changed" && changelog_changed=true || true
           if $ver_changed && ! $changelog_changed; then
             echo "::error::Version bumped but CHANGELOG.md not updated"

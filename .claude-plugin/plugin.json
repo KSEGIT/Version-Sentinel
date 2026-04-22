@@ -14,7 +14,7 @@
     "disable": {
       "type": "boolean",
       "title": "Disable blocking",
-      "description": "If true, all PreToolUse hooks no-op. Equivalent to VS_DISABLE=1.",
+      "description": "If true, all version-sentinel hooks no-op (PreToolUse block, SessionStart prereq warning, PostToolUse auto-record). Equivalent to VS_DISABLE=1.",
       "default": false
     },
     "window_hours": {

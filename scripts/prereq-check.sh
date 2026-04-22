@@ -3,7 +3,10 @@
 # Called from SessionStart hook — must never block a session. Exit 0 always.
 set -u
 
-DIR="$(dirname "$0")"
+# Use parameter expansion instead of `dirname` so the script needs no external
+# binary before the prereq checks themselves run. This keeps the sanitized-PATH
+# test (tests/test_prereq_check.sh) genuine.
+DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=lib/options.sh
 source "$DIR/lib/options.sh"
 

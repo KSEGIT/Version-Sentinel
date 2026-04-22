@@ -46,20 +46,37 @@ jobs:
       - name: Validate plugin.json
         run: |
           python3 - <<'PY'
-          import json, sys
+          import json, re
           with open('.claude-plugin/plugin.json') as f:
               m = json.load(f)
           assert isinstance(m.get('name'), str) and m['name'], "plugin.json: name required"
-          for k in ('description','author','repository','license'):
+          for k in ('description','author','repository','license','version'):
               assert k in m, f"plugin.json: missing {k}"
+          assert re.match(r'^\d+\.\d+\.\d+', m['version']), f"plugin.json: bad version '{m['version']}'"
+          uc = m.get('userConfig', {})
+          assert isinstance(uc, dict), "plugin.json: userConfig must be object"
+          for key in ('disable', 'window_hours'):
+              assert key in uc, f"plugin.json: userConfig.{key} required"
+          assert uc['disable'].get('type') == 'boolean', "userConfig.disable.type must be 'boolean'"
+          assert uc['disable'].get('default') is False, "userConfig.disable.default must be false"
+          wh = uc['window_hours']
+          assert wh.get('type') == 'number', "userConfig.window_hours.type must be 'number'"
+          for bound in ('default', 'min', 'max'):
+              assert bound in wh, f"userConfig.window_hours.{bound} required"
+          assert wh['min'] <= wh['default'] <= wh['max'], "window_hours bounds inconsistent"
           print("plugin.json OK")
           with open('.claude-plugin/marketplace.json') as f:
               mk = json.load(f)
           assert mk.get('plugins'), "marketplace.json: plugins array required"
+          # marketplace.json entries must NOT pin version (single source of truth is plugin.json).
+          for p in mk['plugins']:
+              assert 'version' not in p, f"marketplace.json: plugin '{p.get('name')}' should not pin version"
           print("marketplace.json OK")
           with open('hooks/hooks.json') as f:
               h = json.load(f)
-          assert 'hooks' in h and isinstance(h['hooks'], dict), "hooks.json malformed"
+          assert 'hooks' in h and isinstance(h['hooks'], dict), "hooks.json: malformed"
+          for event in ('SessionStart', 'PreToolUse', 'PostToolUse'):
+              assert event in h['hooks'], f"hooks.json: {event} missing"
           print("hooks.json OK")
           PY
 

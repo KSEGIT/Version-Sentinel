@@ -15,7 +15,7 @@ All notable changes to version-sentinel.
 - `CONTRIBUTING.md` — local setup, test commands, how-to-add-an-ecosystem checklist, Conventional Commits guide.
 - `release-please` workflow with `release-type: simple`; bumps `version.txt`, `.release-please-manifest.json`, `.claude-plugin/plugin.json` `$.version`, and `CHANGELOG.md`.
 - `changelog-check` workflow: fails PRs that bump version without updating `CHANGELOG.md`.
-- `tests` workflow extended to 3-OS matrix (ubuntu/macos/windows), plus manifest-validate and shellcheck jobs. All GitHub Actions pinned to commit SHAs.
+- `tests` workflow extended to 3-OS matrix (Ubuntu / macOS / Windows), plus manifest-validate and shellcheck jobs. All GitHub Actions pinned to commit SHAs.
 - `.github/dependabot.yml` — weekly updates for GitHub Actions.
 - `.github/ISSUE_TEMPLATE/` (bug / feature / config) and `.github/PULL_REQUEST_TEMPLATE.md`.
 - 4 new test files covering `options.sh` mapping, `vs-record` validation, prereq check, and auto-record.

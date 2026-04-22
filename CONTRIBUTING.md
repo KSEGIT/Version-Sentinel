@@ -55,7 +55,7 @@ Run `bash tests/run.sh` — all green before you open the PR.
 
 Examples:
 
-```
+```text
 feat: add go.mod ecosystem support
 fix: handle empty requirements.txt without crashing
 feat!: require jq 1.7+ (drops 1.6 compat)
@@ -75,4 +75,4 @@ You don't need to hand-edit `CHANGELOG.md`, `version.txt`, or `plugin.json` — 
 
 ## Security
 
-Found a bypass, false-negative, or other issue in the block logic? **Please don't file a public issue.** Open a private [GitHub Security Advisory](https://github.com/DanyItNerd/version-sentinel/security/advisories/new) instead so we can coordinate a fix before disclosure.
+Found a bypass, false-negative, or other issue in the block logic? **Please don't file a public issue.** Open a private [GitHub Security Advisory](https://github.com/DanielKiska/version-sentinel/security/advisories/new) instead so we can coordinate a fix before disclosure.

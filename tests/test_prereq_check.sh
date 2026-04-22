@@ -23,6 +23,12 @@ assert_contains "$err" "exit=0" "sanitized PATH → still exit 0"
 # Case-insensitive match for "jq not found".
 lower=$(echo "$err" | tr '[:upper:]' '[:lower:]')
 assert_contains "$lower" "jq not found" "sanitized PATH → stderr mentions 'jq not found'"
+# Guard: the script must not blow up on `dirname: command not found` etc.
+# Any external-binary failure would leak a "command not found" line that is
+# not one of our own warnings, so assert there's no such noise.
+if echo "$err" | grep -qE 'command not found|No such file'; then
+  _fail "sanitized PATH → script leaked an error from a missing core util: $err"
+fi
 
 # Case 3: CLAUDE_PLUGIN_OPTION_DISABLE=true → exit 0, silent (no warnings).
 err=$(CLAUDE_PLUGIN_OPTION_DISABLE=true bash "$SCRIPT" 2>&1 >/dev/null; echo "exit=$?")

@@ -33,6 +33,15 @@ fi
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 [[ -z "$cmd" ]] && exit 0
 
+# Refuse compound commands. The outer Bash exit code reflects only the last
+# segment, so `npm install foo@1.2.3 || true` reports success even when the
+# install actually failed. Auto-recording in that case would be a false
+# positive — the user should /vs-record explicitly for anything non-trivial.
+case "$cmd" in
+  *"||"*|*"&&"*|*";"*|*"|"*|*'`'*|*'$('*)
+    exit 0 ;;
+esac
+
 # Skip failed installs. exit_code may be missing — assume success when absent.
 exit_code=$(echo "$input" | jq -r '.tool_response.exit_code // empty')
 if [[ -n "$exit_code" && "$exit_code" != "0" ]]; then

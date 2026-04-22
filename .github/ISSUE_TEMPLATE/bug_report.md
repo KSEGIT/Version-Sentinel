@@ -29,6 +29,6 @@ labels: ["bug"]
 
 ## Hook stderr / logs
 
-```
+```text
 paste here
 ```
