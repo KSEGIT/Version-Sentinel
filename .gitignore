@@ -1,0 +1,23 @@
+# .NET build artifacts (esp. under tests/fixtures/Demo.csproj)
+**/obj/
+tests/fixtures/**/bin/
+tests/fixtures/**/Debug/
+tests/fixtures/**/Release/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE / OS
+.vs/
+.idea/
+*.user
+.DS_Store
+
+# Sidecar state for any repo cd'd into during testing
+.version-sentinel/

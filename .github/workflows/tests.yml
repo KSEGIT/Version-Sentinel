@@ -1,0 +1,94 @@
+name: tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Install jq (ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install jq (macos)
+        if: runner.os == 'macOS'
+        run: brew install jq
+
+      - name: Check jq (windows)
+        if: runner.os == 'Windows'
+        run: jq --version
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Run tests
+        run: bash tests/run.sh
+
+  validate:
+    name: validate manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Validate plugin.json
+        run: |
+          python3 - <<'PY'
+          import json, re
+          with open('.claude-plugin/plugin.json') as f:
+              m = json.load(f)
+          assert isinstance(m.get('name'), str) and m['name'], "plugin.json: name required"
+          for k in ('description','author','repository','license','version'):
+              assert k in m, f"plugin.json: missing {k}"
+          assert re.match(r'^\d+\.\d+\.\d+', m['version']), f"plugin.json: bad version '{m['version']}'"
+          uc = m.get('userConfig', {})
+          assert isinstance(uc, dict), "plugin.json: userConfig must be object"
+          for key in ('disable', 'window_hours'):
+              assert key in uc, f"plugin.json: userConfig.{key} required"
+          assert uc['disable'].get('type') == 'boolean', "userConfig.disable.type must be 'boolean'"
+          assert uc['disable'].get('default') is False, "userConfig.disable.default must be false"
+          wh = uc['window_hours']
+          assert wh.get('type') == 'number', "userConfig.window_hours.type must be 'number'"
+          for bound in ('default', 'min', 'max'):
+              assert bound in wh, f"userConfig.window_hours.{bound} required"
+          assert wh['min'] <= wh['default'] <= wh['max'], "window_hours bounds inconsistent"
+          print("plugin.json OK")
+          with open('.claude-plugin/marketplace.json') as f:
+              mk = json.load(f)
+          assert mk.get('plugins'), "marketplace.json: plugins array required"
+          # marketplace.json entries must NOT pin version (single source of truth is plugin.json).
+          for p in mk['plugins']:
+              assert 'version' not in p, f"marketplace.json: plugin '{p.get('name')}' should not pin version"
+          print("marketplace.json OK")
+          with open('hooks/hooks.json') as f:
+              h = json.load(f)
+          assert 'hooks' in h and isinstance(h['hooks'], dict), "hooks.json: malformed"
+          for event in ('SessionStart', 'PreToolUse', 'PostToolUse'):
+              assert event in h['hooks'], f"hooks.json: {event} missing"
+          print("hooks.json OK")
+          PY
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
+        with:
+          scandir: .
+          additional_files: 'bin/vs-record'
+          severity: error
+          check_together: 'yes'

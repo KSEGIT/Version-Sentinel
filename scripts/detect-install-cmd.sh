@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -u
 
+DIR="$(dirname "$0")"
+# shellcheck source=lib/options.sh
+source "$DIR/lib/options.sh"
+
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
 
-DIR="$(dirname "$0")"
+# shellcheck source=lib/parse-install-cmd.sh
 source "$DIR/lib/parse-install-cmd.sh"
 
 input=$(cat)

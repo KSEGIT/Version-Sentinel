@@ -7,6 +7,10 @@ set -u
 ecosystem="${1:?ecosystem required}"
 pkg="${2:?pkg required}"
 version="${3:?version required}"
+
+# shellcheck source=lib/options.sh
+source "$(dirname "$0")/lib/options.sh"
+
 window_hours="${VS_WINDOW_HOURS:-24}"
 
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then

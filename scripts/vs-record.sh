@@ -20,6 +20,31 @@ pkg="$2"
 version="$3"
 source="$4"
 
+# Whitelist ecosystem
+case "$ecosystem" in
+  npm|pip|cargo|csproj|pyproject) ;;
+  *)
+    echo "version-sentinel: unknown ecosystem '$ecosystem'. Supported: npm, pip, cargo, csproj, pyproject" >&2
+    exit 1
+    ;;
+esac
+
+# Validate version shape: reject empty, whitespace-only, or containing spaces.
+if [[ -z "${version// /}" || "$version" == *" "* || "$version" == *$'\t'* ]]; then
+  echo "version-sentinel: empty/invalid version '$version'" >&2
+  exit 1
+fi
+
+# Validate package name: reject '/' except for npm scoped names (@scope/name).
+if [[ "$pkg" == *"/"* ]]; then
+  if [[ "$ecosystem" == "npm" && "$pkg" =~ ^@[^/]+/[^/]+$ ]]; then
+    : # allow npm scoped name
+  else
+    echo "version-sentinel: invalid package name '$pkg'" >&2
+    exit 1
+  fi
+fi
+
 case "$source" in
   http://*|https://*) ;;
   intentional:*) ;;

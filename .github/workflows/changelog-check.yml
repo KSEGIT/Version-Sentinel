@@ -1,0 +1,37 @@
+name: changelog-check
+
+on:
+  pull_request:
+    paths:
+      - '.claude-plugin/plugin.json'
+      - 'version.txt'
+      - '.release-please-manifest.json'
+      - 'CHANGELOG.md'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'release-please--branches')"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Diff version vs CHANGELOG
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$base" "$head")
+          echo "Changed files:"; echo "$changed"
+          ver_changed=false
+          changelog_changed=false
+          grep -qxF '.claude-plugin/plugin.json' <<<"$changed" && \
+            git diff "$base" "$head" -- .claude-plugin/plugin.json | grep -qE '^\+.*"version"' && ver_changed=true || true
+          grep -qxF 'version.txt' <<<"$changed" && ver_changed=true || true
+          grep -qxF '.release-please-manifest.json' <<<"$changed" && ver_changed=true || true
+          grep -qxF 'CHANGELOG.md' <<<"$changed" && changelog_changed=true || true
+          if $ver_changed && ! $changelog_changed; then
+            echo "::error::Version bumped but CHANGELOG.md not updated"
+            exit 1
+          fi
+          echo "OK"

@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -u
 
+DIR="$(dirname "$0")"
+# shellcheck source=lib/options.sh
+source "$DIR/lib/options.sh"
+
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
 
-DIR="$(dirname "$0")"
+# shellcheck source=lib/parse-manifest.sh
 source "$DIR/lib/parse-manifest.sh"
+# shellcheck source=lib/sidecar.sh
 source "$DIR/lib/sidecar.sh"
 
 input=$(cat)
@@ -27,6 +32,12 @@ pre_content=""
 [[ -f "$file_path" ]] && pre_content=$(cat "$file_path")
 post_content="$pre_content"
 
+# py_replace_once <old> <new> <content-on-stdin> — replaces first occurrence only.
+# Uses python3 for bash-3.2 compatibility (macOS default).
+py_replace_once() {
+  python3 -c 'import sys; p=sys.stdin.read(); sys.stdout.write(p.replace(sys.argv[1], sys.argv[2], 1))' "$1" "$2"
+}
+
 case "$tool_name" in
   Edit)
     old=$(echo "$input" | jq -r '.tool_input.old_string // empty' | tr -d '\r')
@@ -35,7 +46,7 @@ case "$tool_name" in
     if [[ "$replace_all" == "true" ]]; then
       post_content=$(awk -v o="$old" -v n="$new" 'BEGIN{RS=""} { gsub(o, n); print }' <<< "$pre_content")
     else
-      post_content="${pre_content/"$old"/"$new"}"
+      post_content=$(printf '%s' "$pre_content" | py_replace_once "$old" "$new")
     fi
     ;;
   Write)
@@ -47,7 +58,7 @@ case "$tool_name" in
       [[ -z "$o" ]] && continue
       o=$(printf '%s' "$o" | tr -d '\r')
       n=$(printf '%s' "$n" | tr -d '\r')
-      post_content="${post_content/"$o"/"$n"}"
+      post_content=$(printf '%s' "$post_content" | py_replace_once "$o" "$n")
     done < <(echo "$input" | jq -r '.tool_input.edits[]? | [.old_string, .new_string] | @tsv')
     ;;
   *) exit 0 ;;
