@@ -73,5 +73,5 @@ jobs:
         with:
           scandir: .
           additional_files: 'bin/vs-record'
-          severity: warning
+          severity: error
           check_together: 'yes'
