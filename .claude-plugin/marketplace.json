@@ -7,10 +7,7 @@
   "plugins": [
     {
       "name": "version-sentinel",
-      "source": {
-        "source": "github",
-        "repo": "KSEGIT/Version-Sentinel"
-      },
+      "source": "./",
       "description": "Hard-blocks dependency additions until a version check is recorded."
     }
   ]
