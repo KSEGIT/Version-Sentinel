@@ -6,7 +6,24 @@
     "name": "Daniel Kiska",
     "url": "https://github.com/DanielKiska"
   },
+  "homepage": "https://github.com/DanielKiska/version-sentinel#readme",
   "repository": "https://github.com/DanielKiska/version-sentinel",
   "license": "MIT",
-  "keywords": ["dependencies", "packages", "versions", "guardrails", "hooks"]
+  "keywords": ["dependencies", "packages", "versions", "guardrails", "hooks"],
+  "userConfig": {
+    "disable": {
+      "type": "boolean",
+      "title": "Disable blocking",
+      "description": "If true, all PreToolUse hooks no-op. Equivalent to VS_DISABLE=1.",
+      "default": false
+    },
+    "window_hours": {
+      "type": "number",
+      "title": "Check freshness window (hours)",
+      "description": "How long a /vs-record entry stays fresh before the hook re-blocks.",
+      "default": 24,
+      "min": 1,
+      "max": 168
+    }
+  }
 }

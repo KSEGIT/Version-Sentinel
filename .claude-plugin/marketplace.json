@@ -11,8 +11,7 @@
         "source": "github",
         "repo": "DanielKiska/version-sentinel"
       },
-      "description": "Hard-blocks dependency additions until a version check is recorded.",
-      "version": "0.1.0"
+      "description": "Hard-blocks dependency additions until a version check is recorded."
     }
   ]
 }

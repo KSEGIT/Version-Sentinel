@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Thin wrapper — forwards to the real script under ${CLAUDE_PLUGIN_ROOT}.
+# When invoked via PATH in a plugin-enabled session, ${CLAUDE_PLUGIN_ROOT} is set.
+set -u
+
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+  echo "vs-record: CLAUDE_PLUGIN_ROOT not set. Invoke via Claude Code, or run scripts/vs-record.sh directly." >&2
+  exit 1
+fi
+exec bash "${CLAUDE_PLUGIN_ROOT}/scripts/vs-record.sh" "$@"

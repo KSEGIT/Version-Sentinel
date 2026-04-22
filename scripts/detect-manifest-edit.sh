@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -u
 
+DIR="$(dirname "$0")"
+# shellcheck source=lib/options.sh
+source "$DIR/lib/options.sh"
+
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
 
-DIR="$(dirname "$0")"
+# shellcheck source=lib/parse-manifest.sh
 source "$DIR/lib/parse-manifest.sh"
+# shellcheck source=lib/sidecar.sh
 source "$DIR/lib/sidecar.sh"
 
 input=$(cat)

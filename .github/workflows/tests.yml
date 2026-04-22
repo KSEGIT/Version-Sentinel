@@ -6,12 +6,72 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Install jq
+      - name: Install jq (ubuntu)
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install jq (macos)
+        if: runner.os == 'macOS'
+        run: brew install jq
+
+      - name: Check jq (windows)
+        if: runner.os == 'Windows'
+        run: jq --version
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.13'
 
       - name: Run tests
         run: bash tests/run.sh
+
+  validate:
+    name: validate manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Validate plugin.json
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          with open('.claude-plugin/plugin.json') as f:
+              m = json.load(f)
+          assert isinstance(m.get('name'), str) and m['name'], "plugin.json: name required"
+          for k in ('description','author','repository','license'):
+              assert k in m, f"plugin.json: missing {k}"
+          print("plugin.json OK")
+          with open('.claude-plugin/marketplace.json') as f:
+              mk = json.load(f)
+          assert mk.get('plugins'), "marketplace.json: plugins array required"
+          print("marketplace.json OK")
+          with open('hooks/hooks.json') as f:
+              h = json.load(f)
+          assert 'hooks' in h and isinstance(h['hooks'], dict), "hooks.json malformed"
+          print("hooks.json OK")
+          PY
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
+        with:
+          scandir: .
+          additional_files: 'bin/vs-record'
+          severity: warning
+          check_together: 'yes'

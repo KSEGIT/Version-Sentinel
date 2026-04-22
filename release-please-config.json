@@ -1,0 +1,17 @@
+{
+  "release-type": "simple",
+  "packages": {
+    ".": {
+      "package-name": "version-sentinel",
+      "changelog-path": "CHANGELOG.md",
+      "include-v-in-tag": true,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}
