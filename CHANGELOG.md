@@ -2,6 +2,13 @@
 
 All notable changes to version-sentinel.
 
+## [0.2.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.0...version-sentinel-v0.2.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **marketplace:** use relative source to avoid SSH clone ([b922e84](https://github.com/KSEGIT/Version-Sentinel/commit/b922e84a1dcb09cb8145d653361689c6daf6f363))
+
 ## [0.2.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.1.0...version-sentinel-v0.2.0) (2026-04-22)
 
 
