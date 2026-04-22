@@ -2,6 +2,40 @@
 
 All notable changes to version-sentinel.
 
+## [0.2.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.1.0...version-sentinel-v0.2.0) (2026-04-22)
+
+
+### Features
+
+* add GitHub Actions workflow for running tests ([ac895c9](https://github.com/KSEGIT/Version-Sentinel/commit/ac895c99c9548db38cc6234cfd1148d89605a726))
+* add initial project structure and configuration files ([34f775b](https://github.com/KSEGIT/Version-Sentinel/commit/34f775b062010d934baad5b5ab7d884bdcfc870f))
+* check-sidecar.sh — exit-2 block with stderr for Claude ([d79bb9d](https://github.com/KSEGIT/Version-Sentinel/commit/d79bb9d4f84119d6bf1922db8691cda5e4120422))
+* **cmd:** /check-versions audit + registries.sh ([bc98c29](https://github.com/KSEGIT/Version-Sentinel/commit/bc98c2932ff7c860554e3b8cc84aa6664877bba4))
+* **cmd:** /vs-record slash command + shell backend ([4bfbaf6](https://github.com/KSEGIT/Version-Sentinel/commit/4bfbaf625d921c6c0a1ba0b2bce37bb1286a04dc))
+* **hook:** detect-install-cmd.sh (Bash install commands) ([cddb1ee](https://github.com/KSEGIT/Version-Sentinel/commit/cddb1eea0494326a4a042427a6f922979b50ae2b))
+* **hook:** detect-manifest-edit.sh (Edit|Write|MultiEdit) ([0174255](https://github.com/KSEGIT/Version-Sentinel/commit/0174255bf28f99b9f695c8d1f8ea351ec11d367b))
+* **hook:** wire hooks.json (Edit|Write|MultiEdit + Bash matchers) ([db64f0e](https://github.com/KSEGIT/Version-Sentinel/commit/db64f0e6940484b639c4b1f6ea3b955ad5acc412))
+* **lib:** sidecar read/write with dedupe + auto-gitignore ([8065e5c](https://github.com/KSEGIT/Version-Sentinel/commit/8065e5c00e884939fcf600ebaddcee3bbb121465))
+* **parse:** Cargo.toml parser (path/git deps skipped) ([4ca3b57](https://github.com/KSEGIT/Version-Sentinel/commit/4ca3b57d4bf16a92746f596af168bb5fdfd2fd5c))
+* **parse:** csproj/fsproj/vbproj PackageReference parser ([0880fee](https://github.com/KSEGIT/Version-Sentinel/commit/0880fee72ad6af0cecf55b4e1b14fd5dfc3b8a75))
+* **parse:** install-command parser (npm/pip/cargo/dotnet) ([ecf11b1](https://github.com/KSEGIT/Version-Sentinel/commit/ecf11b1b493a93685c37a640f832a40a4e254e0d))
+* **parse:** npm package.json parser (all 4 dep sections) ([abb488e](https://github.com/KSEGIT/Version-Sentinel/commit/abb488e12ea1164a7fb16bf408d4d96a6dc8829b))
+* **parse:** path→ecosystem dispatch + manifest-set diff ([5f0503f](https://github.com/KSEGIT/Version-Sentinel/commit/5f0503fac7cd02769f0753aad0e778aab72f806b))
+* **parse:** pip requirements.txt parser ([085b15f](https://github.com/KSEGIT/Version-Sentinel/commit/085b15f618a004aea3fe16ab1fe4167dd8b5624f))
+* **parse:** pyproject.toml parser (PEP 621 + Poetry + uv) ([0954cbd](https://github.com/KSEGIT/Version-Sentinel/commit/0954cbd2e254f17bfa80513e6855cc887dbd1313))
+* plugin hardening, release automation, CI matrix ([8437b9a](https://github.com/KSEGIT/Version-Sentinel/commit/8437b9ad67b52bb97941829aeee0beeff8caa04c))
+* plugin hardening, release automation, CI matrix ([da28515](https://github.com/KSEGIT/Version-Sentinel/commit/da28515354fa88c33353a30102d23269bc65fad9))
+* **scaffold:** plugin.json + marketplace.json + LICENSE ([8d99c34](https://github.com/KSEGIT/Version-Sentinel/commit/8d99c34569cefa798982a41a282e94b43144d46a))
+* **skill:** version-sentinel SKILL.md workflow guide ([71712e8](https://github.com/KSEGIT/Version-Sentinel/commit/71712e8990aa254228f1ebfde84b24cea82623f8))
+
+
+### Bug Fixes
+
+* address CodeRabbit review feedback ([13dabc0](https://github.com/KSEGIT/Version-Sentinel/commit/13dabc0464357d22d9c121461b4267ab7fd76b2a))
+* **ci:** macOS bash 3.2 compat + shellcheck severity ([722e0af](https://github.com/KSEGIT/Version-Sentinel/commit/722e0af57e564482eaf03c45d07e37d705448911))
+* **lib:** guard sidecar write against jq failure + test robustness ([443be3f](https://github.com/KSEGIT/Version-Sentinel/commit/443be3fba44c8626cfb4ea8c50d872de8dfaa36d))
+* run.sh integration smoke path (cwd-relative after cd) ([2e77ea1](https://github.com/KSEGIT/Version-Sentinel/commit/2e77ea19a2346e676b1aa6e1fb1d092411a6b277))
+
 ## [Unreleased]
 
 ### Added
