@@ -124,7 +124,6 @@ Not in v0.1. See `docs/roadmap.md`.
 
 - [Anthropic Claude Code](https://claude.com/claude-code)
 - [Claude Code plugin docs](https://code.claude.com/docs/en/plugin-dependencies)
-- [Dependency-audit skills on buildwithclaude.com](https://www.buildwithclaude.com/command/dependency-audit)
 
 ## License
 
