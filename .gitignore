@@ -6,18 +6,64 @@ tests/fixtures/**/Release/
 
 # Node
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
 .venv/
 venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+*.egg
 
-# IDE / OS
+# Test coverage
+.coverage
+htmlcov/
+coverage.xml
+*.lcov
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor temp files
+*~
+*.swp
+*.swo
+*.orig
+*.bak
+*.tmp
+
+# IDE
 .vs/
 .idea/
 *.user
+.vscode/
+
+# OS
 .DS_Store
+**/.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
 # Sidecar state for any repo cd'd into during testing
 .version-sentinel/
