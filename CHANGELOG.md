@@ -2,6 +2,19 @@
 
 All notable changes to version-sentinel.
 
+## [0.3.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.1...version-sentinel-v0.3.0) (2026-04-26)
+
+
+### Features
+
+* **docs:** add CLAUDE.md for project overview and structure ([26aedf1](https://github.com/KSEGIT/Version-Sentinel/commit/26aedf1707fbd57260c116210d16acfb2f9162e4))
+
+
+### Bug Fixes
+
+* **.gitignore:** update patterns to ignore additional files and directories ([c49f4f5](https://github.com/KSEGIT/Version-Sentinel/commit/c49f4f508929918ef09765e0b3bafb04835d42e9))
+* **marketplace:** add schema, description, version, category for crawler discovery ([ea32716](https://github.com/KSEGIT/Version-Sentinel/commit/ea3271676f55aa67e9df814a83e2ec4b2672f204))
+
 ## [0.2.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.0...version-sentinel-v0.2.1) (2026-04-22)
 
 
