@@ -55,4 +55,22 @@ content=$(cat "$GITIGNORE")
 assert_contains "$content" "*" "gitignore contains *"
 assert_contains "$content" "!.gitignore" "gitignore re-includes itself"
 
+# --- sidecar_prune removes entries older than max_age_days ---
+cp "$FIXTURES/sidecar_empty.json" "$VS_TMPDIR/checks.json"
+sidecar_write_entry "$VS_TMPDIR/checks.json" npm old-pkg 1.0.0 \
+  "https://example.com" "2026-01-01T00:00:00Z"
+sidecar_write_entry "$VS_TMPDIR/checks.json" npm fresh-pkg 2.0.0 \
+  "https://example.com" "2026-04-28T00:00:00Z"
+
+VS_NOW_OVERRIDE="2026-04-28T12:00:00Z" sidecar_prune "$VS_TMPDIR/checks.json" 30
+count=$(jq '.entries | length' "$VS_TMPDIR/checks.json")
+assert_eq "1" "$count" "prune removed entry older than 30 days"
+remaining=$(jq -r '.entries[0].pkg' "$VS_TMPDIR/checks.json")
+assert_eq "fresh-pkg" "$remaining" "prune kept fresh entry"
+
+# --- sidecar_prune with no old entries is a no-op ---
+VS_NOW_OVERRIDE="2026-04-28T12:00:00Z" sidecar_prune "$VS_TMPDIR/checks.json" 30
+count=$(jq '.entries | length' "$VS_TMPDIR/checks.json")
+assert_eq "1" "$count" "prune no-op when no stale entries"
+
 finish_test

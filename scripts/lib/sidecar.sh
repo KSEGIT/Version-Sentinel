@@ -73,7 +73,22 @@ sidecar_write_entry() {
     || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
   [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
   printf '%s\n' "$updated" > "$path"
+  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}"
   vs_lock_release "$lockpath"
+}
+
+sidecar_prune() {
+  local path="$1" max_age_days="$2"
+  [[ ! -f "$path" ]] && return 0
+  local now="${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local now_epoch
+  now_epoch=$(_iso_to_epoch "$now") || return 1
+  local cutoff=$((now_epoch - max_age_days * 86400))
+  local updated
+  updated=$(jq -c --arg cutoff "$cutoff" \
+    '.entries = [.entries[] | select((.checkedAt | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) >= ($cutoff | tonumber))]' \
+    "$path") || return 1
+  printf '%s\n' "$updated" > "$path"
 }
 
 _iso_to_epoch() {
