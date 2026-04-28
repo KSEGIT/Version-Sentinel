@@ -5,11 +5,15 @@
 parse_install_cmd() {
   local cmd="$1"
   local segment
-  while read -r segment; do
+  local segments
+  local old_ifs="$IFS"
+  IFS=$'\n' read -r -d '' -a segments < <(printf '%s\n' "$cmd" | tr ';&|' '\n'; printf '\0') || true
+  IFS="$old_ifs"
+  for segment in "${segments[@]}"; do
     segment="${segment#"${segment%%[![:space:]]*}"}"
     [[ -z "$segment" ]] && continue
     _parse_install_segment "$segment"
-  done < <(printf '%s\n' "$cmd" | tr ';&|' '\n')
+  done
 }
 
 _parse_install_segment() {
