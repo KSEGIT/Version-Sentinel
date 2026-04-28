@@ -2,6 +2,12 @@
 # Sidecar JSON state for version-sentinel.
 # Keyed by (ecosystem, pkg); last-write-wins dedupe.
 
+SCRIPT_DIR_SIDECAR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${_VS_LOCKFILE_LOADED:-}" ]]; then
+  source "$SCRIPT_DIR_SIDECAR/lockfile.sh"
+  _VS_LOCKFILE_LOADED=1
+fi
+
 sidecar_path() {
   local cwd="${1:-$PWD}"
   if [[ -w "$cwd" ]]; then
@@ -55,17 +61,19 @@ sidecar_write_entry() {
   if [[ ! -f "$gi" ]]; then
     printf '*\n!.gitignore\n' > "$gi"
   fi
-  local current
+  local lockpath="$dir/.vs-write.lock"
+  vs_lock_acquire "$lockpath" || return 1
+  local current updated
   current=$(sidecar_read "$path")
-  local updated
   updated=$(echo "$current" | jq -c \
     --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
     --arg src "$source" --arg at "$checked" \
     '.entries = ((.entries // []) | map(select(.ecosystem != $eco or .pkg != $pkg))
       + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}])') \
-    || { echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
-  [[ -n "$updated" ]] || { echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
+    || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
+  [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
   printf '%s\n' "$updated" > "$path"
+  vs_lock_release "$lockpath"
 }
 
 _iso_to_epoch() {
