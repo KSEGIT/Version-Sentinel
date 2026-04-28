@@ -54,7 +54,6 @@ case "$tool_name" in
     ;;
   MultiEdit)
     post_content="$pre_content"
-    local edits_tsv
     edits_tsv=$(echo "$input" | jq -r '.tool_input.edits[]? | [.old_string, .new_string] | @tsv')
     while IFS=$'\t' read -r o n; do
       [[ -z "$o" ]] && continue
