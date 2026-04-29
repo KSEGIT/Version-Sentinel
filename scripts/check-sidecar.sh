@@ -17,15 +17,26 @@ if [[ "${VS_DISABLE:-0}" == "1" ]]; then
   exit 0
 fi
 
+# shellcheck source=lib/coalesce.sh
+source "$(dirname "$0")/lib/coalesce.sh"
+
+coal_dir="${TMPDIR:-/tmp}"
+
+if ! coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
+  exit 0
+fi
+
 # shellcheck source=lib/sidecar.sh
 source "$(dirname "$0")/lib/sidecar.sh"
 
 path=$(sidecar_path "$PWD")
 
 if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+  coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
   exit 0
 fi
 
+coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
 cat >&2 <<EOF
 BLOCKED: version-sentinel.
 Package: $pkg ($ecosystem). Version: $version.

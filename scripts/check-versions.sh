@@ -5,6 +5,10 @@ DIR="$(dirname "$0")"
 source "$DIR/lib/parse-manifest.sh"
 source "$DIR/lib/registries.sh"
 source "$DIR/lib/sidecar.sh"
+source "$DIR/lib/circuit-breaker.sh"
+
+VS_CB_STATE="$(mktemp -d)"
+trap 'rm -rf "$VS_CB_STATE"' EXIT
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "version-sentinel: curl missing, cannot audit" >&2; exit 1
@@ -28,11 +32,20 @@ while IFS= read -r mf; do
   [[ -z "$eco" ]] && continue
   while IFS=$'\t' read -r pkg cur; do
     [[ -z "$pkg" ]] && continue
-    latest=$(registry_latest "$eco" "$pkg" 2>/dev/null || echo "?")
-    status="ok"
-    if [[ -z "$latest" || "$latest" == "?" ]]; then
-      status="lookup-failed"
-    elif [[ "$cur" != "$latest" ]]; then
+    if cb_is_open "$VS_CB_STATE" "$eco"; then
+      latest="?"
+      status="circuit-open"
+    else
+      latest=$(registry_latest "$eco" "$pkg" 2>/dev/null || echo "?")
+      if [[ -z "$latest" || "$latest" == "?" ]]; then
+        cb_record_failure "$VS_CB_STATE" "$eco"
+        status="lookup-failed"
+      else
+        cb_record_success "$VS_CB_STATE" "$eco"
+        status="ok"
+      fi
+    fi
+    if [[ "$status" == "ok" && "$cur" != "$latest" ]]; then
       intentional=$(sidecar_read "$sidecar" | jq -r --arg e "$eco" --arg p "$pkg" \
         '.entries[] | select(.ecosystem==$e and .pkg==$p and (.source|startswith("intentional:"))) | .source' | head -1)
       if [[ -n "$intentional" ]]; then
