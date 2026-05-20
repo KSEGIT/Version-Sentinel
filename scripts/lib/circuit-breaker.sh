@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # File-based circuit breaker, per-registry.
 # State stored in temp dir as simple counter files.
+# Uses append-and-count for atomic increments (avoids read-modify-write race).
 
 VS_CB_THRESHOLD=${VS_CB_THRESHOLD:-3}
 
@@ -12,9 +13,7 @@ cb_reset() {
 cb_record_failure() {
   local state_dir="$1" registry="$2"
   local counter_file="$state_dir/.vs_cb_${registry}"
-  local count=0
-  [[ -f "$counter_file" ]] && count=$(cat "$counter_file")
-  echo $((count + 1)) > "$counter_file"
+  printf '.\n' >> "$counter_file"
 }
 
 cb_record_success() {
@@ -27,6 +26,6 @@ cb_is_open() {
   local counter_file="$state_dir/.vs_cb_${registry}"
   [[ ! -f "$counter_file" ]] && return 1
   local count
-  count=$(cat "$counter_file")
+  count=$(wc -l < "$counter_file" 2>/dev/null | tr -d ' ') || count=0
   [[ "$count" -ge "$VS_CB_THRESHOLD" ]]
 }

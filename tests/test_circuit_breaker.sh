@@ -12,14 +12,13 @@ cb_reset "$VS_TMPDIR"
 cb_is_open "$VS_TMPDIR" "npm"
 assert_eq "1" "$?" "initially closed (not open)"
 
-# --- opens after threshold failures ---
-VS_CB_THRESHOLD=3
+# --- opens after threshold failures (use non-default threshold to exercise the logic) ---
+VS_CB_THRESHOLD=2
 cb_reset "$VS_TMPDIR"
 cb_record_failure "$VS_TMPDIR" "npm"
 cb_record_failure "$VS_TMPDIR" "npm"
-cb_record_failure "$VS_TMPDIR" "npm"
 cb_is_open "$VS_TMPDIR" "npm"
-assert_eq "0" "$?" "open after 3 failures"
+assert_eq "0" "$?" "open after 2 failures"
 
 # --- different registries tracked independently ---
 cb_is_open "$VS_TMPDIR" "pip"

@@ -64,9 +64,12 @@ curl_with_etag() {
 
   local http_code
   http_code=$(curl -w '%{http_code}' "${curl_args[@]}" 2>/dev/null) || {
+    # Network failure: serve stale cache rather than blocking the caller entirely.
+    # This is intentional — resilience over freshness on transient outages.
     local cached
     cached=$(etag_get_body "$base" "$url")
     if [[ -n "$cached" ]]; then
+      echo "version-sentinel: curl failed, serving cached response for $url" >&2
       echo "$cached"
       return 0
     fi
