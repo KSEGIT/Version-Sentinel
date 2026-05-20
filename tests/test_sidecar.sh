@@ -57,11 +57,16 @@ assert_contains "$content" "!.gitignore" "gitignore re-includes itself"
 
 # --- sidecar_prune removes entries older than max_age_days ---
 cp "$FIXTURES/sidecar_empty.json" "$VS_TMPDIR/checks.json"
-sidecar_write_entry "$VS_TMPDIR/checks.json" npm old-pkg 1.0.0 \
+# Set VS_NOW_OVERRIDE to a time where both entries are within retention window
+# so auto-prune during write doesn't drop the old entry
+VS_NOW_OVERRIDE="2026-01-02T00:00:00Z" \
+  sidecar_write_entry "$VS_TMPDIR/checks.json" npm old-pkg 1.0.0 \
   "https://example.com" "2026-01-01T00:00:00Z"
-sidecar_write_entry "$VS_TMPDIR/checks.json" npm fresh-pkg 2.0.0 \
+VS_NOW_OVERRIDE="2026-04-28T00:00:00Z" \
+  sidecar_write_entry "$VS_TMPDIR/checks.json" npm fresh-pkg 2.0.0 \
   "https://example.com" "2026-04-28T00:00:00Z"
 
+# Now run prune with VS_NOW_OVERRIDE set to a time where old-pkg is stale
 VS_NOW_OVERRIDE="2026-04-28T12:00:00Z" sidecar_prune "$VS_TMPDIR/checks.json" 30
 count=$(jq '.entries | length' "$VS_TMPDIR/checks.json")
 assert_eq "1" "$count" "prune removed entry older than 30 days"

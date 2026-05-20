@@ -16,16 +16,48 @@ vs_lock_acquire() {
     fi
 
     # Lock exists — check if stale
+    local is_stale=0
     if [[ -f "$lockdir/held" ]]; then
+      # Read PID and check liveness
+      local holder_pid
+      holder_pid=$(cat "$lockdir/held" 2>/dev/null || echo "")
+
+      # Check mtime for staleness
       local mtime now age
       mtime=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$lockdir/held" 2>/dev/null) || mtime=0
       now=$(python3 -c "import time; print(int(time.time()))")
       age=$((now - mtime))
+
       if [[ "$age" -ge "$VS_LOCK_STALE_SEC" ]]; then
-        rm -rf "$lockdir"
-        # Retry mkdir immediately after breaking stale lock
-        continue
+        # Check if holder process is still alive
+        if [[ -n "$holder_pid" ]]; then
+          if [[ -d "/proc/$holder_pid" ]] || kill -0 "$holder_pid" 2>/dev/null; then
+            # Process is alive — not stale (heartbeat may have failed to update)
+            is_stale=0
+          else
+            # Process is dead — stale
+            is_stale=1
+          fi
+        else
+          # No PID found — stale
+          is_stale=1
+        fi
       fi
+    else
+      # No held file but lockdir exists — use lockdir mtime as fallback
+      local mtime now age
+      mtime=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$lockdir" 2>/dev/null) || mtime=0
+      now=$(python3 -c "import time; print(int(time.time()))")
+      age=$((now - mtime))
+      if [[ "$age" -ge "$VS_LOCK_STALE_SEC" ]]; then
+        is_stale=1
+      fi
+    fi
+
+    if [[ "$is_stale" -eq 1 ]]; then
+      rm -rf "$lockdir"
+      # Retry mkdir immediately after breaking stale lock
+      continue
     fi
 
     # Check timeout

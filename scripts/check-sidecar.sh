@@ -22,21 +22,42 @@ source "$(dirname "$0")/lib/coalesce.sh"
 
 coal_dir="${TMPDIR:-/tmp}"
 
-if ! coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
-  exit 0
-fi
-
 # shellcheck source=lib/sidecar.sh
 source "$(dirname "$0")/lib/sidecar.sh"
 
 path=$(sidecar_path "$PWD")
 
-if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+if coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
+  # We acquired the lock — we're the primary checker
+  if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+    coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
+    exit 0
+  fi
   coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
-  exit 0
-fi
+else
+  # Another process is checking this package (in-flight)
+  # Wait for that process to complete and re-check the sidecar
+  coalesce_ttl="${VS_COALESCE_TTL:-10}"
+  timeout="${VS_COALESCE_TIMEOUT:-$coalesce_ttl}"
+  elapsed=0
+  sleep_interval=0.5
 
-coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
+  while true; do
+    # Check if a fresh sidecar entry appeared
+    if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+      exit 0
+    fi
+
+    # Check timeout
+    if (( $(echo "$elapsed >= $timeout" | bc -l 2>/dev/null || python3 -c "print(1 if $elapsed >= $timeout else 0)") )); then
+      # Timeout waiting for in-flight check — fail closed (block install)
+      break
+    fi
+
+    sleep "$sleep_interval"
+    elapsed=$(python3 -c "print($elapsed + $sleep_interval)")
+  done
+fi
 cat >&2 <<EOF
 BLOCKED: version-sentinel.
 Package: $pkg ($ecosystem). Version: $version.
