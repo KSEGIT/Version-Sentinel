@@ -19,8 +19,8 @@ vs_lock_acquire() {
     local is_stale=0
     if [[ -f "$lockdir/held" ]]; then
       # Get PID and mtime-age in a single python3 call
-      local holder_pid age
-      read -r holder_pid age < <(python3 -c "
+      local holder_pid age output
+      output=$(python3 -c "
 import os, sys, time
 hf = sys.argv[1]
 try:
@@ -31,8 +31,10 @@ except Exception:
 print(pid, age)
 " "$lockdir/held" 2>/dev/null || echo " 999")
       # Strip carriage returns from Python's \r\n output on Windows
-      holder_pid="${holder_pid%$'\r'}"
-      age="${age%$'\r'}"
+      output="${output%$'\r'}"
+      # Parse space-separated output
+      holder_pid="${output%% *}"
+      age="${output##* }"
 
       if [[ "$age" -ge "$VS_LOCK_STALE_SEC" ]]; then
         if [[ -n "$holder_pid" ]]; then
@@ -60,7 +62,34 @@ except Exception:
     fi
 
     if [[ "$is_stale" -eq 1 ]]; then
-      rm -rf "$lockdir"
+      # Capture lockdir inode before removal to prevent race condition
+      local lockdir_inode
+      lockdir_inode=$(python3 -c "
+import os, sys
+try:
+    print(os.stat(sys.argv[1]).st_ino)
+except Exception:
+    print('')
+" "$lockdir" 2>/dev/null || echo "")
+      lockdir_inode="${lockdir_inode%$'\r'}"
+
+      # Re-check inode before removal to ensure we're deleting the same instance
+      if [[ -n "$lockdir_inode" ]] && [[ -e "$lockdir" ]]; then
+        local current_inode
+        current_inode=$(python3 -c "
+import os, sys
+try:
+    print(os.stat(sys.argv[1]).st_ino)
+except Exception:
+    print('')
+" "$lockdir" 2>/dev/null || echo "")
+        current_inode="${current_inode%$'\r'}"
+
+        # Only delete if inodes match (same directory instance)
+        if [[ "$lockdir_inode" == "$current_inode" ]] && [[ -n "$current_inode" ]]; then
+          rm -rf "$lockdir"
+        fi
+      fi
       continue
     fi
 

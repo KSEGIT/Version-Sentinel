@@ -75,9 +75,11 @@ sidecar_write_entry() {
 
   local write_status=0
   printf '%s\n' "$updated" > "$path" || write_status=$?
-  # Prune is best-effort maintenance; failure must not block the caller
-  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || \
-    echo "version-sentinel: prune failed (non-critical)" >&2
+  # Prune is best-effort maintenance; only run if write succeeded
+  if [[ "$write_status" -eq 0 ]]; then
+    sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || \
+      echo "version-sentinel: prune failed (non-critical)" >&2
+  fi
   vs_lock_release "$lockpath"
   return "$write_status"
 }

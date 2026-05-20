@@ -8,8 +8,16 @@
 vs_retry() {
   local max="$1" delay="$2"
   shift 2
+
+  # Validate max is a positive integer
+  if ! [[ "$max" =~ ^[0-9]+$ ]] || [[ "$max" -le 0 ]]; then
+    echo "version-sentinel: vs_retry requires max_attempts to be a positive integer, got: $max" >&2
+    return 1
+  fi
+
   local attempt=1 rc=0 output="" last_err=""
-  local err_file="/tmp/_vs_retry_err_$$"
+  local err_file
+  err_file=$(mktemp) || { echo "version-sentinel: failed to create temp file" >&2; return 1; }
   while [[ "$attempt" -le "$max" ]]; do
     output=$("$@" 2>"$err_file") && { echo "$output"; rm -f "$err_file"; return 0; }
     rc=$?
