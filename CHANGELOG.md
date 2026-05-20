@@ -2,6 +2,38 @@
 
 All notable changes to version-sentinel.
 
+## [0.3.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.1...version-sentinel-v0.3.0) (2026-05-20)
+
+
+### Features
+
+* add circuit breaker to skip registry after 3 consecutive failures ([a4488b4](https://github.com/KSEGIT/Version-Sentinel/commit/a4488b46553a83ee803b957df4d455b831f90de7))
+* add ETag/304 HTTP cache for registry responses ([1a98b28](https://github.com/KSEGIT/Version-Sentinel/commit/1a98b2822d62d5de8b255014088d47b732b4aa71))
+* add mkdir-based lockfile for concurrent sidecar writes ([ea52235](https://github.com/KSEGIT/Version-Sentinel/commit/ea52235ee292d11b7ddf8e86e6c740306690b711))
+* add request coalescing to deduplicate parallel hook checks ([900a3bf](https://github.com/KSEGIT/Version-Sentinel/commit/900a3bfaa01c01aa2d90ee68ad132d373aa85fa9))
+* add resilience layer (retry, lock, prune, circuit breaker, etag, coalesce) ([e1294f7](https://github.com/KSEGIT/Version-Sentinel/commit/e1294f72234cbbd6c67ca8fb3baf0169dbbddd6c))
+* add retry with exponential backoff for registry lookups ([bd83dcb](https://github.com/KSEGIT/Version-Sentinel/commit/bd83dcbe3e157f924cbdeb9e1d8a105a2aeb1e91))
+* add VS Code agent plugin compatibility ([6477140](https://github.com/KSEGIT/Version-Sentinel/commit/6477140a1650fbb144ef09ec1a363405cd6060e0))
+* **docs:** add CLAUDE.md for project overview and structure ([26aedf1](https://github.com/KSEGIT/Version-Sentinel/commit/26aedf1707fbd57260c116210d16acfb2f9162e4))
+* prune stale sidecar entries older than 30 days on write ([91a4726](https://github.com/KSEGIT/Version-Sentinel/commit/91a4726ea04ac54db75acf6f588220ee61952bb3))
+* update .gitignore to include .playwright-mcp and add hero image asset ([535d904](https://github.com/KSEGIT/Version-Sentinel/commit/535d9043e408298d774212e11785d3df7e5cf51a))
+
+
+### Bug Fixes
+
+* **.gitignore:** update patterns to ignore additional files and directories ([c49f4f5](https://github.com/KSEGIT/Version-Sentinel/commit/c49f4f508929918ef09765e0b3bafb04835d42e9))
+* address all code-review findings from PR [#9](https://github.com/KSEGIT/Version-Sentinel/issues/9) ([8fc0a62](https://github.com/KSEGIT/Version-Sentinel/commit/8fc0a6285d1c42a01e7d8f1a05269b8e2061c4d5))
+* address CodeRabbit nitpick comments ([bccd3d2](https://github.com/KSEGIT/Version-Sentinel/commit/bccd3d25fccd39e760cb17f1fd83cc35490417b3))
+* apply CodeRabbit auto-fixes ([35121ad](https://github.com/KSEGIT/Version-Sentinel/commit/35121ad595a7d745744eeb496e8be0d389debcd7))
+* apply CodeRabbit auto-fixes ([a771be2](https://github.com/KSEGIT/Version-Sentinel/commit/a771be2d28a9bdfef4f336df5fbdd2c52a141c04))
+* apply CodeRabbit auto-fixes ([0524f0e](https://github.com/KSEGIT/Version-Sentinel/commit/0524f0ed0513a6cdca9f054d37838986dab95830))
+* correct plugin manifest format for Claude Code 2.1.x ([aa73c03](https://github.com/KSEGIT/Version-Sentinel/commit/aa73c03e264c28ccc16296a1bfdd33df3f6ca404))
+* delegate coalesce lock to vs_lock_acquire/vs_lock_release ([3bc8f69](https://github.com/KSEGIT/Version-Sentinel/commit/3bc8f697cbaa2d3fd29509d4342de23780ea22a7))
+* IFS leak in parse_install_cmd and local outside function ([ba2e07f](https://github.com/KSEGIT/Version-Sentinel/commit/ba2e07fd8f3e79eef25963f976a6241149952566))
+* **marketplace:** add schema, description, version, category for crawler discovery ([ea32716](https://github.com/KSEGIT/Version-Sentinel/commit/ea3271676f55aa67e9df814a83e2ec4b2672f204))
+* resolve merge conflicts with main (CodeRabbit fixes) ([f61b482](https://github.com/KSEGIT/Version-Sentinel/commit/f61b4820abb50592f74a712407b705bcbec1972f))
+* strip \r from python3 output on Windows (CRLF line endings) ([92c14a8](https://github.com/KSEGIT/Version-Sentinel/commit/92c14a8589f8753e267350361d88806b07d6f658))
+
 ## [0.2.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.0...version-sentinel-v0.2.1) (2026-04-22)
 
 
