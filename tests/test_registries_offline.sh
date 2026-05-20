@@ -21,6 +21,7 @@ esac
 CURL
 chmod +x "$STUB_DIR/curl"
 export PATH="$STUB_DIR:$PATH"
+export VS_ETAG_DISABLE=1
 
 source "$SCRIPT_DIR/scripts/lib/registries.sh"
 

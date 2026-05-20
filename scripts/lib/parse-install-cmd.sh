@@ -7,7 +7,13 @@ parse_install_cmd() {
   local segment
   local segments
   local old_ifs="$IFS"
-  IFS=$'\n' read -r -d '' -a segments < <(printf '%s\n' "$cmd" | tr ';&|' '\n'; printf '\0') || true
+  # Use mapfile/readarray with command substitution instead of process substitution
+  IFS=$'\n' mapfile -t segments < <(printf '%s\n' "$cmd" | tr ';&|' '\n') 2>/dev/null || {
+    # Fallback for older bash or environments without /dev/fd support
+    local temp_output
+    temp_output=$(printf '%s\n' "$cmd" | tr ';&|' '\n')
+    IFS=$'\n' read -r -d '' -a segments <<< "$temp_output" || true
+  }
   IFS="$old_ifs"
   for segment in "${segments[@]}"; do
     segment="${segment#"${segment%%[![:space:]]*}"}"

@@ -16,6 +16,9 @@
     "guardrails",
     "hooks"
   ],
+  "skills": "./skills/",
+  "agents": ["./agents/version-reviewer.agent.md"],
+  "commands": ["./commands/vs-record.md", "./commands/check-versions.md"],
   "userConfig": {
     "disable": {
       "type": "boolean",

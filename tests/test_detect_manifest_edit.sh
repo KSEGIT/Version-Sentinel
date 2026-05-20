@@ -43,6 +43,16 @@ result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "BLOCKED" "multiedit-bump: blocked"
 assert_contains "$result" "express" "multiedit-bump: names pkg"
 
+# Case 3b: Edit adds lodash but fresh sidecar exists → allowed
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+mkdir -p .version-sentinel
+printf '{"entries":[{"ecosystem":"npm","pkg":"lodash","version":"4.17.21","source":"https://npmjs.com","checkedAt":"%s"}]}' "$now" \
+  > .version-sentinel/checks.json
+input=$(substitute "$FIXTURES/edit_input_add_lodash.json")
+result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
+assert_contains "$result" "exit=0" "edit-add with fresh sidecar: exit 0"
+rm -rf .version-sentinel
+
 # Case 4: Edit on a non-manifest file → pass silently
 cat > README.md <<EOF
 # Demo

@@ -1,0 +1,23 @@
+{
+  "name": "version-sentinel",
+  "version": "0.2.1",
+  "description": "Hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.",
+  "author": {
+    "name": "Daniel Kiska",
+    "url": "https://github.com/KSEGIT"
+  },
+  "homepage": "https://github.com/KSEGIT/Version-Sentinel#readme",
+  "repository": "https://github.com/KSEGIT/Version-Sentinel",
+  "license": "MIT",
+  "keywords": [
+    "dependencies",
+    "packages",
+    "versions",
+    "guardrails",
+    "hooks",
+    "supply-chain-security"
+  ],
+  "skills": "./skills/",
+  "agents": ["./agents/version-reviewer.agent.md"],
+  "commands": ["./commands/vs-record.md", "./commands/check-versions.md"]
+}

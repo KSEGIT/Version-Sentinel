@@ -17,13 +17,35 @@ if [[ "${VS_DISABLE:-0}" == "1" ]]; then
   exit 0
 fi
 
+# shellcheck source=lib/coalesce.sh
+source "$(dirname "$0")/lib/coalesce.sh"
+
+coal_dir="${TMPDIR:-/tmp}"
+
 # shellcheck source=lib/sidecar.sh
 source "$(dirname "$0")/lib/sidecar.sh"
 
 path=$(sidecar_path "$PWD")
 
-if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
-  exit 0
+if coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
+  # We acquired the lock — we're the primary checker
+  if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+    coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
+    exit 0
+  fi
+  coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
+else
+  # Another process is checking this package (in-flight).
+  # Wait for a fresh sidecar entry to appear, then allow; time out and block.
+  local_timeout="${VS_COALESCE_TTL:-10}"
+  local_deadline=$(( $(date +%s) + local_timeout ))
+  while true; do
+    if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
+      exit 0
+    fi
+    (( $(date +%s) >= local_deadline )) && break
+    sleep 0.5
+  done
 fi
 
 cat >&2 <<EOF
