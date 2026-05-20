@@ -16,6 +16,10 @@
     "guardrails",
     "hooks"
   ],
+  "skills": "../skills/",
+  "agents": "../agents/",
+  "commands": "../commands/",
+  "hooks": "../hooks/hooks.json",
   "userConfig": {
     "disable": {
       "type": "boolean",

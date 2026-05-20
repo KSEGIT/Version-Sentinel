@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "version-sentinel",
-      "source": "./",
+      "source": "../",
       "description": "Hard-blocks dependency additions until a version check is recorded.",
       "category": "security",
       "keywords": ["dependencies", "versions", "guardrails", "supply-chain-security", "hooks"]
