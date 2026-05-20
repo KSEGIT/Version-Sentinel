@@ -14,6 +14,15 @@ coalesce_acquire() {
   local dir="$1" eco="$2" pkg="$3" ver="$4"
   local marker
   marker=$(_coalesce_marker "$dir" "$eco" "$pkg" "$ver")
+  local lockdir="${marker}.lock"
+
+  # Atomically acquire lock via mkdir
+  if ! mkdir "$lockdir" 2>/dev/null; then
+    # Lock exists — another process holds it
+    return 1
+  fi
+
+  # We hold the lock — check if marker file exists and is fresh
   if [[ -f "$marker" ]]; then
     local age
     local py_marker="$marker"
@@ -22,11 +31,17 @@ coalesce_acquire() {
     fi
     age=$(python3 -c "import os,time;print(int(time.time()-os.path.getmtime(r'$py_marker')))" 2>/dev/null || echo 0)
     if [[ "$age" -lt "$VS_COALESCE_TTL" ]]; then
+      # Fresh marker exists — release lock and return 1 (in-flight)
+      rm -rf "$lockdir"
       return 1
     fi
+    # Stale marker — remove it
     rm -f "$marker"
   fi
+
+  # Write PID to marker and release lock
   echo "$$" > "$marker"
+  rm -rf "$lockdir"
   return 0
 }
 

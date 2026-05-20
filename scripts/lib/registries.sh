@@ -4,13 +4,21 @@
 
 _REGISTRIES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${_VS_RETRY_LOADED:-}" ]]; then
-  source "$_REGISTRIES_DIR/retry.sh"
-  _VS_RETRY_LOADED=1
+  if source "$_REGISTRIES_DIR/retry.sh"; then
+    _VS_RETRY_LOADED=1
+  else
+    echo "version-sentinel: failed to source retry.sh" >&2
+    return 1
+  fi
 fi
 
 if [[ -z "${_VS_ETAG_LOADED:-}" ]]; then
-  source "$_REGISTRIES_DIR/etag-cache.sh"
-  _VS_ETAG_LOADED=1
+  if source "$_REGISTRIES_DIR/etag-cache.sh"; then
+    _VS_ETAG_LOADED=1
+  else
+    echo "version-sentinel: failed to source etag-cache.sh" >&2
+    return 1
+  fi
 fi
 
 VS_ETAG_CACHE_BASE="${VS_ETAG_CACHE_BASE:-$PWD}"

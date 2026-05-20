@@ -72,9 +72,23 @@ sidecar_write_entry() {
       + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}])') \
     || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
   [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
-  printf '%s\n' "$updated" > "$path"
-  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}"
+
+  # Capture exit status from write and prune
+  local write_status=0
+  local prune_status=0
+  printf '%s\n' "$updated" > "$path" || write_status=$?
+  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || prune_status=$?
+
+  # Always release lock
   vs_lock_release "$lockpath"
+
+  # Return first non-zero status encountered
+  if [[ "$write_status" -ne 0 ]]; then
+    return "$write_status"
+  elif [[ "$prune_status" -ne 0 ]]; then
+    return "$prune_status"
+  fi
+  return 0
 }
 
 sidecar_prune() {
