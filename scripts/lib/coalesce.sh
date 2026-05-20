@@ -4,6 +4,9 @@
 
 VS_COALESCE_TTL=${VS_COALESCE_TTL:-10}
 
+# shellcheck source=lockfile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lockfile.sh"
+
 _coalesce_marker() {
   local dir="$1" eco="$2" pkg="$3" ver="$4"
   local safe_pkg="${pkg//\//_}"
@@ -16,9 +19,8 @@ coalesce_acquire() {
   marker=$(_coalesce_marker "$dir" "$eco" "$pkg" "$ver")
   local lockdir="${marker}.lock"
 
-  # Atomically acquire lock via mkdir
-  if ! mkdir "$lockdir" 2>/dev/null; then
-    # Lock exists — another process holds it
+  # Acquire lock via shared API — handles stale-lock recovery and timeouts
+  if ! vs_lock_acquire "$lockdir"; then
     return 1
   fi
 
@@ -33,7 +35,7 @@ coalesce_acquire() {
     age="${age%$'\r'}"
     if [[ "$age" -lt "$VS_COALESCE_TTL" ]]; then
       # Fresh marker exists — release lock and return 1 (in-flight)
-      rm -rf "$lockdir"
+      vs_lock_release "$lockdir"
       return 1
     fi
     # Stale marker — remove it
@@ -42,7 +44,7 @@ coalesce_acquire() {
 
   # Write PID to marker and release lock
   echo "$$" > "$marker"
-  rm -rf "$lockdir"
+  vs_lock_release "$lockdir"
   return 0
 }
 
