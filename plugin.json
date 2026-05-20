@@ -17,8 +17,7 @@
     "hooks",
     "supply-chain-security"
   ],
-  "skills": "skills/",
-  "agents": "agents/",
-  "commands": "commands/",
-  "hooks": "hooks/hooks.json"
+  "skills": "./skills/",
+  "agents": ["./agents/version-reviewer.agent.md"],
+  "commands": ["./commands/vs-record.md", "./commands/check-versions.md"]
 }
