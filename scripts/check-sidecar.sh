@@ -35,29 +35,19 @@ if coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
   fi
   coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
 else
-  # Another process is checking this package (in-flight)
-  # Wait for that process to complete and re-check the sidecar
-  coalesce_ttl="${VS_COALESCE_TTL:-10}"
-  timeout="${VS_COALESCE_TIMEOUT:-$coalesce_ttl}"
-  elapsed=0
-  sleep_interval=0.5
-
+  # Another process is checking this package (in-flight).
+  # Wait for a fresh sidecar entry to appear, then allow; time out and block.
+  local_timeout="${VS_COALESCE_TTL:-10}"
+  local_deadline=$(( $(date +%s) + local_timeout ))
   while true; do
-    # Check if a fresh sidecar entry appeared
     if sidecar_find_fresh "$path" "$ecosystem" "$pkg" "$version" "$window_hours"; then
       exit 0
     fi
-
-    # Check timeout
-    if (( $(echo "$elapsed >= $timeout" | bc -l 2>/dev/null || python3 -c "print(1 if $elapsed >= $timeout else 0)") )); then
-      # Timeout waiting for in-flight check — fail closed (block install)
-      break
-    fi
-
-    sleep "$sleep_interval"
-    elapsed=$(python3 -c "print($elapsed + $sleep_interval)")
+    (( $(date +%s) >= local_deadline )) && break
+    sleep 0.5
   done
 fi
+
 cat >&2 <<EOF
 BLOCKED: version-sentinel.
 Package: $pkg ($ecosystem). Version: $version.

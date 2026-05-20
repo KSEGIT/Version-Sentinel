@@ -26,6 +26,6 @@ cb_is_open() {
   local counter_file="$state_dir/.vs_cb_${registry}"
   [[ ! -f "$counter_file" ]] && return 1
   local count
-  count=$(wc -l < "$counter_file" 2>/dev/null | tr -d ' ') || count=0
+  count=$(wc -l < "$counter_file" 2>/dev/null | awk '{print $1}') || count=0
   [[ "$count" -ge "$VS_CB_THRESHOLD" ]]
 }

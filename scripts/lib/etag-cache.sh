@@ -77,8 +77,26 @@ curl_with_etag() {
   }
 
   if [[ "$http_code" == "304" ]]; then
-    etag_get_body "$base" "$url"
+    local cached
+    cached=$(etag_get_body "$base" "$url")
+    if [[ -z "$cached" ]]; then
+      echo "version-sentinel: 304 received but cache is empty for $url" >&2
+      return 1
+    fi
+    echo "$cached"
     return 0
+  fi
+
+  if [[ "$http_code" != "200" ]]; then
+    echo "version-sentinel: HTTP $http_code from $url" >&2
+    local cached
+    cached=$(etag_get_body "$base" "$url")
+    if [[ -n "$cached" ]]; then
+      echo "version-sentinel: serving cached response for $url" >&2
+      echo "$cached"
+      return 0
+    fi
+    return 1
   fi
 
   local new_body new_etag

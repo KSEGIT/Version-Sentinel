@@ -25,4 +25,12 @@ vs_lock_acquire "$VS_TMPDIR/stale.lock"
 assert_eq "0" "$?" "stale lock broken and re-acquired"
 vs_lock_release "$VS_TMPDIR/stale.lock"
 
+# --- timeout when live process holds lock ---
+# Write own PID — kill -0 $$ always succeeds, so lock is never considered stale
+mkdir -p "$VS_TMPDIR/live.lock"
+echo "$$" > "$VS_TMPDIR/live.lock/held"
+VS_LOCK_TIMEOUT=1 vs_lock_acquire "$VS_TMPDIR/live.lock" 2>/dev/null
+assert_eq "1" "$?" "times out waiting for lock held by live process"
+rm -rf "$VS_TMPDIR/live.lock"
+
 finish_test

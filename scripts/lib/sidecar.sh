@@ -73,22 +73,13 @@ sidecar_write_entry() {
     || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
   [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
 
-  # Capture exit status from write and prune
   local write_status=0
-  local prune_status=0
   printf '%s\n' "$updated" > "$path" || write_status=$?
-  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || prune_status=$?
-
-  # Always release lock
+  # Prune is best-effort maintenance; failure must not block the caller
+  sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || \
+    echo "version-sentinel: prune failed (non-critical)" >&2
   vs_lock_release "$lockpath"
-
-  # Return first non-zero status encountered
-  if [[ "$write_status" -ne 0 ]]; then
-    return "$write_status"
-  elif [[ "$prune_status" -ne 0 ]]; then
-    return "$prune_status"
-  fi
-  return 0
+  return "$write_status"
 }
 
 sidecar_prune() {

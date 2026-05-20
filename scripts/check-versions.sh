@@ -24,7 +24,7 @@ manifests=$(find . -maxdepth 4 \
 printf '%-12s %-40s %-15s %-15s %s\n' ECOSYSTEM PACKAGE "CURRENT" "LATEST" STATUS
 printf '%s\n' "-----------------------------------------------------------------------------------------"
 
-sidecar=$(sidecar_path "$PWD")
+sidecar_file=$(sidecar_path "$PWD")
 
 while IFS= read -r mf; do
   [[ -z "$mf" ]] && continue
@@ -46,7 +46,7 @@ while IFS= read -r mf; do
       fi
     fi
     if [[ "$status" == "ok" && "$cur" != "$latest" ]]; then
-      intentional=$(sidecar_read "$sidecar" | jq -r --arg e "$eco" --arg p "$pkg" \
+      intentional=$(sidecar_read "$sidecar_file" | jq -r --arg e "$eco" --arg p "$pkg" \
         '.entries[] | select(.ecosystem==$e and .pkg==$p and (.source|startswith("intentional:"))) | .source' | head -1)
       if [[ -n "$intentional" ]]; then
         status="intentional-pin"

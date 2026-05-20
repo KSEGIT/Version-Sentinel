@@ -3,6 +3,7 @@
 # Retries cmd up to max_attempts times with exponential backoff.
 # Returns last exit code on exhaustion. Stdout of successful attempt is printed.
 # stderr from the last failed attempt is forwarded to stderr on exhaustion.
+# Note: the temp file is cleaned up on normal return; SIGKILL leaks are left to OS /tmp cleanup.
 
 vs_retry() {
   local max="$1" delay="$2"
