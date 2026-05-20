@@ -30,6 +30,7 @@ coalesce_acquire() {
       py_marker=$(cygpath -w "$marker")
     fi
     age=$(python3 -c "import os,time;print(int(time.time()-os.path.getmtime(r'$py_marker')))" 2>/dev/null || echo 0)
+    age="${age%$'\r'}"
     if [[ "$age" -lt "$VS_COALESCE_TTL" ]]; then
       # Fresh marker exists — release lock and return 1 (in-flight)
       rm -rf "$lockdir"

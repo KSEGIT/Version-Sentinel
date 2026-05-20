@@ -18,6 +18,7 @@ vs_retry() {
     if [[ "$attempt" -le "$max" ]]; then
       sleep "$delay"
       delay=$(python3 -c "print($delay * 2)" 2>/dev/null || echo "$delay")
+      delay="${delay%$'\r'}"
     fi
   done
   rm -f "$err_file"

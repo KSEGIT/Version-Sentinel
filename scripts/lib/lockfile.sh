@@ -30,6 +30,9 @@ except Exception:
     pid, age = '', 999
 print(pid, age)
 " "$lockdir/held" 2>/dev/null || echo " 999")
+      # Strip carriage returns from Python's \r\n output on Windows
+      holder_pid="${holder_pid%$'\r'}"
+      age="${age%$'\r'}"
 
       if [[ "$age" -ge "$VS_LOCK_STALE_SEC" ]]; then
         if [[ -n "$holder_pid" ]]; then
@@ -52,6 +55,7 @@ try:
 except Exception:
     print(999)
 " "$lockdir" 2>/dev/null || echo 999)
+      age="${age%$'\r'}"
       [[ "$age" -ge "$VS_LOCK_STALE_SEC" ]] && is_stale=1
     fi
 
