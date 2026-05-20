@@ -54,14 +54,13 @@ case "$tool_name" in
     ;;
   MultiEdit)
     post_content="$pre_content"
-    local multiedit_tsv
-    multiedit_tsv=$(echo "$input" | jq -r '.tool_input.edits[]? | [.old_string, .new_string] | @tsv')
+    edits_tsv=$(echo "$input" | jq -r '.tool_input.edits[]? | [.old_string, .new_string] | @tsv')
     while IFS=$'\t' read -r o n; do
       [[ -z "$o" ]] && continue
       o=$(printf '%s' "$o" | tr -d '\r')
       n=$(printf '%s' "$n" | tr -d '\r')
       post_content=$(printf '%s' "$post_content" | py_replace_once "$o" "$n")
-    done <<< "$multiedit_tsv"
+    done <<< "$edits_tsv"
     ;;
   *) exit 0 ;;
 esac
