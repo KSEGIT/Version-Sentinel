@@ -1,0 +1,10 @@
+{
+  "version": "2",
+  "plugins": [
+    {
+      "id": "version-sentinel",
+      "displayName": "Version Sentinel",
+      "source": "https://github.com/KSEGIT/Version-Sentinel"
+    }
+  ]
+}

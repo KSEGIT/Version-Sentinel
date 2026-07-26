@@ -1,0 +1,51 @@
+{
+  "name": "version-sentinel",
+  "version": "0.3.0",
+  "description": "Hard-blocks dependency additions and version changes until the agent records a WebSearch-verified latest-version check.",
+  "keywords": [
+    "dependencies",
+    "packages",
+    "versions",
+    "guardrails",
+    "hooks",
+    "supply-chain-security"
+  ],
+  "author": {
+    "name": "Daniel Kiska",
+    "url": "https://github.com/KSEGIT"
+  },
+  "homepage": "https://github.com/KSEGIT/Version-Sentinel#readme",
+  "license": "MIT",
+  "skills": "./skills/",
+  "commands": "./platforms/kimi/commands/",
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "matcher": "*",
+      "command": "bash ./scripts/prereq-check.sh",
+      "timeout": 10
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Edit|Write|MultiEdit",
+      "command": "bash ./scripts/detect-manifest-edit.sh",
+      "timeout": 10
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Bash",
+      "command": "bash ./scripts/detect-install-cmd.sh",
+      "timeout": 10
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "Bash",
+      "command": "bash ./scripts/auto-record.sh",
+      "timeout": 10
+    }
+  ],
+  "interface": {
+    "displayName": "Version Sentinel",
+    "shortDescription": "Blocks dependency changes until the version is verified against the upstream registry."
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "bash scripts/prereq-check.sh",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|apply_patch|editFiles|createFile|write_file|replace",
+        "type": "command",
+        "command": "bash scripts/detect-manifest-edit.sh",
+        "timeout": 10
+      },
+      {
+        "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command",
+        "type": "command",
+        "command": "bash scripts/detect-install-cmd.sh",
+        "timeout": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command",
+        "type": "command",
+        "command": "bash scripts/auto-record.sh",
+        "timeout": 10
+      }
+    ]
+  }
+}

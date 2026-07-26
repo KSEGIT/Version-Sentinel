@@ -1,7 +1,7 @@
 {
   "name": "version-sentinel",
   "version": "0.3.0",
-  "description": "Hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.",
+  "description": "Hard-blocks dependency additions and version changes until the agent records a WebSearch-verified latest-version check.",
   "author": {
     "name": "Daniel Kiska",
     "url": "https://github.com/KSEGIT"
@@ -18,11 +18,5 @@
     "supply-chain-security"
   ],
   "skills": "./skills/",
-  "agents": [
-    "./agents/version-reviewer.agent.md"
-  ],
-  "commands": [
-    "./commands/vs-record.md",
-    "./commands/check-versions.md"
-  ]
+  "hooks": "./hooks/hooks.json"
 }

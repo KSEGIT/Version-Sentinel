@@ -4,6 +4,8 @@ set -u
 DIR="$(dirname "$0")"
 # shellcheck source=lib/options.sh
 source "$DIR/lib/options.sh"
+# shellcheck source=lib/platform.sh
+source "$DIR/lib/platform.sh"
 
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
 
@@ -22,7 +24,42 @@ if ! echo "$input" | jq -e . >/dev/null 2>&1; then
 fi
 
 tool_name=$(echo "$input" | jq -r '.tool_name // empty')
-file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+
+# Codex apply_patch: the patch body is not a reconstructable manifest, so we
+# only handle the cases we can do correctly. Extract the target path from
+# tool_input.file_path, or from "*** Update/Add/Delete File: <path>" headers
+# in the patch text when exactly one distinct path is present. If the payload
+# carries a full new-content field, treat it like a Write; otherwise the
+# post-image cannot be reconstructed — fail-open with a note.
+if [[ "$tool_name" == "apply_patch" ]]; then
+  ap_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+  if [[ -z "$ap_path" ]]; then
+    ap_patch=$(echo "$input" | jq -r '.tool_input.patch // .tool_input.input // .tool_input.command // empty')
+    ap_path=$(printf '%s\n' "$ap_patch" | tr -d '\r' \
+      | sed -nE 's/^\*\*\* (Update|Add|Delete) File:[[:space:]]*//p' \
+      | sed -e 's/[[:space:]]*$//' | sort -u)
+    # Only usable when exactly one distinct target path was found.
+    if [[ $(printf '%s\n' "$ap_path" | grep -c .) -ne 1 ]]; then
+      ap_path=""
+    fi
+  fi
+  if [[ -z "$ap_path" || -z "$(ecosystem_for_path "$ap_path")" ]]; then
+    exit 0
+  fi
+  ap_content=$(echo "$input" | jq -r '.tool_input.content // .tool_input.new_content // empty')
+  if [[ -z "$ap_content" ]]; then
+    echo "version-sentinel: apply_patch targets manifest $ap_path but post-content cannot be reconstructed; fail-open" >&2
+    exit 0
+  fi
+  # Rewrite the payload into Write shape so the normal path handles it.
+  input=$(echo "$input" | jq --arg fp "$ap_path" --arg c "$ap_content" \
+    '.tool_name = "Write" | .tool_input = {"file_path": $fp, "content": $c}')
+  tool_name="Write"
+fi
+
+tool_name=$(normalize_tool_name "$tool_name")
+# Claude/Copilot/Gemini send tool_input.file_path; Kimi's Edit/Write send tool_input.path.
+file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')
 [[ -z "$file_path" ]] && exit 0
 
 eco=$(ecosystem_for_path "$file_path")

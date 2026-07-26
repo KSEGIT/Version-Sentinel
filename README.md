@@ -60,6 +60,35 @@ Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`,
 
 > The `owner/repo` shorthand (`KSEGIT/Version-Sentinel`) resolves to an SSH clone URL and requires GitHub SSH keys. Use the full HTTPS URL above to clone anonymously.
 
+## Multi-agent support
+
+One repo, six agent platforms. The same hook scripts and sidecar state back every integration; each platform gets its own thin adapter (manifest, hook wiring, commands).
+
+| Platform | Install / enable |
+|----------|------------------|
+| Claude Code | `/plugin marketplace add https://github.com/KSEGIT/Version-Sentinel.git` → `/plugin install version-sentinel@version-sentinel-marketplace` |
+| Kimi Code | `/plugins install https://github.com/KSEGIT/Version-Sentinel` (or a local path) |
+| GitHub Copilot in VS Code | Files under `.github/` + `.agents/skills/` — works when this repo is the workspace, or copy them into yours |
+| Gemini CLI | `gemini extensions install https://github.com/KSEGIT/Version-Sentinel`, then `bash ~/.gemini/extensions/version-sentinel/platforms/gemini/setup.sh` to activate hooks (see `docs/e2e-checklist.md`) |
+| OpenAI Codex | `codex plugin marketplace add KSEGIT/Version-Sentinel` → `codex plugin add version-sentinel` (or legacy `.claude-plugin` marketplace compat) |
+| Zed | Manual: `AGENTS.md` + `.agents/skills/` + `docs/zed.md` — static-permissions approximation; **no hook support**, so blocking is best-effort |
+
+Platform-specific layout:
+
+```
+plugin.json, .claude-plugin/   Claude Code plugin + marketplace metadata
+kimi.plugin.json, platforms/kimi/  Kimi Code plugin manifest + adapter
+gemini-extension.json, GEMINI.md   Gemini CLI extension manifest + context
+platforms/gemini/setup.sh        Gemini hook activation (run inside the installed extension)
+commands/*.toml                Gemini CLI slash commands (/vs-record, /check-versions)
+.codex-plugin/                 OpenAI Codex plugin metadata
+.github/hooks|agents|prompts/  GitHub Copilot hooks, agents, prompts
+.agents/skills/                Cross-tool skills (Copilot, Zed, ...)
+AGENTS.md                      Cross-tool agent instructions
+```
+
+For marketplace listings and submission status per platform (what's ready, what needs an owner-submitted form), see `docs/marketplaces.md`.
+
 ## Prerequisites
 
 - `bash`, `jq`, `curl`, `python3` (3.11+, for `tomllib`) on `PATH`
