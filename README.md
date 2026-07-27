@@ -67,6 +67,7 @@ One repo, six agent platforms. The same hook scripts and sidecar state back ever
 | Platform | Install / enable |
 |----------|------------------|
 | Claude Code | `/plugin marketplace add https://github.com/KSEGIT/Version-Sentinel.git` → `/plugin install version-sentinel@version-sentinel-marketplace` |
+| z.ai (GLM Coding Plan / ZCode) | Uses the Claude Code plugin format — same install as Claude Code above (ZCode embeds the Claude Code runtime; GLM Coding Plan runs inside Claude Code) |
 | Kimi Code | `/plugins install https://github.com/KSEGIT/Version-Sentinel` (or a local path) |
 | GitHub Copilot in VS Code | Files under `.github/` + `.agents/skills/` — works when this repo is the workspace, or copy them into yours |
 | Gemini CLI | `gemini extensions install https://github.com/KSEGIT/Version-Sentinel`, then `bash ~/.gemini/extensions/version-sentinel/platforms/gemini/setup.sh` to activate hooks (see `docs/e2e-checklist.md`) |

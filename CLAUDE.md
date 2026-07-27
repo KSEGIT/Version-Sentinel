@@ -1,6 +1,6 @@
 # Version Sentinel
 
-Claude Code plugin that hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Multi-agent: ships adapters for Claude Code, Kimi Code, GitHub Copilot (VS Code), Gemini CLI, OpenAI Codex, and Zed.
+Claude Code plugin that hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Multi-agent: ships adapters for Claude Code (also covers z.ai GLM Coding Plan / ZCode, which reuse the Claude Code plugin format), Kimi Code, GitHub Copilot (VS Code), Gemini CLI, OpenAI Codex, and Zed.
 
 ## Project structure
 

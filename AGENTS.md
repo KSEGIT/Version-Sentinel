@@ -46,7 +46,7 @@ Scans every manifest under the current directory, compares each dependency again
 
 ## Platform behavior
 
-- On platforms with hooks (Claude Code, Kimi Code, OpenAI Codex), the workflow above is **enforced automatically** via PreToolUse hooks.
+- On platforms with hooks (Claude Code and derivatives such as z.ai's ZCode / GLM Coding Plan, Kimi Code, OpenAI Codex), the workflow above is **enforced automatically** via PreToolUse hooks.
 - On platforms without hooks (e.g. Zed), you MUST follow the same workflow **voluntarily** before any dependency change: look up the version, run `bash scripts/vs-record.sh ...`, then make the edit.
 
 ## Project structure

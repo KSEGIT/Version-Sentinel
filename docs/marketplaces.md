@@ -18,6 +18,7 @@ Submission status legend:
 | Platform | Install mechanism (verified) | Listing / marketplace | Submission status | Owner next action |
 |----------|------------------------------|-----------------------|-------------------|-------------------|
 | Claude Code | `/plugin marketplace add https://github.com/KSEGIT/Version-Sentinel.git` → `/plugin install version-sentinel@version-sentinel-marketplace` (self-hosted via `.claude-plugin/marketplace.json`) | Official Claude plugin directory (claude.com/plugins), surfaced in-app as `claude-plugins-official` | **requires-owner-form** | Run `claude plugin validate`, then submit the in-app form (see below) using copy from `docs/directory-submission.md` |
+| z.ai (GLM Coding Plan / ZCode) | Same as Claude Code — z.ai has no own plugin format; ZCode embeds the Claude Code runtime and the GLM Coding Plan runs inside Claude Code, so the Claude plugin works unchanged | z.ai maintains `zai-org/zai-coding-plugins`, a Claude-format marketplace repo that accepts PRs | **ready-in-repo** (PR submitted) | None — submission PR to `zai-org/zai-coding-plugins` opened 2026-07-26; track merge |
 | Kimi Code | `/plugins install https://github.com/KSEGIT/Version-Sentinel` (or a local path); custom catalog `kimi-marketplace.json` at repo root for `/plugins marketplace <url>` | No official Kimi gallery known — self-hosted catalog | **ready-in-repo** | Optionally verify the `/plugins marketplace <url>` flow in the TUI (install TUI flow still unverified per `docs/e2e-checklist.md`) |
 | Gemini CLI | `gemini extensions install https://github.com/KSEGIT/Version-Sentinel`, then `bash ~/.gemini/extensions/version-sentinel/platforms/gemini/setup.sh` | geminicli.com/extensions gallery — **fully automated daily crawler**, no PR and no form | **requires-owner-form** (one repo-setting change) | Add the GitHub topic `gemini-cli-extension` to the repo's About section; the crawler lists it within ~24h |
 | OpenAI Codex | `codex plugin marketplace add KSEGIT/Version-Sentinel` → `codex plugin add version-sentinel` (works today from GitHub) | Universal OpenAI Plugins Directory (ChatGPT + Codex) | **requires-owner-form** (portal, now self-serve) | Verify developer identity on the OpenAI Platform, then submit via the plugin submission portal (see below) |
@@ -44,6 +45,24 @@ Submission status legend:
 - Ready-to-paste form copy lives in `docs/directory-submission.md`.
 - Sources: [Submitting your plugin — Claude docs](https://claude.com/docs/plugins/submit),
   [anthropics/claude-plugins-community](https://github.com/anthropics/claude-plugins-community).
+
+### z.ai (GLM Coding Plan / ZCode)
+
+- z.ai has **no plugin format of its own**. The GLM Coding Plan runs inside
+  Claude Code (Anthropic-compatible endpoint), and ZCode — z.ai's desktop
+  coding agent — embeds the Claude Code agent runtime, so this repo's Claude
+  Code plugin works unchanged on both. No extra files were needed.
+- Listing: z.ai maintains [`zai-org/zai-coding-plugins`](https://github.com/zai-org/zai-coding-plugins),
+  a Claude-format marketplace repo whose README invites PRs. A submission PR
+  adding `version-sentinel` (source `{"source": "github", "repo":
+  "KSEGIT/Version-Sentinel"}`) was opened 2026-07-26 — track its merge.
+- ZCode hooks caveat (unverified): ZCode keeps hooks under `~/.zcode/hooks/`
+  and `~/.zcode/cli/config.json`; whether it auto-loads a plugin's
+  `hooks/hooks.json` like Claude Code does has not been tested (no ZCode
+  install available). If not, the workflow degrades to the voluntary flow in
+  `AGENTS.md`.
+- Sources: [zai-org/zai-coding-plugins](https://github.com/zai-org/zai-coding-plugins),
+  [Z.ai tool integration docs](https://docs.z.ai/devpack/tool/others).
 
 ### Kimi Code
 
