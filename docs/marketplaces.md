@@ -2,7 +2,7 @@
 
 Where Version Sentinel can be installed from and listed, per platform — and what
 still requires the owner's interactive action. Research date: **2026-07-26**
-(on `feat/multi-agent-support`, the multi-agent port targeting v0.4.0).
+(on `feat/multi-agent-support`, the multi-agent port targeting v0.3.0).
 
 Submission status legend:
 

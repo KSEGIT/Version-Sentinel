@@ -34,7 +34,7 @@ Never fabricate a source URL you did not actually consult, and never bypass the 
 bash scripts/check-versions.sh
 ```
 
-Scans every manifest under the current directory, compares each dependency against its upstream registry, and reports drift. Intentional pins show as `intentional-pin`, not `DRIFT`. Run before tagging a release.
+Scans manifests within 4 directory levels of the current directory, compares each dependency against its upstream registry, and reports drift. Intentional pins show as `intentional-pin`, not `DRIFT`. Run before tagging a release.
 
 ## Supported manifests
 

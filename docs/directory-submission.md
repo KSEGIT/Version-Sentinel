@@ -1,6 +1,6 @@
 # Plugin Directory Submission — Version Sentinel
 
-> Note: since this copy was drafted, the plugin was ported to six agent platforms (multi-agent support, v0.4.0). This file remains the Anthropic-form copy; all other platforms' distribution channels are tracked in `docs/marketplaces.md`.
+> Note: since this copy was drafted, the plugin was ported to six agent platforms (multi-agent support, v0.3.0). This file remains the Anthropic-form copy; all other platforms' distribution channels are tracked in `docs/marketplaces.md`.
 
 Draft copy for the Anthropic plugin directory submission form (Plugin details step).
 

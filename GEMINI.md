@@ -12,14 +12,14 @@ shipping a hallucinated or stale package version remembered from training data.
    (`npm install`, `pip install`, `cargo add`, `dotnet add package`, ...).
 2. A `BeforeTool` hook fires and exits 2 — the tool call is blocked and the
    hook's stderr explains why:
-   ```
+   ```text
    BLOCKED: version-sentinel.
    Package: lodash (npm). Version: 4.17.21.
    No fresh version check on record.
    ```
 3. To unblock: look up the real latest version on the upstream registry
    (npmjs.com, pypi.org, crates.io, nuget.org), then record the check:
-   ```
+   ```bash
    /vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash
    ```
    Then retry the original edit or install — the hook finds the fresh entry
@@ -30,7 +30,7 @@ shipping a hallucinated or stale package version remembered from training data.
 Pinning an old version on purpose is fine — record it with a reason instead
 of a URL:
 
-```
+```bash
 /vs-record npm pkg 1.0.0 "intentional: CVE fix deferred pending audit"
 ```
 
@@ -39,9 +39,9 @@ in audits.
 
 ## Auditing drift
 
-Run `/check-versions` to scan all manifests in the workspace and compare each
-pinned version against the latest upstream release. Advisory only — never
-blocks.
+Run `/check-versions` to scan manifests within 4 directory levels of the workspace
+and compare each pinned version against the latest upstream release. Advisory only
+— never blocks.
 
 ## Escape hatch
 

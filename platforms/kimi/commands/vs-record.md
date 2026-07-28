@@ -8,7 +8,7 @@ Record that a dependency version has been verified. Run after a web search/fetch
 
 **Source** must be an `http(s)://` URL or `intentional:<reason>`.
 
-**Ecosystems (v0.1):** npm, pip, cargo, csproj, pyproject
+**Ecosystems (v0.3.0):** npm, pip, cargo, csproj, pyproject
 
 **Examples:**
 - `/version-sentinel:vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash`
@@ -17,7 +17,7 @@ Record that a dependency version has been verified. Run after a web search/fetch
 
 To execute this command, run the following with your Bash tool, passing the user's arguments through as-is:
 
-    bash "$KIMI_PLUGIN_ROOT/scripts/vs-record.sh" $ARGUMENTS
+    bash "$KIMI_PLUGIN_ROOT/scripts/vs-record.sh" "$1" "$2" "$3" "$4"
 
 If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/plugins info version-sentinel` (the managed copy lives under the Kimi plugins directory) and run the script from there.
 

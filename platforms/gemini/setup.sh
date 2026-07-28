@@ -16,15 +16,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Safety: refuse to run inside a source checkout of the repo (would break Claude/Codex hooks).
-case "$ROOT" in
-  *".gemini/extensions/"*) : ;;
-  *)
-    echo "version-sentinel: refusing to activate Gemini hooks outside a Gemini extension install." >&2
-    echo "  expected path under ~/.gemini/extensions/, got: $ROOT" >&2
-    echo "  install first: gemini extensions install https://github.com/KSEGIT/Version-Sentinel" >&2
-    exit 1
-    ;;
-esac
+# Require ROOT to exactly match the canonical Gemini extension directory.
+GEMINI_HOME="${GEMINI_HOME:-$HOME/.gemini}"
+EXPECTED_ROOT="$GEMINI_HOME/extensions/version-sentinel"
+EXPECTED_ROOT="$(cd "$GEMINI_HOME/extensions" 2>/dev/null && pwd)/version-sentinel" || EXPECTED_ROOT="$GEMINI_HOME/extensions/version-sentinel"
+
+if [[ "$ROOT" != "$EXPECTED_ROOT" ]]; then
+  echo "version-sentinel: refusing to activate Gemini hooks outside a Gemini extension install." >&2
+  echo "  expected: $EXPECTED_ROOT" >&2
+  echo "  got:      $ROOT" >&2
+  echo "  install first: gemini extensions install https://github.com/KSEGIT/Version-Sentinel" >&2
+  exit 1
+fi
 
 cp "$ROOT/hooks/gemini-hooks.json" "$ROOT/hooks/hooks.json"
 echo "version-sentinel: Gemini hooks activated at $ROOT/hooks/hooks.json"

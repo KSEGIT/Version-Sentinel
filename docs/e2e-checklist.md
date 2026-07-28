@@ -199,7 +199,8 @@ Codex reads `.codex-plugin/plugin.json`, which references
 2. Scratch project with a minimal `package.json`; ask Codex to add
    `lodash@4.17.21` and confirm the PreToolUse block fires (both the Edit path
    and the `apply_patch` path).
-3. `bash scripts/vs-record.sh npm lodash 4.17.21 https://www.npmjs.com/package/lodash`,
+3. From the scratch project directory, run
+   `bash ~/.codex/plugins/version-sentinel/scripts/vs-record.sh npm lodash 4.17.21 https://www.npmjs.com/package/lodash`,
    retry, confirm success.
 
 ## Zed — ❌ not verified (2026-07-26)

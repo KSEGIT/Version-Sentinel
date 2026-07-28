@@ -1,6 +1,6 @@
 ---
 name: version-sentinel
-description: Use when adding, bumping, or changing a dependency in package.json, requirements.txt, pyproject.toml, Cargo.toml, or a .csproj. Triggered automatically by version-sentinel's PreToolUse hook (where the host supports hooks) — this skill explains how to satisfy the block and record a version check.
+description: Use when adding, bumping, or changing a dependency in package.json, requirements*.txt, constraints*.txt, pyproject.toml, Cargo.toml, *.csproj, *.fsproj, or *.vbproj. Triggered automatically by version-sentinel's PreToolUse hook (where the host supports hooks) — this skill explains how to satisfy the block and record a version check.
 ---
 
 # Version Sentinel — Workflow
@@ -43,4 +43,4 @@ This passes the hook and is flagged as `intentional-pin` (not `DRIFT`) in `bash 
 
 ## Audit command
 
-`bash scripts/check-versions.sh` scans every manifest under the current directory and reports drift. Run it before tagging a release.
+`bash scripts/check-versions.sh` scans manifests within 4 directory levels of the current directory and reports drift. Run it before tagging a release.

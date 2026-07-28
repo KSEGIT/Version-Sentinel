@@ -46,7 +46,11 @@ if [[ "$tool_name" == "apply_patch" ]]; then
   if [[ -z "$ap_path" || -z "$(ecosystem_for_path "$ap_path")" ]]; then
     exit 0
   fi
-  ap_content=$(echo "$input" | jq -r '.tool_input.content // .tool_input.new_content // empty')
+  ap_content=$(echo "$input" | jq -r '
+    (.tool_input.content // "" | select(. != ""))
+    // (.tool_input.new_content // "" | select(. != ""))
+    // empty
+  ')
   if [[ -z "$ap_content" ]]; then
     echo "version-sentinel: apply_patch targets manifest $ap_path but post-content cannot be reconstructed; fail-open" >&2
     exit 0

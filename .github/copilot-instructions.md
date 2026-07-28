@@ -20,7 +20,7 @@ To deliberately install a non-latest version (CVE mitigation, compatibility), re
 
 ## Audit
 
-Run `bash scripts/check-versions.sh` before tagging a release. It scans `package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, and `*.csproj` and reports drift without blocking.
+Run `bash scripts/check-versions.sh` before tagging a release. It scans `package.json`, `requirements*.txt`, `constraints*.txt`, `pyproject.toml`, `Cargo.toml`, `*.csproj`, `*.fsproj`, and `*.vbproj` and reports drift without blocking.
 
 ## Escape hatch
 

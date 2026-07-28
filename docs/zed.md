@@ -23,20 +23,48 @@ Zed's `agent.tool_permissions` can force a confirmation prompt on matching termi
 {
   "agent": {
     "tool_permissions": {
-      "always_confirm": {
-        "terminal": [
-          "\\b(npm|pnpm|yarn|bun)\\s+(install|add|i)\\b",
-          "\\bpip\\s+install\\b",
-          "\\bcargo\\s+add\\b",
-          "\\bdotnet\\s+add\\s+package\\b"
-        ],
-        "edit_file": [
-          "package\\.json$",
-          "requirements.*\\.txt$",
-          "pyproject\\.toml$",
-          "Cargo\\.toml$",
-          "\\.csproj$"
-        ]
+      "tools": {
+        "terminal": {
+          "always_confirm": [
+            {
+              "pattern": "\\b(npm|pnpm|yarn|bun)\\s+(install|add|i)\\b"
+            },
+            {
+              "pattern": "\\bpip\\s+install\\b"
+            },
+            {
+              "pattern": "\\bcargo\\s+add\\b"
+            },
+            {
+              "pattern": "\\bdotnet\\s+add\\s+package\\b"
+            }
+          ]
+        },
+        "edit_file": {
+          "always_confirm": [
+            {
+              "pattern": "package\\.json$"
+            },
+            {
+              "pattern": "requirements.*\\.txt$"
+            },
+            {
+              "pattern": "pyproject\\.toml$"
+            },
+            {
+              "pattern": "Cargo\\.toml$"
+            },
+            {
+              "pattern": "\\.csproj$"
+            },
+            {
+              "pattern": "\\.fsproj$"
+            },
+            {
+              "pattern": "\\.vbproj$"
+            }
+          ]
+        }
       }
     }
   }
