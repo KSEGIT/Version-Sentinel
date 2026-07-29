@@ -2,6 +2,19 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.3.0...version-sentinel-v0.4.0) (2026-07-29)
+
+
+### Features
+
+* multi-agent support (Kimi, Copilot, Gemini, Codex, Zed, z.ai) ([313e134](https://github.com/KSEGIT/Version-Sentinel/commit/313e1349095e746526cf083a91b913b074618f72))
+* multi-agent support for Kimi, Copilot, Gemini, Codex, and Zed ([455cbcf](https://github.com/KSEGIT/Version-Sentinel/commit/455cbcf8573207c463da34b347aa98dbd01f345c))
+
+
+### Bug Fixes
+
+* apply CodeRabbit auto-fixes ([f3c5874](https://github.com/KSEGIT/Version-Sentinel/commit/f3c58749ca72f45aed77332ddf3107d41745058a))
+
 ## [0.3.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.2.1...version-sentinel-v0.3.0) (2026-05-20)
 
 

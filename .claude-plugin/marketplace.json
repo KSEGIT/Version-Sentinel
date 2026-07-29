@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "version-sentinel-marketplace",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Claude Code plugin that hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.",
   "owner": {
     "name": "Daniel Kiska",
@@ -13,7 +13,13 @@
       "source": "./",
       "description": "Hard-blocks dependency additions until a version check is recorded.",
       "category": "security",
-      "keywords": ["dependencies", "versions", "guardrails", "supply-chain-security", "hooks"]
+      "keywords": [
+        "dependencies",
+        "versions",
+        "guardrails",
+        "supply-chain-security",
+        "hooks"
+      ]
     }
   ]
 }
