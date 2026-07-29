@@ -1,0 +1,26 @@
+# NOTE: {{args}} is raw-substituted into this prompt text (it is only
+# shell-escaped inside !{} blocks, which we don't use). This command takes no
+# arguments; ignore any {{args}} content rather than inventing flags.
+description = "Audit dependencies against upstream registries (npm, pypi, nuget, crates.io)"
+prompt = """
+Audit the workspace's dependency manifests against upstream registries.
+
+Use the run_shell_command tool to execute exactly:
+
+  bash "${extensionPath}/scripts/check-versions.sh"
+
+Then interpret the drift report for the user:
+
+- Scans package.json, requirements*.txt, pyproject.toml, Cargo.toml, and
+  *.csproj under the workspace and compares each pinned version to the
+  latest upstream release (npmjs.com, pypi.org, crates.io, nuget.org).
+- DRIFT means the pinned version differs from the latest upstream version.
+- intentional-pin means the version was deliberately pinned via
+  `/vs-record ... intentional:<reason>` — it is not drift; report it as such.
+- The audit is advisory only: it never blocks edits and changes nothing.
+
+Summarize which packages drifted, by how much, and point out anything that
+looks like a security-relevant lag. Do not "fix" versions unless the user
+asks — and remember manifest edits are still subject to the version-sentinel
+block, so a fresh /vs-record is required first.
+"""

@@ -1,0 +1,58 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "version-sentinel-prereq",
+            "command": "bash ${extensionPath}${/}scripts${/}prereq-check.sh",
+            "timeout": 10,
+            "description": "Check version-sentinel prerequisites (Gemini CLI)"
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "version-sentinel-manifest-edit",
+            "command": "bash ${extensionPath}${/}scripts${/}detect-manifest-edit.sh",
+            "timeout": 10,
+            "description": "Block dependency-manifest edits without a recorded version check"
+          }
+        ]
+      },
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "version-sentinel-install-cmd",
+            "command": "bash ${extensionPath}${/}scripts${/}detect-install-cmd.sh",
+            "timeout": 10,
+            "description": "Block package-install commands without a recorded version check"
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "name": "version-sentinel-auto-record",
+            "command": "bash ${extensionPath}${/}scripts${/}auto-record.sh",
+            "timeout": 10,
+            "description": "Auto-record version check after a successful install command"
+          }
+        ]
+      }
+    ]
+  }
+}

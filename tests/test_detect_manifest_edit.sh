@@ -61,6 +61,13 @@ input='{"tool_name":"Edit","tool_input":{"file_path":"'"$VS_TMPDIR"'/README.md",
 result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "non-manifest: exit 0"
 
+# Case 4b: Kimi-style Edit payload (tool_input.path instead of file_path) → block
+input=$(substitute "$FIXTURES/edit_input_kimi_path.json")
+result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
+assert_contains "$result" "BLOCKED" "kimi-path: blocked"
+assert_contains "$result" "lodash" "kimi-path: names pkg"
+assert_contains "$result" "exit=2" "kimi-path: exit 2"
+
 # Case 5: VS_DISABLE bypass
 input=$(substitute "$FIXTURES/edit_input_add_lodash.json")
 result=$(echo "$input" | VS_DISABLE=1 bash "$SCRIPT" 2>&1; echo "exit=$?")

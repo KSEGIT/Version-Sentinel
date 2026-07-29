@@ -4,6 +4,8 @@ set -u
 DIR="$(dirname "$0")"
 # shellcheck source=lib/options.sh
 source "$DIR/lib/options.sh"
+# shellcheck source=lib/platform.sh
+source "$DIR/lib/platform.sh"
 
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
 
@@ -18,6 +20,7 @@ fi
 if ! echo "$input" | jq -e . >/dev/null 2>&1; then exit 0; fi
 
 tool_name=$(echo "$input" | jq -r '.tool_name // empty')
+tool_name=$(normalize_tool_name "$tool_name")
 [[ "$tool_name" != "Bash" ]] && exit 0
 
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')

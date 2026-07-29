@@ -1,0 +1,7 @@
+{
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "patch": "*** Begin Patch\n*** Update File: {{CWD}}/package.json\n@@\n-    \"express\": \"4.19.2\"\n+    \"express\": \"4.19.2\",\n+    \"lodash\": \"4.17.21\"\n*** End Patch",
+    "content": "{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\",\n  \"dependencies\": {\n    \"express\": \"4.19.2\",\n    \"lodash\": \"4.17.21\"\n  }\n}\n"
+  }
+}

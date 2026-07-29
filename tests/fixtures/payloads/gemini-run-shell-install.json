@@ -1,0 +1,4 @@
+{
+  "tool_name": "run_shell_command",
+  "tool_input": { "command": "npm install lodash@4.17.21" }
+}
