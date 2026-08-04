@@ -27,14 +27,14 @@
   "userConfig": {
     "disable": {
       "type": "boolean",
-      "title": "Disable blocking",
-      "description": "If true, all version-sentinel hooks no-op (PreToolUse block, SessionStart prereq warning, PostToolUse auto-record). Equivalent to VS_DISABLE=1.",
+      "title": "Turn off Version Sentinel (kill switch)",
+      "description": "Default: false — the guardrail is active. Set true and every hook becomes a no-op: dependency edits and install commands are no longer blocked, the startup check for jq/curl/python3 is skipped, and successful installs stop being auto-recorded. Use it as a temporary escape hatch when a hook misfires or you are working offline, then switch it back. A VS_DISABLE variable set in your shell overrides this setting in both directions.",
       "default": false
     },
     "window_hours": {
       "type": "number",
-      "title": "Check freshness window (hours)",
-      "description": "How long a /vs-record entry stays fresh before the hook re-blocks.",
+      "title": "How long a recorded version check stays valid (hours)",
+      "description": "Default: 24 hours (minimum 1, maximum 168 = one week). A check you save with /vs-record satisfies the guardrail for this long; once it lapses, the next change to that dependency is blocked again until you re-verify the version against its registry. Lower it to catch fast-moving packages and new advisories sooner; raise it to avoid repeat lookups during a long refactor, at the cost of acting on staler data.",
       "default": 24,
       "min": 1,
       "max": 168
