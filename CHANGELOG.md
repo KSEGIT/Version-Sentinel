@@ -2,6 +2,14 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.0...version-sentinel-v0.4.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* clarify userConfig option copy shown at install ([359aa5f](https://github.com/KSEGIT/Version-Sentinel/commit/359aa5f7d0a6f544c2ab0e8b0422d9aff66e38e4))
+* clarify userConfig option copy shown at install ([fb526d8](https://github.com/KSEGIT/Version-Sentinel/commit/fb526d8d7f6ef7c4c1a2fb61bde6302f4896f57b))
+
 ## [0.4.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.3.0...version-sentinel-v0.4.0) (2026-07-29)
 
 
