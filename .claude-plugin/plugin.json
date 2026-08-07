@@ -1,7 +1,7 @@
 {
   "name": "version-sentinel",
   "version": "0.4.1",
-  "description": "Hard-blocks dependency additions and version changes until Claude records a WebSearch-verified latest-version check.",
+  "description": "Hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.",
   "author": {
     "name": "Daniel Kiska",
     "url": "https://github.com/KSEGIT"
@@ -14,7 +14,8 @@
     "packages",
     "versions",
     "guardrails",
-    "hooks"
+    "hooks",
+    "supply-chain-security"
   ],
   "skills": "./skills/",
   "agents": [
