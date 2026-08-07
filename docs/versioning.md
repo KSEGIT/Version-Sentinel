@@ -38,7 +38,7 @@ If a release window contains both `fix:` and `feat:`, the highest applicable bum
 - Changes:
   - `version.txt`
   - `.release-please-manifest.json`
-  - `.claude-plugin/plugin.json` `$.version` (via `release-please-config.json` `extra-files`)
+  - `$.version` in all six manifests (via `release-please-config.json` `extra-files`): `plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `kimi.plugin.json`, `gemini-extension.json`, `.codex-plugin/plugin.json`
   - `CHANGELOG.md` — prepends a new `## [<version>] (<date>)` section built from commit messages since the last tag
 - Keeps updating itself as new commits land on `main`; no need to close/reopen.
 
@@ -54,9 +54,10 @@ If a release window contains both `fix:` and `feat:`, the highest applicable bum
 | ----------------------------------------- | -------------- |
 | `version.txt`                             | release-please |
 | `.release-please-manifest.json`           | release-please |
-| `.claude-plugin/plugin.json` `$.version`  | release-please |
+| `$.version` in all six manifests          | release-please |
 | `CHANGELOG.md`                            | release-please |
-| `.claude-plugin/marketplace.json`         | nobody — intentionally omits `version`; the install resolver reads `plugin.json`.|
+| Everything else in `plugin.json` / `.claude-plugin/plugin.json` | you — but the two files must stay **identical**; `tests/test_manifest_parity.sh` fails the build if they drift. Claude Code reads the `.claude-plugin/` copy. |
+| `.claude-plugin/marketplace.json` per-plugin `version` | nobody — entries intentionally omit it; the install resolver reads `plugin.json`.|
 | Git tags (`vX.Y.Z`)                       | release-please (on release-PR merge) |
 
 If you hand-edit any file release-please owns, the next release-PR run will overwrite your change. Don't bother — use a commit message instead.
@@ -105,9 +106,10 @@ Not wired up yet. If needed, configure `release-please-config.json` with a `prer
 
 ## CI integration
 
-- `release-please.yml` — runs on `push` to `main`. Uses `${{ github.token }}` (the default `GITHUB_TOKEN`).
-  - Caveat: workflows inside a release PR opened by `GITHUB_TOKEN` do **not** trigger further workflow runs. So tests won't auto-run on the release PR. Push an empty commit or re-run manually if you want them.
-  - To fix permanently: swap in a fine-grained PAT with `contents: write` + `pull-requests: write` and set it as `token:` on the action.
+- `release-please.yml` — runs on `push` to `main`. Uses `token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}`.
+  - **Set the `RELEASE_PLEASE_TOKEN` secret.** Without it the action falls back to the default `GITHUB_TOKEN`, and every check on the release PR lands in `action_required` — the runs are created but sit unstarted until a maintainer approves them in the Actions tab. Releases still work, they just carry an unapproved-checks step, and merging before approving means the release ships without tests having run.
+  - Setup: create a fine-grained PAT scoped to this repo with `contents: write` + `pull-requests: write`, then `gh secret set RELEASE_PLEASE_TOKEN --repo KSEGIT/Version-Sentinel`. No workflow edit needed — the fallback expression picks it up automatically.
+  - Verify it took: the next release PR should be authored by your account rather than `github-actions[bot]`, and `gh pr checks <n>` should show checks running without approval.
 - `changelog-check.yml` — fails PRs that bump version (`.claude-plugin/plugin.json` or `version.txt` changed) without also touching `CHANGELOG.md`. Skips release-please's own branches (prefix `release-please--`).
 - `tests.yml` — runs on every PR across ubuntu/macos/windows. Must be green before any merge to `main`.
 
