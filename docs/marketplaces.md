@@ -112,13 +112,15 @@ Submission status legend:
   - A **verified developer or business identity** on the OpenAI Platform.
   - Submission materials: listing copy, logo, website/support/privacy/terms
     URLs, starter prompts, and 5 positive + 3 negative test cases.
-- Open question for the owner: the portal's submission types are "Skills only"
-  and "With MCP" — a skills-only submission (bundle `skills/version-sentinel/`
-  + the workflow docs) is the plausible fit; plugin **hooks** are documented
-  as a plugin component but are not called out as a submittable part of the
-  portal flow, so the hooks-based blocking may not be representable in a
-  directory listing. Evaluate in the portal; repo-marketplace install remains
-  the fallback either way.
+- Submission type resolved: **Skills only**. Hooks are not a submittable
+  portal component, so a directory listing ships the `version-sentinel` skill
+  (workflow + scripts) and cannot enforce blocking; hook-based enforcement
+  stays a property of the repo-installed plugin. Repo-marketplace install
+  remains the fallback either way.
+- **Paste-ready listing copy, test cases, and the portal walkthrough live in
+  [openai-submission.md](openai-submission.md).** Note the one gap flagged
+  there: no `PRIVACY.md`/`TERMS.md` exists yet, and the portal requires
+  privacy/terms URLs.
 - Sources: [Codex plugins overview](https://developers.openai.com/codex/plugins),
   [Submit plugins — OpenAI Developers](https://developers.openai.com/plugins/deploy/submission).
 
