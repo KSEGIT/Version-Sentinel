@@ -17,3 +17,10 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # A release PR opened by the default GITHUB_TOKEN lands its checks in
+          # `action_required`, so tests never run until someone approves them by
+          # hand. Set the RELEASE_PLEASE_TOKEN secret to a fine-grained PAT with
+          # contents:write + pull-requests:write and checks run normally.
+          # Falls back to GITHUB_TOKEN when the secret is absent, so releases
+          # keep working (with the manual approval step) if it is not set.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
