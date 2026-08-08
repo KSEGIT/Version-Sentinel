@@ -73,8 +73,15 @@ sidecar_write_entry() {
     || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
   [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
 
+  local tmp
+  tmp="$(mktemp "$dir/.vs-tmp-XXXXXX")" || { vs_lock_release "$lockpath"; echo "version-sentinel: mktemp failed" >&2; return 1; }
   local write_status=0
-  printf '%s\n' "$updated" > "$path" || write_status=$?
+  printf '%s\n' "$updated" > "$tmp" || write_status=$?
+  if [[ "$write_status" -eq 0 ]]; then
+    mv "$tmp" "$path" || write_status=$?
+  else
+    rm -f "$tmp"
+  fi
   # Prune is best-effort maintenance; only run if write succeeded
   if [[ "$write_status" -eq 0 ]]; then
     sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || \
@@ -95,7 +102,17 @@ sidecar_prune() {
   updated=$(jq -c --arg cutoff "$cutoff" \
     '.entries = [.entries[] | select((.checkedAt | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) >= ($cutoff | tonumber))]' \
     "$path") || return 1
-  printf '%s\n' "$updated" > "$path"
+  local dir tmp
+  dir=$(dirname "$path")
+  tmp="$(mktemp "$dir/.vs-tmp-XXXXXX")" || return 1
+  local write_status=0
+  printf '%s\n' "$updated" > "$tmp" || write_status=$?
+  if [[ "$write_status" -eq 0 ]]; then
+    mv "$tmp" "$path" || write_status=$?
+  else
+    rm -f "$tmp"
+  fi
+  return "$write_status"
 }
 
 _iso_to_epoch() {
