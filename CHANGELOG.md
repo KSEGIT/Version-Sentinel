@@ -2,6 +2,15 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.2](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.1...version-sentinel-v0.4.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* apply CodeRabbit auto-fixes ([0507729](https://github.com/KSEGIT/Version-Sentinel/commit/050772983815c50f7da5ac7883b699b0597bb2ae))
+* sync manifests, unblock release-PR checks, add OpenAI submission docs ([72f9195](https://github.com/KSEGIT/Version-Sentinel/commit/72f91956c99267a1b0e4c6cb99e961ddc1dcd580))
+* sync root and .claude-plugin manifests, guard against drift ([d4648c1](https://github.com/KSEGIT/Version-Sentinel/commit/d4648c1646416544292ce570ea52981aae60a98a))
+
 ## [0.4.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.0...version-sentinel-v0.4.1) (2026-08-04)
 
 
