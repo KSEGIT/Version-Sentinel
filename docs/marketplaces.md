@@ -114,13 +114,13 @@ Submission status legend:
     URLs, starter prompts, and 5 positive + 3 negative test cases.
 - Submission type resolved: **Skills only**. Hooks are not a submittable
   portal component, so a directory listing ships the `version-sentinel` skill
-  (workflow + scripts) and cannot enforce blocking; hook-based enforcement
-  stays a property of the repo-installed plugin. Repo-marketplace install
-  remains the fallback either way.
+  archive (`version-sentinel-openai-skill.zip` containing `skills/version-sentinel/`
+  plus the required `scripts/` directory with `scripts/lib/` dependencies) and
+  cannot enforce blocking; hook-based enforcement stays a property of the
+  repo-installed plugin. Repo-marketplace install remains the fallback either way.
 - **Paste-ready listing copy, test cases, and the portal walkthrough live in
-  [openai-submission.md](openai-submission.md).** Note the one gap flagged
-  there: no `PRIVACY.md`/`TERMS.md` exists yet, and the portal requires
-  privacy/terms URLs.
+  [openai-submission.md](openai-submission.md).** Privacy and Terms URLs now
+  point to PRIVACY.md and TERMS.md in the repo.
 - Sources: [Codex plugins overview](https://developers.openai.com/codex/plugins),
   [Submit plugins — OpenAI Developers](https://developers.openai.com/plugins/deploy/submission).
 

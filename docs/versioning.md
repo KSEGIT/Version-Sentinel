@@ -8,7 +8,7 @@ version-sentinel uses [Semantic Versioning](https://semver.org/) and [Convention
 2. Open a PR, merge it into `main`.
 3. `release-please` opens a **release PR** on `main`. Merging that release PR cuts the tag + GitHub Release.
 
-Day-to-day: you do not edit `version.txt`, `.release-please-manifest.json`, `CHANGELOG.md`, or `.claude-plugin/plugin.json` `$.version` manually. release-please owns all four.
+Day-to-day: you do not edit `version.txt`, `.release-please-manifest.json`, `CHANGELOG.md`, or the `$.version` fields in **all six manifests** (`plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `kimi.plugin.json`, `gemini-extension.json`, `.codex-plugin/plugin.json`) manually. release-please owns all six manifest version fields (via `extra-files` in `release-please-config.json`) plus version.txt, the release manifest, and CHANGELOG.md. Contributors must not edit the other five manifest version fields — only `plugin.json` and `.claude-plugin/plugin.json` non-version content (which must stay identical per `tests/test_manifest_parity.sh`).
 
 ## Version bump rules
 
@@ -108,7 +108,7 @@ Not wired up yet. If needed, configure `release-please-config.json` with a `prer
 
 - `release-please.yml` — runs on `push` to `main`. Uses `token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}`.
   - **Set the `RELEASE_PLEASE_TOKEN` secret.** Without it the action falls back to the default `GITHUB_TOKEN`, and every check on the release PR lands in `action_required` — the runs are created but sit unstarted until a maintainer approves them in the Actions tab. Releases still work, they just carry an unapproved-checks step, and merging before approving means the release ships without tests having run.
-  - Setup: create a fine-grained PAT scoped to this repo with `contents: write` + `pull-requests: write`, then `gh secret set RELEASE_PLEASE_TOKEN --repo KSEGIT/Version-Sentinel`. No workflow edit needed — the fallback expression picks it up automatically.
+  - Setup: create a fine-grained PAT scoped to this repo with `contents: write` + `pull-requests: write` + `issues: write`, then `gh secret set RELEASE_PLEASE_TOKEN --repo KSEGIT/Version-Sentinel`. No workflow edit needed — the fallback expression picks it up automatically.
   - Verify it took: the next release PR should be authored by your account rather than `github-actions[bot]`, and `gh pr checks <n>` should show checks running without approval.
 - `changelog-check.yml` — fails PRs that bump version (`.claude-plugin/plugin.json` or `version.txt` changed) without also touching `CHANGELOG.md`. Skips release-please's own branches (prefix `release-please--`).
 - `tests.yml` — runs on every PR across ubuntu/macos/windows. Must be green before any merge to `main`.
