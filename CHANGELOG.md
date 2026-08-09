@@ -2,6 +2,15 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.3](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.2...version-sentinel-v0.4.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* apply CodeRabbit auto-fixes ([5c9612b](https://github.com/KSEGIT/Version-Sentinel/commit/5c9612bc22db55a70948d1edccf2b1f2afb7fb53))
+* atomic writes in sidecar.sh to prevent Windows filesystem truncation ([4e0c95f](https://github.com/KSEGIT/Version-Sentinel/commit/4e0c95ffa9278c1b3a3a32ede9082d13eabadc6f))
+* update hero image and enhance README layout ([86defd0](https://github.com/KSEGIT/Version-Sentinel/commit/86defd0d230c635aac9839d8c3ce2ec27ab419e4))
+
 ## [0.4.2](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.1...version-sentinel-v0.4.2) (2026-08-08)
 
 
