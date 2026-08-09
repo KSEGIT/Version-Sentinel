@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Version Sentinel" width="200" />
+  <img src="assets/hero.png" alt="Version Sentinel — no dependency ships unverified" width="864" />
 </p>
-
-<h1 align="center">version-sentinel</h1>
 
 <p align="center">
   <a href="https://github.com/KSEGIT/Version-Sentinel/releases/latest"><img src="https://img.shields.io/github/v/release/KSEGIT/Version-Sentinel?color=blue" alt="Release" /></a>
