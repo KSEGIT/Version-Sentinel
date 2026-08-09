@@ -146,10 +146,14 @@ Submission status legend:
     Code top-level fields (`skills`, `agents`, `commands`, `userConfig`)
     outside Agent Plugins v1.0.0. They are required by the other platforms;
     do not "fix" them for this listing.
-- After approval, a nightly job re-reviews listings every six months on the
+- After approval, a nightly job marks approved listings as due for re-review
+  every six months; a maintainer then performs the actual review on the
   original issue (`/re-review-keep` et al. are maintainer commands).
 - The gates can be rehearsed locally before any resubmission: clone
-  awesome-copilot, `npm install`, and run
+  awesome-copilot, `cd` into it, verify the upstream version of
+  `@github/copilot` (currently 1.0.78), record it with
+  `bash scripts/vs-record.sh npm @github/copilot 1.0.78 https://www.npmjs.com/package/@github/copilot`,
+  then run `npm install` and
   `node eng/external-plugin-quality-gates.mjs --plugin-json '<entry json>'`
   with `copilot` on PATH (`@github/copilot` npm package).
 
