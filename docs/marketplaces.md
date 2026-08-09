@@ -22,6 +22,7 @@ Submission status legend:
 | Kimi Code | `/plugins install https://github.com/KSEGIT/Version-Sentinel` (or a local path); custom catalog `kimi-marketplace.json` at repo root for `/plugins marketplace <url>` | No official Kimi gallery known — self-hosted catalog | **ready-in-repo** | Optionally verify the `/plugins marketplace <url>` flow in the TUI (install TUI flow still unverified per `docs/e2e-checklist.md`) |
 | Gemini CLI | `gemini extensions install https://github.com/KSEGIT/Version-Sentinel`, then `bash ~/.gemini/extensions/version-sentinel/platforms/gemini/setup.sh` | geminicli.com/extensions gallery — **fully automated daily crawler**, no PR and no form | **requires-owner-form** (one repo-setting change) | Add the GitHub topic `gemini-cli-extension` to the repo's About section; the crawler lists it within ~24h |
 | OpenAI Codex | `codex plugin marketplace add KSEGIT/Version-Sentinel` → `codex plugin add version-sentinel` (works today from GitHub) | Universal OpenAI Plugins Directory (ChatGPT + Codex) | **requires-owner-form** (portal, now self-serve) | Verify developer identity on the OpenAI Platform, then submit via the plugin submission portal (see below) |
+| GitHub Copilot CLI | Once listed: `copilot plugin marketplace add github/awesome-copilot` → `copilot plugin install version-sentinel@awesome-copilot` (verified installable — the awesome-copilot intake smoke test installs from this repo's root `plugin.json` via an ephemeral marketplace) | awesome-copilot external plugin marketplace (`plugins/external.json`, review-workflow gated) | **requires-owner-form** (issue submitted) | Track submission issue [github/awesome-copilot#2598](https://github.com/github/awesome-copilot/issues/2598) — opened 2026-08-09, passed all automated quality gates (`ready-for-review`), awaiting maintainer `/approve`; on approval a bot PR adds the entry automatically |
 | GitHub Copilot in VS Code | Repo-based: `.github/` + `.agents/skills/` are picked up when this repo is the workspace, or copy them into yours | None | **no-marketplace** | None — distribution is "use this repo as (part of) your workspace" |
 | Zed | Repo-based: `AGENTS.md` + `.agents/skills/` + `docs/zed.md` (static-permissions approximation; no hook support) | None | **no-marketplace** | None |
 
@@ -123,6 +124,34 @@ Submission status legend:
   privacy/terms URLs.
 - Sources: [Codex plugins overview](https://developers.openai.com/codex/plugins),
   [Submit plugins — OpenAI Developers](https://developers.openai.com/plugins/deploy/submission).
+
+### GitHub Copilot CLI — awesome-copilot marketplace
+
+- The [github/awesome-copilot](https://github.com/github/awesome-copilot)
+  collection lists external plugins in `plugins/external.json`; public
+  contributors must **not** PR that file directly — submission is an
+  issue-form workflow (`[External Plugin]:` issue) with automated intake
+  (`vally lint` + a Copilot CLI install smoke test + version/ref-sha
+  consistency gates), then maintainer `/approve` opens the listing PR.
+- Submitted 2026-08-09 as
+  [github/awesome-copilot#2598](https://github.com/github/awesome-copilot/issues/2598)
+  for `version-sentinel` 0.4.1 (ref `version-sentinel-v0.4.1`, sha
+  `f3d5349685f22c96069383a559ed741b42bed508`, plugin at repo root). All
+  blocking gates passed; the issue is `ready-for-review`.
+  - Gotcha hit during intake: leaving `/` in the form's *Plugin path* field
+    produces `source.path: "/"`, which the Copilot CLI smoke test rejects
+    ("Plugin path escapes repository directory") — leave the field empty for
+    a root plugin.
+  - Non-blocking spec warnings remain: our `plugin.json` carries Claude
+    Code top-level fields (`skills`, `agents`, `commands`, `userConfig`)
+    outside Agent Plugins v1.0.0. They are required by the other platforms;
+    do not "fix" them for this listing.
+- After approval, a nightly job re-reviews listings every six months on the
+  original issue (`/re-review-keep` et al. are maintainer commands).
+- The gates can be rehearsed locally before any resubmission: clone
+  awesome-copilot, `npm install`, and run
+  `node eng/external-plugin-quality-gates.mjs --plugin-json '<entry json>'`
+  with `copilot` on PATH (`@github/copilot` npm package).
 
 ### GitHub Copilot in VS Code / Zed
 
