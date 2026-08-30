@@ -11,6 +11,12 @@
 # recognizes. A manager the parser knows but no `if` rule covers is a SILENT
 # BYPASS, not a slowdown — hence this test.
 #
+# Must stay bash 3.2 clean (stock macOS /bin/bash, and the macos-latest CI leg):
+# no mapfile, and no bare ${arr[@]} on a possibly-empty array under `set -u`.
+# An earlier revision used mapfile and, on 3.2, aborted its own parity loop and
+# still printed PASS — it reported green with the npm rule deleted. Hence
+# checked_events below: if a loop is ever skipped, the test fails instead.
+#
 # KNOWN COUPLING — read before extending the parser. Measured on Claude Code
 # 2.1.227, `Bash(npm *)` does NOT fire for a leading env assignment
 # (`FOO=bar npm install x`) or a process wrapper (`timeout 30 npm install x`,
@@ -21,6 +27,13 @@
 # to handle wrappers or leading assignments, the `if` rules must be widened in
 # the same change — otherwise the parser fix passes its unit tests while the
 # hook never spawns to run it.
+#
+# Command shapes measured end-to-end with the gate on and confirmed STILL
+# BLOCKED: a pinned install behind a `cd ... &&` compound; the same install
+# split across two lines by a bare newline rather than an operator; one behind
+# `;`; one behind `||`; a pinned install written with doubled spaces; and a
+# pinned pip3 install. Only the wrapper and leading-assignment forms above
+# diverge, and there the parser misses them too.
 set -u
 VS_TEST_NAME="hook-if-parity"
 source "$(dirname "$0")/assert.sh"
@@ -40,71 +53,100 @@ assert_eq "0" "$(jq empty "$HOOKS" >/dev/null 2>&1; echo $?)" "hooks.json is val
 # so the command-name part is whatever sits between `=~ ^` and the first
 # [[:space:]]. Deriving it here means adding a manager to the parser without a
 # matching hook rule fails this test instead of silently disabling the guard.
-managers=()
-while read -r tok; do
+# The class must admit `.`, `_` and `-` so a future `apt-get`/`pip_tools`
+# branch cannot slip through extraction unnoticed.
+EXTRACT='s/.*"\$seg"[[:space:]]+=~[[:space:]]+\^(\(?[A-Za-z0-9._|?-]+\)?)\[\[:space:\]\].*/\1/p'
+
+# Every parser branch must yield exactly one token. If sed's class ever fails to
+# cover a manager name, tokens < branches and this fails loudly rather than
+# quietly dropping that manager from the parity check below.
+branches=$(grep -cE '"\$seg"[[:space:]]+=~[[:space:]]+\^' "$PARSER" | tr -d ' ')
+tokens=$(sed -nE "$EXTRACT" "$PARSER" | grep -c . | tr -d ' ')
+assert_eq "$branches" "$tokens" "every _parse_install_segment branch yields one extracted token"
+
+managers=""
+while IFS= read -r tok; do
   [[ -z "$tok" ]] && continue
   tok="${tok#(}"; tok="${tok%)}"
-  IFS='|' read -r -a alts <<< "$tok"
-  for alt in "${alts[@]}"; do
+  old_ifs="$IFS"; IFS='|'; set -- $tok; IFS="$old_ifs"
+  for alt in "$@"; do
     if [[ "$alt" == *'?' ]]; then
-      base="${alt%\?}"          # pip3?  -> pip3
-      managers+=("$base" "${base%?}")   # ...and the optional-char form: pip
+      base="${alt%\?}"                       # pip3?  -> pip3
+      managers="$managers $base ${base%?}"   # ...and the optional-char form: pip
     else
-      managers+=("$alt")
+      managers="$managers $alt"
     fi
   done
-done < <(sed -nE 's/.*=~[[:space:]]+\^(\(?[A-Za-z0-9|?]+\)?)\[\[:space:\]\].*/\1/p' "$PARSER")
+done < <(sed -nE "$EXTRACT" "$PARSER")
 
-# Dedupe while preserving order.
-uniq_managers=()
-for m in "${managers[@]}"; do
-  seen=0
-  for u in "${uniq_managers[@]:-}"; do [[ "$u" == "$m" ]] && seen=1 && break; done
-  [[ "$seen" -eq 0 ]] && uniq_managers+=("$m")
+# Dedupe, preserving order. Space-delimited string keeps this bash 3.2 safe.
+uniq_managers=""
+for m in $managers; do
+  case " $uniq_managers " in *" $m "*) ;; *) uniq_managers="$uniq_managers $m" ;; esac
 done
+n_managers=$(echo $uniq_managers | wc -w | tr -d ' ')
 
 # A sed that quietly matches nothing would make every assertion below vacuous,
 # so pin both the count and a few names we know the parser handles.
-if [[ "${#uniq_managers[@]}" -lt 8 ]]; then
-  _fail "extracted only ${#uniq_managers[@]} managers from $PARSER (expected >=8): ${uniq_managers[*]:-<none>}"
+if [[ "$n_managers" -lt 8 ]]; then
+  _fail "extracted only $n_managers managers from $PARSER (expected >=8): ${uniq_managers:-<none>}"
 fi
 for expected in npm pnpm yarn bun pip pip3 poetry uv cargo dotnet; do
-  found=0
-  for m in "${uniq_managers[@]:-}"; do [[ "$m" == "$expected" ]] && found=1 && break; done
-  assert_eq "1" "$found" "parser extraction found '$expected'"
+  case " $uniq_managers " in
+    *" $expected "*) ;;
+    *) _fail "parser extraction did not find '$expected'" ;;
+  esac
 done
 
 # --- Every Bash hook handler is gated, and covers every manager -------------
+checked_events=0
 for event in PreToolUse PostToolUse; do
-  mapfile -t rules < <(jq -r --arg ev "$event" \
+  rules=""
+  n_rules=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    rules="$rules
+$line"
+    n_rules=$((n_rules + 1))
+  done < <(jq -r --arg ev "$event" \
     '.hooks[$ev][]? | select(.matcher == "Bash") | .hooks[] | (.if // "<UNGATED>")' "$HOOKS")
 
-  if [[ "${#rules[@]}" -eq 0 ]]; then
+  if [[ "$n_rules" -eq 0 ]]; then
     _fail "$event: no Bash hook group found in hooks.json"
     continue
   fi
 
-  for r in "${rules[@]}"; do
-    [[ "$r" == "<UNGATED>" ]] && _fail "$event: a Bash handler has no \`if\` rule; it would spawn on every Bash call"
-  done
+  case "$rules" in
+    *"<UNGATED>"*) _fail "$event: a Bash handler has no \`if\` rule; it would spawn on every Bash call" ;;
+  esac
 
   # Parser -> hooks: no manager may be missing a rule (missing == silent bypass).
-  for m in "${uniq_managers[@]:-}"; do
-    want="Bash($m *)"
-    found=0
-    for r in "${rules[@]}"; do [[ "$r" == "$want" ]] && found=1 && break; done
-    assert_eq "1" "$found" "$event has \`if\` rule '$want'"
+  for m in $uniq_managers; do
+    case "$rules" in
+      *"Bash($m *)"*) ;;
+      *) _fail "$event is missing \`if\` rule 'Bash($m *)'" ;;
+    esac
   done
 
   # hooks -> parser: no rule may name a manager the parser cannot handle.
-  for r in "${rules[@]}"; do
-    [[ "$r" == "<UNGATED>" ]] && continue
-    mgr="${r#Bash(}"; mgr="${mgr%% \*)}"
-    found=0
-    for m in "${uniq_managers[@]:-}"; do [[ "$m" == "$mgr" ]] && found=1 && break; done
-    assert_eq "1" "$found" "$event rule '$r' names a manager parse-install-cmd.sh recognizes"
+  for r in $rules; do
+    case "$r" in
+      'Bash('*) ;;
+      *) continue ;;
+    esac
+    mgr="${r#Bash(}"; mgr="${mgr%%\**}"; mgr="${mgr% }"
+    case " $uniq_managers " in
+      *" $mgr "*) ;;
+      *) _fail "$event rule 'Bash($mgr *)' names a manager parse-install-cmd.sh does not recognize" ;;
+    esac
   done
+
+  checked_events=$((checked_events + 1))
 done
+
+# If the loop above is ever skipped (as it silently was under bash 3.2 with
+# mapfile), every assertion in it is skipped too. Fail rather than pass green.
+assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToolUse"
 
 # --- The manifest-edit hook is deliberately NOT gated ----------------------
 # Edit/Write/MultiEdit are a small share of tool calls, and `if` matches the

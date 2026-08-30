@@ -197,6 +197,13 @@ Codex reads `.codex-plugin/plugin.json`, which references
 `./hooks/hooks.json` (Claude-schema; Codex accepts this schema, including the
 `apply_patch` matcher). Steps:
 
+0. **`if`-gate check (new).** `hooks/hooks.json` gates the two Bash handlers
+   behind Claude Code `if` rules. Confirm Codex still loads the file at all
+   (`plugin list` must not show a load failure over the unknown `if` key), and
+   that a pinned dependency install is still refused. If Codex honors `if` but
+   names its shell tool `exec_command`, a `Bash(...)` rule will not match and
+   the Bash guard is silently off — in that case give Codex its own ungated
+   hooks file rather than sharing this one.
 1. After install, run `/hooks` and complete the **trust review** for the
    plugin's hooks (Codex requires explicit trust before hook commands run).
 2. Scratch project with a minimal `package.json`; ask Codex to add

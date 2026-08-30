@@ -46,8 +46,18 @@ package-manager commands instead of on every Bash tool call. Keyed on the
 binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
 all covered. `tests/test_hook_if_parity.sh` fails if a manager known to
 `lib/parse-install-cmd.sh` has no matching rule — a gap there is a silent
-bypass, not a slowdown. The scripts keep their own early-out, so a host that
-ignores `if` (Codex reads the same file) behaves exactly as before.
+bypass, not a slowdown.
+
+`if` is a Claude Code field, and `.codex-plugin/plugin.json` points Codex at
+this same `hooks/hooks.json`. UNVERIFIED on Codex (that platform is already
+marked not-verified in docs/e2e-checklist.md). Two ways it could go wrong
+there: the loader rejects the unknown `if` key and drops the hooks (the repo
+has precedent — Claude Code rejected this file over Gemini keys with
+`invalid_key`); or it honors `if` but its shell tool is `exec_command`, not
+`Bash` (see normalize_tool_name in lib/platform.sh), so a `Bash(...)` rule
+never matches. Either way the Bash guard would be off on Codex rather than
+unchanged. The scripts' own early-out only covers the case where Codex ignores
+`if` and still runs them. Verify on Codex before releasing.
 
 Measured caveat: `Bash(npm *)` does not fire for `FOO=bar npm install x` or
 `timeout 30 npm install x`. `lib/parse-install-cmd.sh` misses those forms too,
