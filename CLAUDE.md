@@ -40,6 +40,24 @@ docs/                 Documentation
 3. User runs WebSearch + `/vs-record` to record a check, then retries
 4. PostToolUse hook on Bash auto-records successful install commands
 
+The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(npm *)`,
+`Bash(pip *)`, ...), one per package-manager binary, so they only spawn for
+package-manager commands instead of on every Bash tool call. Keyed on the
+binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
+all covered. `tests/test_hook_if_parity.sh` fails if a manager known to
+`lib/parse-install-cmd.sh` has no matching rule — a gap there is a silent
+bypass, not a slowdown. The scripts keep their own early-out, so a host that
+ignores `if` (Codex reads the same file) behaves exactly as before.
+
+Measured caveat: `Bash(npm *)` does not fire for `FOO=bar npm install x` or
+`timeout 30 npm install x`. `lib/parse-install-cmd.sh` misses those forms too,
+so behaviour is unchanged, but widening the parser requires widening the `if`
+rules in the same change.
+
+The `Edit`/`Write` hook is deliberately left ungated: it is a small share of
+tool calls, and `if` matches the literal tool name, so an `Edit(...)` rule does
+not fire for the `Write` tool.
+
 ## Prerequisites
 
 - `bash`, `jq`, `curl`, `python3` (3.11+) on PATH
