@@ -43,7 +43,7 @@ Verified live on 2026-07-26:
   `Hooks (3) SessionStart, PreToolUse, PostToolUse`, slash commands
   `version-sentinel:vs-record` / `version-sentinel:check-versions` load in-session.
   (Since the `if` gate landed, `plugin details` reports **22** hook handlers
-  rather than 4 — one `Bash(<manager> *)` handler per package manager on each of
+  rather than 4 — one `Bash(*<manager> *)` handler per package manager on each of
   PreToolUse and PostToolUse. Still three hook *events*. Expected, not a bug.)
 - ✅ **Critical finding (fixed):** Claude Code *rejected* the combined
   `hooks/hooks.json` containing Gemini keys — `plugin list` showed

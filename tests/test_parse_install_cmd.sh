@@ -121,6 +121,27 @@ assert_eq $'npm\tlodash\t4.17.21' "$out" "timeout with -s <signal> and duration"
 out=$(parse_install_cmd "env -i FOO=1 npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "env -i with assignment"
 
+# The cases above pass even if -i wrongly consumes a word, because the
+# assignment stripper would have removed it anyway. These are the ones that
+# actually exercise a no-operand flag sitting directly before the command:
+# whether a flag takes an operand depends on the wrapper (-s does for timeout,
+# not for sudo; -i takes none for sudo or env), so the stripper must decide by
+# looking at the operand, not the flag.
+out=$(parse_install_cmd "env -i npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "env -i directly before the command"
+
+out=$(parse_install_cmd "sudo -i npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -i takes no operand"
+
+out=$(parse_install_cmd "sudo -s pip install requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "sudo -s takes no operand"
+
+out=$(parse_install_cmd "sudo -e npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -e takes no operand"
+
+out=$(parse_install_cmd "xargs -I {} npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "xargs -I {} consumes its operand"
+
 out=$(parse_install_cmd "nohup timeout 60 nice -n 5 npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "stacked wrappers"
 

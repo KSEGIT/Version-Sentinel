@@ -42,8 +42,8 @@ docs/                 Documentation
 3. User runs WebSearch + `/vs-record` to record a check, then retries
 4. PostToolUse hook on Bash auto-records successful install commands
 
-The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(npm *)`,
-`Bash(pip *)`, ...), one per package-manager binary, so they only spawn for
+The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm *)`,
+`Bash(*pip *)`, ...), one per package-manager binary, so they only spawn for
 package-manager commands instead of on every Bash tool call. Keyed on the
 binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
 all covered. `tests/test_hook_if_parity.sh` fails if a manager known to

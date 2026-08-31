@@ -32,6 +32,13 @@
 # logic — the parser would pass its unit tests while the guard stayed off.
 # Widening costs ~1% of Bash calls in extra spawns, measured over 26,917 calls.
 #
+# KNOWN OVERLAP, deliberate. Glob `*npm *` also matches `pnpm add x` (the `*`
+# absorbs the `p`), and `uv pip install x` matches both `*uv *` and `*pip *`, so
+# those commands fire two identical handlers and emit the block message twice.
+# One rule per manager is kept anyway: it keeps intent obvious and lets the
+# parity check below be a simple per-manager assertion. Measured cost over
+# 27,028 Bash calls: 44 commands (0.163%) match more than one rule.
+#
 # Forms verified blocked end-to-end with the gate on: a pinned install behind a
 # `cd ... &&` compound; the same split across two lines by a bare newline; one
 # behind `;`; one behind `||`; doubled spaces; a pinned pip3 install; and each
@@ -165,6 +172,21 @@ assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToo
 ungated=$(jq '[.hooks.PreToolUse[]? | select(.matcher != "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS")
 assert_eq "0" "$ungated" "manifest-edit hook stays ungated on purpose"
 
+# --- _strip_cmd_prefix's manager list must match the parser's branches -----
+# It consults _VS_MANAGERS to avoid consuming the real command as a flag
+# operand. If that list drifts from the branches above, `sudo -i <pm> ...`
+# silently stops being detected.
+vs_mgrs=$(sed -nE "s/^_VS_MANAGERS='([^']+)'.*/\\1/p" "$PARSER" | tr '|' ' ')
+if [[ -z "$vs_mgrs" ]]; then
+  _fail "could not read _VS_MANAGERS out of $PARSER"
+fi
+for m in $uniq_managers; do
+  case " $vs_mgrs " in *" $m "*) ;; *) _fail "_VS_MANAGERS is missing '$m'" ;; esac
+done
+for m in $vs_mgrs; do
+  case " $uniq_managers " in *" $m "*) ;; *) _fail "_VS_MANAGERS has unknown '$m'" ;; esac
+done
+
 # --- Codex gets its own UNGATED copy --------------------------------------
 # Measured on codex-cli 0.151.0: Codex loads hooks/hooks.json fine but ignores
 # the `if` field entirely — it ran the hook for `echo hi`, which no rule
@@ -195,6 +217,12 @@ _wiring() {
 }
 assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
   "codex-hooks.json wires the same events/matchers/scripts as hooks.json"
+
+# _wiring uses `unique`, so a DUPLICATED handler would compare equal. Codex runs
+# every handler in a group, so a duplicate there is exactly the 10x-spawn
+# regression this file was split off to avoid. Pin the count as well.
+dupes=$(jq '[.hooks[][] | select((.hooks | length) != 1)] | length' "$CODEX_HOOKS")
+assert_eq "0" "$dupes" "every codex-hooks.json group has exactly one handler"
 
 
 finish_test
