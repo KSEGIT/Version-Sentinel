@@ -172,21 +172,6 @@ assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToo
 ungated=$(jq '[.hooks.PreToolUse[]? | select(.matcher != "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS")
 assert_eq "0" "$ungated" "manifest-edit hook stays ungated on purpose"
 
-# --- _strip_cmd_prefix's manager list must match the parser's branches -----
-# It consults _VS_MANAGERS to avoid consuming the real command as a flag
-# operand. If that list drifts from the branches above, `sudo -i <pm> ...`
-# silently stops being detected.
-vs_mgrs=$(sed -nE "s/^_VS_MANAGERS='([^']+)'.*/\\1/p" "$PARSER" | tr '|' ' ')
-if [[ -z "$vs_mgrs" ]]; then
-  _fail "could not read _VS_MANAGERS out of $PARSER"
-fi
-for m in $uniq_managers; do
-  case " $vs_mgrs " in *" $m "*) ;; *) _fail "_VS_MANAGERS is missing '$m'" ;; esac
-done
-for m in $vs_mgrs; do
-  case " $uniq_managers " in *" $m "*) ;; *) _fail "_VS_MANAGERS has unknown '$m'" ;; esac
-done
-
 # --- Codex gets its own UNGATED copy --------------------------------------
 # Measured on codex-cli 0.151.0: Codex loads hooks/hooks.json fine but ignores
 # the `if` field entirely — it ran the hook for `echo hi`, which no rule

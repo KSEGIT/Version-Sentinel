@@ -22,12 +22,6 @@ parse_install_cmd() {
   done
 }
 
-# Package-manager command names recognized by _parse_install_segment below.
-# _strip_cmd_prefix consults this so it never consumes the real command as if it
-# were a flag operand. tests/test_hook_if_parity.sh asserts this list stays in
-# sync with the branches of _parse_install_segment.
-_VS_MANAGERS='npm|pnpm|yarn|bun|pip|pip3|poetry|uv|cargo|dotnet'
-
 # _strip_cmd_prefix <segment>
 # Removes shell prefixes that do not change which command actually runs:
 # leading environment assignments (`FOO=bar <cmd>`) and process wrappers that
@@ -41,44 +35,51 @@ _VS_MANAGERS='npm|pnpm|yarn|bun|pip|pip3|poetry|uv|cargo|dotnet'
 # rather than `Bash(<mgr> *)` precisely so the hook still spawns for these
 # prefixed forms. Measured: `Bash(<mgr> *)` does NOT fire for a wrapper prefix.
 # If you add a wrapper here, re-check that the rules still fire for it.
+#
+# WHY THE FLAG TABLE IS PER-WRAPPER AND CONSERVATIVE. Consuming `<flag> <word>`
+# when that flag takes NO operand eats the real command, and whatever follows is
+# then parsed as an install that never happens. That is worse than missing one:
+# `env -i true <pm> install <pkg>` runs `true`, installs nothing, exits 0, and
+# auto-record.sh would record a version check for <pkg> — after which a genuine
+# install of it is allowed with no check ever performed. So an operand is
+# consumed only for flags of THAT wrapper which REQUIRE one. Flags with optional
+# operands (xargs -i, sudo -h) are deliberately absent: guessing wrong in this
+# direction fabricates an install, while guessing wrong in the other direction
+# merely misses one, which is the pre-existing behaviour. With the table correct,
+# the word after a consumed operand IS the real command, so if it is a package
+# manager then an install genuinely is happening.
 _strip_cmd_prefix() {
-  local seg="$1" prev="" _vs_operand="" _vs_rest=""
+  local seg="$1" prev="" _vs_wrapper="" _vs_optflags=""
   while [[ "$seg" != "$prev" ]]; do
     prev="$seg"
     while [[ "$seg" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*) ]]; do
       seg="${BASH_REMATCH[1]}"
     done
     if [[ "$seg" =~ ^(timeout|time|nice|nohup|stdbuf|command|builtin|noglob|env|xargs|sudo|doas)[[:space:]]+(.*) ]]; then
+      _vs_wrapper="${BASH_REMATCH[1]}"
       seg="${BASH_REMATCH[2]}"
-      # Consume the wrapper's own flags and operands (`timeout 30`, `nice -n 10`,
-      # `sudo -u root`) and stop at the first word that could be the real
-      # command. Note the `--` case is checked first: it ends the wrapper's
-      # options, so the next word IS the command. Consuming it as if it were a
-      # flag operand would turn `sudo -- <pm> install x` into a bypass.
+      case "$_vs_wrapper" in
+        sudo|doas) _vs_optflags='-u|-g|-p|-C|-r|-t|-U|--user|--group|--prompt|--close-from|--role|--type|--other-user' ;;
+        timeout)   _vs_optflags='-s|-k|--signal|--kill-after' ;;
+        nice)      _vs_optflags='-n|--adjustment' ;;
+        stdbuf)    _vs_optflags='-i|-o|-e|--input|--output|--error' ;;
+        env)       _vs_optflags='-u|-S|-C|--unset|--split-string|--chdir' ;;
+        xargs)     _vs_optflags='-I|-n|-L|-P|-s|-d|-E|-a|--replace|--max-args|--max-lines|--max-procs|--max-chars|--delimiter|--eof|--arg-file' ;;
+        *)         _vs_optflags='' ;;
+      esac
       while :; do
+        # `--` ends the wrapper's options; the next word IS the command.
         if [[ "$seg" =~ ^--[[:space:]]+(.*) ]]; then
           seg="${BASH_REMATCH[1]}"; break
         fi
-        # A flag plus its operand (`sudo -u root`, `timeout -s KILL`,
-        # `xargs -I {}`). Whether a given flag takes an operand depends on the
-        # wrapper -- `-s` takes one for timeout but not for sudo, `-i` takes
-        # none for sudo or env -- so a fixed flag list gets it wrong either way.
-        # Instead: consume the operand unless it is itself a package manager, in
-        # which case it is the real command and the flag stood alone. Without
-        # this guard `sudo -i <pm> install <pkg>` and `env -i <pm> install <pkg>`
-        # silently stop being detected.
-        # NB: capture before the second =~ runs -- a further [[ =~ ]] replaces
-        # BASH_REMATCH, so reading [2] after the guard yields the wrong text.
-        if [[ "$seg" =~ ^-[^[:space:]]+[[:space:]]+([^-][^[:space:]]*)[[:space:]]+(.*) ]]; then
-          _vs_operand="${BASH_REMATCH[1]}"
-          _vs_rest="${BASH_REMATCH[2]}"
-          if [[ ! "$_vs_operand" =~ ^($_VS_MANAGERS)$ ]]; then
-            seg="$_vs_rest"; continue
-          fi
-        fi
-        # Attached flags (`-o0`, `--rm`) and bare durations (`30`, `5s`).
-        if [[ "$seg" =~ ^(-[^[:space:]]*|[0-9]+[smhd]?)[[:space:]]+(.*) ]]; then
+        # A flag of this wrapper that requires a separate operand.
+        if [[ -n "$_vs_optflags" ]] &&
+           [[ "$seg" =~ ^($_vs_optflags)[[:space:]]+[^[:space:]]+[[:space:]]+(.*) ]]; then
           seg="${BASH_REMATCH[2]}"; continue
+        fi
+        # Attached flags (`-o0`, `--rm`) and bare durations (`30`, `5s`, `1.5`).
+        if [[ "$seg" =~ ^(-[^[:space:]]*|[0-9]+([.][0-9]+)?[smhd]?)[[:space:]]+(.*) ]]; then
+          seg="${BASH_REMATCH[3]}"; continue
         fi
         break
       done

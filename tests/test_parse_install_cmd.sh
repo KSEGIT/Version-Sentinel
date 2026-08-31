@@ -165,4 +165,39 @@ out=$(parse_install_cmd "docker run --rm node npm install lodash@4.17.21")
 assert_eq "" "$out" "environment runners are deliberately not stripped"
 
 
+# --- Over-stripping must never FABRICATE an install ------------------------
+# Consuming `<flag> <word>` when the flag takes no operand eats the real command
+# and parses what follows as an install that never happens. That is worse than
+# missing one: `env -i true <pm> install <pkg>` runs `true`, installs nothing and
+# exits 0, so auto-record.sh would record a version check for <pkg> and a genuine
+# install of it would then be allowed with no check ever performed. Hence the
+# per-wrapper table of flags that REQUIRE an operand.
+out=$(parse_install_cmd "env -i true npm install evilpkg@9.9.9")
+assert_eq "" "$out" "env -i does not take an operand; `true` is the command"
+
+out=$(parse_install_cmd "xargs -t echo npm install lodash@4.17.21")
+assert_eq "" "$out" "xargs -t does not take an operand; echo is the command"
+
+out=$(parse_install_cmd "env -0 grep npm install lodash@4.17.21 log.txt")
+assert_eq "" "$out" "env -0 does not take an operand; grep is the command"
+
+# Flags whose operand is OPTIONAL are deliberately absent from the table:
+# guessing wrong here fabricates, guessing wrong the other way merely misses.
+out=$(parse_install_cmd "xargs -i true npm install evilpkg@9.9.9")
+assert_eq "" "$out" "xargs -i (optional operand) is not treated as taking one"
+
+out=$(parse_install_cmd "sudo -h true npm install evilpkg@9.9.9")
+assert_eq "" "$out" "sudo -h (optional operand) is not treated as taking one"
+
+# timeout accepts fractional durations.
+out=$(parse_install_cmd "timeout 1.5 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "fractional timeout duration"
+
+out=$(parse_install_cmd "timeout 0.5m npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "fractional suffixed timeout duration"
+
+out=$(parse_install_cmd "stdbuf -o 0 cargo add serde")
+assert_eq $'cargo\tserde\t' "$out" "stdbuf -o with separate operand"
+
+
 finish_test

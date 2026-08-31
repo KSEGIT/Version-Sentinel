@@ -64,5 +64,7 @@ Scans manifests within 4 directory levels of the current directory, compares eac
 - `commands/` — Claude Code slash commands (`/vs-record`, `/check-versions`).
 - `platforms/kimi/commands/` — Kimi Code command files (same workflow, `$KIMI_PLUGIN_ROOT`-based).
 - `skills/version-sentinel/` — agent skill explaining how to satisfy the hook.
-- `hooks/hooks.json` — hook definitions (Claude Code / Codex schema).
+- `hooks/hooks.json` — hook definitions (Claude Code). Claude-only: the Bash
+  handlers are gated with `if` rules that Codex ignores.
+- `hooks/codex-hooks.json` — the same wiring ungated, used by Codex.
 - `tests/` — shell test suite; run `tests/run.sh`.
