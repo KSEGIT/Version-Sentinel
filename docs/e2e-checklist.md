@@ -42,6 +42,9 @@ Verified live on 2026-07-26:
 - ✅ `marketplace add` + `plugin install` succeed; `plugin details` shows
   `Hooks (3) SessionStart, PreToolUse, PostToolUse`, slash commands
   `version-sentinel:vs-record` / `version-sentinel:check-versions` load in-session.
+  (Since the `if` gate landed, `plugin details` reports **22** hook handlers
+  rather than 4 — one `Bash(*<manager> *)` handler per package manager on each of
+  PreToolUse and PostToolUse. Still three hook *events*. Expected, not a bug.)
 - ✅ **Critical finding (fixed):** Claude Code *rejected* the combined
   `hooks/hooks.json` containing Gemini keys — `plugin list` showed
   `✘ failed to load / Hook load failed: invalid_key ... path: ["hooks","BeforeTool"]`
@@ -183,7 +186,7 @@ slash commands will receive a literal `${extensionPath}` — switch them to
 `gemini-extension.json` (which would resolve the collision cleanly):
 [google-gemini/gemini-cli#25630](https://github.com/google-gemini/gemini-cli/issues/25630).
 
-## OpenAI Codex — ❌ not verified (2026-07-26)
+## OpenAI Codex — ✅ verified (2026-08-31, codex-cli 0.151.0)
 
 ```bash
 codex plugin marketplace add KSEGIT/Version-Sentinel   # or a local path
@@ -191,9 +194,26 @@ codex plugin add version-sentinel
 ```
 
 Codex reads `.codex-plugin/plugin.json`, which references
-`./hooks/hooks.json` (Claude-schema; Codex accepts this schema, including the
-`apply_patch` matcher). Steps:
+`./hooks/codex-hooks.json` — the Claude schema (Codex accepts it, including the
+`apply_patch` matcher) but without the `if` gating, which Codex ignores. Steps:
 
+Verified in an isolated `CODEX_HOME` against this branch:
+
+- ✅ `plugin marketplace add <local path>` + `plugin add` → `installed, enabled`.
+  Codex does **not** reject the unknown `if` key.
+- ✅ Codex **ignores** `if`. With the gated `hooks/hooks.json` it ran
+  `detect-install-cmd.sh` for `echo hi`, which no rule matches, and ran **all
+  10** gated handlers — 40 hook spawns across two shell commands. Fixed by
+  pointing `.codex-plugin/plugin.json` at `hooks/codex-hooks.json` (ungated,
+  one handler per group): the same two commands now produce **4** spawns.
+  Codex therefore honors the `hooks` path declared in its own manifest and does
+  not fall back to the conventional `hooks/hooks.json`.
+- ✅ Codex normalizes its shell tool to `Bash` in the hook payload, so
+  `normalize_tool_name`'s `exec_command` mapping is belt-and-braces here.
+- ✅ Blocking works end-to-end: a pinned npm install was refused with
+  `BLOCKED: version-sentinel`, one hook spawn, nothing installed.
+
+Remaining manual steps (unchanged):
 1. After install, run `/hooks` and complete the **trust review** for the
    plugin's hooks (Codex requires explicit trust before hook commands run).
 2. Scratch project with a minimal `package.json`; ask Codex to add

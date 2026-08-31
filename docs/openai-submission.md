@@ -21,7 +21,7 @@ Prerequisites the portal enforces before the form works:
 **Skills only.** Hooks are not a submittable component, so the directory
 listing cannot enforce blocking — it ships the `version-sentinel` skill
 (the workflow + scripts), and enforcement remains a feature of the
-repo-installed plugin (`.codex-plugin/plugin.json` + `hooks/hooks.json`).
+repo-installed plugin (`.codex-plugin/plugin.json` + `hooks/codex-hooks.json`).
 Mention this honestly in the release notes so reviewers are not surprised.
 
 ## Info tab

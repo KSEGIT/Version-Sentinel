@@ -8,6 +8,8 @@ Claude Code plugin that hard-blocks dependency additions, bumps, and downgrades 
 .claude-plugin/       Plugin + marketplace metadata (plugin.json, marketplace.json)
 plugin.json           Claude Code plugin manifest
 hooks/hooks.json      Hook definitions, Claude Code/Codex schema (SessionStart, PreToolUse, PostToolUse)
+hooks/codex-hooks.json   Same wiring, one handler per group, no `if` — OpenAI Codex
+                      ignores `if` and would otherwise run all 10 gated handlers
 hooks/gemini-hooks.json  Gemini CLI hook definitions (SessionStart startup, BeforeTool, AfterTool) — separate because Claude's plugin loader rejects Gemini keys in hooks/hooks.json; Gemini only auto-loads hooks/hooks.json, so point/copy this file on Gemini install (upstream: google-gemini/gemini-cli#25630)
 scripts/              Bash scripts executed by hooks (prereq-check, detect-manifest-edit, detect-install-cmd, auto-record)
 commands/             Slash commands: /vs-record, /check-versions (.md for Claude Code, .toml for Gemini CLI)
@@ -39,6 +41,34 @@ docs/                 Documentation
 2. Hook exits 2 (blocks) if no fresh version check exists in `.version-sentinel/checks.json`
 3. User runs WebSearch + `/vs-record` to record a check, then retries
 4. PostToolUse hook on Bash auto-records successful install commands
+
+The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm *)`,
+`Bash(*pip *)`, ...), one per package-manager binary, so they only spawn for
+package-manager commands instead of on every Bash tool call. Keyed on the
+binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
+all covered. `tests/test_hook_if_parity.sh` fails if a manager known to
+`lib/parse-install-cmd.sh` has no matching rule — a gap there is a silent
+bypass, not a slowdown.
+
+`if` is a Claude Code field. Measured on codex-cli 0.151.0: Codex loads the
+file fine and normalizes its shell tool to `Bash` in the payload, but it
+ignores `if` outright — it ran the hook for `echo hi`, which no rule matches.
+Ignoring `if` means it runs every handler in the group, so sharing the gated
+file cost 10 spawns of each script per shell command instead of 1. Hence
+`.codex-plugin/plugin.json` points at `hooks/codex-hooks.json`: same events,
+matchers and scripts, one handler per group, no `if`. Codex honors that
+declared path (verified: 4 spawns per two commands, not 40), and blocking works
+end-to-end there. `tests/test_hook_if_parity.sh` fails if the two files drift.
+
+Rules are shaped `Bash(*<mgr> *)`, not `Bash(<mgr> *)`. Measured: the narrow
+form does not fire for a process-wrapper prefix (`timeout ... `, `nice ... `),
+though it does for a leading env assignment. `lib/parse-install-cmd.sh` strips
+both prefixes in `_strip_cmd_prefix`, so the wide form is what makes that
+stripping reachable. Narrowing the rules silently disables it.
+
+The `Edit`/`Write` hook is deliberately left ungated: it is a small share of
+tool calls, and `if` matches the literal tool name, so an `Edit(...)` rule does
+not fire for the `Write` tool.
 
 ## Prerequisites
 

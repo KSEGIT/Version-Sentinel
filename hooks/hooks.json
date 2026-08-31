@@ -25,6 +25,52 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(*npm*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pnpm*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*yarn*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*bun*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pip*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pip3*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*poetry*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*uv*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*cargo*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*dotnet*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           }
         ]
@@ -36,6 +82,52 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(*npm*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pnpm*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*yarn*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*bun*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pip*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*pip3*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*poetry*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*uv*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*cargo*)",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(*dotnet*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           }
         ]

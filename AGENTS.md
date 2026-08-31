@@ -54,7 +54,9 @@ Scans manifests within 4 directory levels of the current directory, compares eac
 - `plugin.json`, `.claude-plugin/` — Claude Code plugin manifest and metadata.
 - `kimi.plugin.json` — Kimi Code plugin manifest (root); `kimi-marketplace.json` — Kimi marketplace catalog.
 - `gemini-extension.json`, `GEMINI.md` — Gemini CLI extension manifest and context; `hooks/gemini-hooks.json` + `platforms/gemini/setup.sh` — Gemini hook wiring.
-- `.codex-plugin/plugin.json` — OpenAI Codex plugin manifest (reuses `hooks/hooks.json`).
+- `.codex-plugin/plugin.json` — OpenAI Codex plugin manifest (points at
+  `hooks/codex-hooks.json`: the same wiring without the `if` gating, which Codex
+  ignores — sharing the gated file made it run every handler in each group).
 - `.github/` — GitHub Copilot: `hooks/`, `agents/`, `prompts/`, `copilot-instructions.md`.
 - `.agents/skills/` — cross-tool skills (Copilot, Zed, Codex).
 - `AGENTS.md` — this file; read automatically by Codex, Zed, and GitHub Copilot.
@@ -62,5 +64,7 @@ Scans manifests within 4 directory levels of the current directory, compares eac
 - `commands/` — Claude Code slash commands (`/vs-record`, `/check-versions`).
 - `platforms/kimi/commands/` — Kimi Code command files (same workflow, `$KIMI_PLUGIN_ROOT`-based).
 - `skills/version-sentinel/` — agent skill explaining how to satisfy the hook.
-- `hooks/hooks.json` — hook definitions (Claude Code / Codex schema).
+- `hooks/hooks.json` — hook definitions (Claude Code). Claude-only: the Bash
+  handlers are gated with `if` rules that Codex ignores.
+- `hooks/codex-hooks.json` — the same wiring ungated, used by Codex.
 - `tests/` — shell test suite; run `tests/run.sh`.

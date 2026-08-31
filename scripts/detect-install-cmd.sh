@@ -32,6 +32,11 @@ matches=$(parse_install_cmd "$cmd")
 block=0
 block_msgs=""
 while IFS=$'\t' read -r eco pkg ver; do
+  if [[ "$eco" == "$VS_PARSE_AMBIGUOUS_ECOSYSTEM" ]]; then
+    block=1
+    block_msgs+=$'BLOCKED: version-sentinel.\nCannot safely inspect an env -S command.\n---\n'
+    continue
+  fi
   [[ -z "$pkg" ]] && continue
   [[ -z "$ver" ]] && continue
   if ! bash "$DIR/check-sidecar.sh" "$eco" "$pkg" "$ver" 2>/tmp/_vs_err_$$; then
