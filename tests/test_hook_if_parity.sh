@@ -17,27 +17,22 @@
 # still printed PASS — it reported green with the npm rule deleted. Hence
 # checked_events below: if a loop is ever skipped, the test fails instead.
 #
-# RULE SHAPE IS LOAD-BEARING. The rules are `Bash(*<mgr> *)`, not
-# `Bash(<mgr> *)`. Measured on Claude Code 2.1.227:
+# RULE SHAPE IS LOAD-BEARING. The rules are `Bash(*<mgr>*)` -- leading star, and
+# NO trailing space. Measured on Claude Code 2.1.227:
 #
-#   command form                     Bash(npm *)   Bash(*npm *)
-#   npm ...                              fires        fires
-#   FOO=bar npm ...                      fires        fires    (assignments stripped)
-#   timeout 30 npm ... / nice npm ...   DOES NOT      fires
+#   command form                       Bash(npm *)  Bash(*npm *)  Bash(*npm*)
+#   npm ...                              fires        fires        fires
+#   FOO=bar npm ...                      fires        fires        fires
+#   timeout 30 npm ... / nice npm ...   DOES NOT      fires        fires
+#   npm<TAB>install ...                 DOES NOT     DOES NOT      fires
 #
-# The hooks reference claims process wrappers are stripped before rule
-# matching; they are not, for `if`. Since lib/parse-install-cmd.sh now strips
-# those wrappers via _strip_cmd_prefix and therefore blocks the prefixed forms,
-# a narrowed `Bash(<mgr> *)` rule would mean the hook never spawns to run that
-# logic — the parser would pass its unit tests while the guard stayed off.
-# Widening costs ~1% of Bash calls in extra spawns, measured over 26,917 calls.
-#
-# KNOWN OVERLAP, deliberate. Glob `*npm *` also matches `pnpm add x` (the `*`
-# absorbs the `p`), and `uv pip install x` matches both `*uv *` and `*pip *`, so
-# those commands fire two identical handlers and emit the block message twice.
-# One rule per manager is kept anyway: it keeps intent obvious and lets the
-# parity check below be a simple per-manager assertion. Measured cost over
-# 27,028 Bash calls: 44 commands (0.163%) match more than one rule.
+# The leading star covers process wrappers, which the hooks reference claims are
+# stripped before rule matching but are not, for `if`. Dropping the trailing
+# space closes a whitespace mismatch: _parse_install_segment anchors on
+# [[:space:]]+, so it parses a TAB-separated install, but the glob `*npm *`
+# requires a literal space and would never spawn the hook to run it -- a silent
+# bypass, not a slowdown. Measured over 27,222 Bash calls: 3.81% -> 6.75% of
+# calls spawn, still a 93% reduction on the ungated 100%.
 #
 # Forms verified blocked end-to-end with the gate on: a pinned install behind a
 # `cd ... &&` compound; the same split across two lines by a bare newline; one
@@ -121,7 +116,12 @@ for event in PreToolUse PostToolUse; do
   rules=""
   n_rules=0
   while IFS= read -r line; do
-    line="${line%$'\r'}"       # jq on Git Bash can emit CRLF
+    # Under Git Bash it is the `< <(...)` PROCESS-SUBSTITUTION readers that
+    # deliver CRLF, not jq generally: in the failing Windows run the plain
+    # $(jq ...) assertions all passed. The tr -d '\r' on those sites is
+    # belt-and-braces; this strip is the one that was actually required. The
+    # rule for future edits is: any new `< <(...)` reader needs a CR strip.
+    line="${line%$'\r'}"
     [[ -z "$line" ]] && continue
     rules="$rules
 $line"
@@ -141,14 +141,15 @@ $line"
   # Parser -> hooks: no manager may be missing a rule (missing == silent bypass).
   for m in $uniq_managers; do
     case "$rules" in
-      *"Bash(*$m *)"*) ;;
-      *) _fail "$event is missing \`if\` rule 'Bash(*$m *)'" ;;
+      *"Bash(*$m*)"*) ;;
+      *) _fail "$event is missing \`if\` rule 'Bash(*$m*)'" ;;
     esac
   done
 
   # hooks -> parser: no rule may name a manager the parser cannot handle.
-  # Newline-delimited, not word-split: each rule contains a space, so `for r in
-  # $rules` would split `Bash(*npm *)` into two tokens and glob-expand both.
+  # Newline-delimited, not word-split: a rule can contain a space, so `for r in
+  # $rules` would split it into two tokens and glob-expand both.
+  checked_rules=0
   while IFS= read -r r; do
     r="${r%$'\r'}"
     [[ -z "$r" ]] && continue
@@ -156,14 +157,20 @@ $line"
       'Bash('*) ;;
       *) continue ;;
     esac
-    mgr="${r#Bash(\*}"; mgr="${mgr%% \*)}"
+    mgr="${r#Bash(\*}"; mgr="${mgr%%\*)}"
     case " $uniq_managers " in
       *" $mgr "*) ;;
-      *) _fail "$event rule 'Bash(*$mgr *)' names a manager parse-install-cmd.sh does not recognize" ;;
+      *) _fail "$event rule 'Bash(*$mgr*)' names a manager parse-install-cmd.sh does not recognize" ;;
     esac
+    checked_rules=$((checked_rules + 1))
   done <<EOF
 $rules
 EOF
+
+  # Same vacuity guard as checked_events below. Every rule should reach the
+  # manager check; if a future change to the jq filter above makes them all
+  # `continue`, this half of the parity check silently verifies nothing.
+  assert_eq "$n_rules" "$checked_rules" "$event: every rule was checked against the parser"
 
   checked_events=$((checked_events + 1))
 done

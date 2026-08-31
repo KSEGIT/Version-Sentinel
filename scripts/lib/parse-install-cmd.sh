@@ -48,8 +48,13 @@ _vs_parse_install_cmd() {
 # Removes shell prefixes that do not change which command actually runs:
 # leading environment assignments (`FOO=bar <cmd>`) and process wrappers that
 # exec their argument (`timeout 30 <cmd>`, `nice -n 10 <cmd>`, `sudo <cmd>`).
-# Without this, anchoring on ^(npm|...) meant any such prefix defeated the
-# guard completely and the package really did get installed. The wrapper list
+# Without this, anchoring on ^(npm|...) meant such a prefix defeated the guard
+# completely and the package really did get installed. NOTE the ^ anchor is
+# still there, so anything OTHER than a stripped wrapper in front of the manager
+# remains undetected: `python -m pip install X`, `.venv/bin/pip install X`,
+# `/usr/local/bin/npm install X`. Those are pre-existing gaps, not closed here,
+# and they are pinned as known limits in tests/test_parse_install_cmd.sh so this
+# comment is not misread as covering them. The wrapper list
 # mirrors the one Claude Code strips before matching Bash permission rules,
 # plus sudo/doas.
 #
@@ -60,10 +65,15 @@ _vs_parse_install_cmd() {
 #
 # WHY THE FLAG TABLE IS PER-WRAPPER AND CONSERVATIVE. Consuming `<flag> <word>`
 # when that flag takes NO operand eats the real command, and whatever follows is
-# then parsed as an install that never happens. That is worse than missing one:
-# `env -i true <pm> install <pkg>` runs `true`, installs nothing, exits 0, and
-# auto-record.sh would record a version check for <pkg> — after which a genuine
-# install of it is allowed with no check ever performed. So an operand is
+# then parsed as an install that never happens -- `env -i true <pm> install
+# <pkg>` runs `true` and installs nothing. Historically that was severe, because
+# auto-record.sh shared this parse and would record a check for <pkg>, after
+# which a genuine install of it was allowed. It no longer can: auto-record.sh
+# calls parse_install_cmd_strict, which never reaches this function, so the cost
+# of being wrong here is now a false BLOCK rather than a fabricated record. Keep
+# the table conservative regardless -- a false block on a command an agent
+# legitimately wants is still a bad day, and the strict/lenient split is what
+# makes that the worst case, so do not erode it. So an operand is
 # consumed only for flags of THAT wrapper which REQUIRE one. Flags with optional
 # operands (xargs -i, sudo -h) are deliberately absent: guessing wrong in this
 # direction fabricates an install, while guessing wrong in the other direction

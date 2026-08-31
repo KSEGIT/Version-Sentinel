@@ -158,7 +158,25 @@ assert_eq "" "$out" "wrapper around an unrelated build"
 out=$(parse_install_cmd "git commit -m \"bump npm install docs\"")
 assert_eq "" "$out" "manager words inside a commit message"
 
-# Known limit: environment runners are NOT stripped, matching Claude Code's own
+# --- Known limits, pinned so they stay visible rather than assumed covered ---
+# The manager anchor is `^`, so anything in front of the manager that is not a
+# stripped wrapper still defeats detection. Pre-existing gaps, NOT closed by
+# _strip_cmd_prefix. `.venv/bin/pip install X` and `python -m pip install X` are
+# the two most common pip invocations in practice, so this is the largest
+# remaining hole in the guard.
+out=$(parse_install_cmd "python -m pip install requests==2.31.0")
+assert_eq "" "$out" "known limit: python -m pip is not detected"
+
+out=$(parse_install_cmd "python3 -m pip install requests==2.31.0")
+assert_eq "" "$out" "known limit: python3 -m pip is not detected"
+
+out=$(parse_install_cmd ".venv/bin/pip install requests==2.31.0")
+assert_eq "" "$out" "known limit: path-qualified pip is not detected"
+
+out=$(parse_install_cmd "/usr/local/bin/npm install lodash@4.17.21")
+assert_eq "" "$out" "known limit: path-qualified npm is not detected"
+
+# Environment runners are NOT stripped, matching Claude Code's own
 # wrapper list. `docker run ... <pm> install x` installs inside the container,
 # not into this project, so it is out of scope rather than an oversight.
 out=$(parse_install_cmd "docker run --rm node npm install lodash@4.17.21")
