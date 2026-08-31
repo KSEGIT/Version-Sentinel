@@ -13,17 +13,19 @@
 # guesswork about which word is the real command, so it is kept out of the path
 # where guessing wrong is dangerous.
 parse_install_cmd() {
-  _VS_STRIP_PREFIX=1
-  _vs_parse_install_cmd "$1"
+  _vs_parse_install_cmd "$1" 1
 }
 
 parse_install_cmd_strict() {
-  _VS_STRIP_PREFIX=0
-  _vs_parse_install_cmd "$1"
+  _vs_parse_install_cmd "$1" 0
 }
 
+# The strip flag is threaded through as an argument rather than a global: a
+# security boundary must not depend on which entry point ran last in the
+# process. Absent, it defaults to 0 (strict) -- the direction that cannot
+# fabricate.
 _vs_parse_install_cmd() {
-  local cmd="$1"
+  local cmd="$1" strip="${2:-0}"
   local segment
   local segments
   local old_ifs="$IFS"
@@ -38,7 +40,7 @@ _vs_parse_install_cmd() {
   for segment in "${segments[@]}"; do
     segment="${segment#"${segment%%[![:space:]]*}"}"
     [[ -z "$segment" ]] && continue
-    _parse_install_segment "$segment"
+    _parse_install_segment "$segment" "$strip"
   done
 }
 
@@ -98,8 +100,14 @@ _strip_cmd_prefix() {
         # whole function rests on -- that the word after an operand is the real
         # command -- does not hold, in any of its spellings (-S x, -Sx,
         # --split-string=x). Abandon stripping rather than guess.
-        if [[ "$seg" =~ ^(-S|--split-string)([=[:space:]]|$) ]] ||
-           [[ "$seg" =~ ^-S[^[:space:]] ]]; then
+        #
+        # env ONLY. `sudo -S` means "read the password from stdin", takes no
+        # operand, and the next word IS the command: `echo pw | sudo -S <pm>
+        # install <pkg>` is a standard idiom, and bailing on it skipped a real
+        # install.
+        if [[ "$_vs_wrapper" == "env" ]] &&
+           { [[ "$seg" =~ ^(-S|--split-string)([=[:space:]]|$) ]] ||
+             [[ "$seg" =~ ^-S[^[:space:]] ]]; }; then
           printf '%s' "$1"; return
         fi
         # A flag of this wrapper that requires a separate operand.
@@ -119,8 +127,8 @@ _strip_cmd_prefix() {
 }
 
 _parse_install_segment() {
-  local seg="$1"
-  if [[ "${_VS_STRIP_PREFIX:-1}" == "1" ]]; then
+  local seg="$1" strip="${2:-0}"
+  if [[ "$strip" == "1" ]]; then
     seg=$(_strip_cmd_prefix "$1")
   fi
   if [[ "$seg" =~ ^(npm|pnpm|yarn|bun)[[:space:]]+(add|install|i)[[:space:]]+(.*) ]]; then

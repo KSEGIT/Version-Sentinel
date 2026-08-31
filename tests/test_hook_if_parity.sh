@@ -145,7 +145,10 @@ $line"
   done
 
   # hooks -> parser: no rule may name a manager the parser cannot handle.
-  for r in $rules; do
+  # Newline-delimited, not word-split: each rule contains a space, so `for r in
+  # $rules` would split `Bash(*npm *)` into two tokens and glob-expand both.
+  while IFS= read -r r; do
+    [[ -z "$r" ]] && continue
     case "$r" in
       'Bash('*) ;;
       *) continue ;;
@@ -155,7 +158,9 @@ $line"
       *" $mgr "*) ;;
       *) _fail "$event rule 'Bash(*$mgr *)' names a manager parse-install-cmd.sh does not recognize" ;;
     esac
-  done
+  done <<EOF
+$rules
+EOF
 
   checked_events=$((checked_events + 1))
 done

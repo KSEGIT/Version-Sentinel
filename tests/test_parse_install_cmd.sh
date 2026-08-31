@@ -250,4 +250,18 @@ for _c in "sudo npm install evilpkg@9.9.9" \
 done
 
 
+# `-S` means a command string for env, but for sudo it means read-the-password-
+# from-stdin and takes no operand, so the next word IS the command.
+# `echo pw | sudo -S <pm> install <pkg>` is a standard idiom; bailing on it
+# skipped a real install.
+out=$(parse_install_cmd "sudo -S npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -S is not env -S"
+
+out=$(parse_install_cmd "sudo -Sk npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -Sk clustered"
+
+out=$(parse_install_cmd "sudo -H -S npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -H -S"
+
+
 finish_test

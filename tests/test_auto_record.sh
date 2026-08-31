@@ -70,7 +70,6 @@ out=$(echo "$json" | CLAUDE_PLUGIN_OPTION_DISABLE=true bash "$SCRIPT" 2>&1; echo
 assert_contains "$out" "exit=0" "DISABLE=true → exit 0"
 assert_eq "0" "$(count_entries)" "DISABLE=true → no sidecar entry"
 
-cd "$OLDPWD"
 # --- Laundering guard: a command that installs NOTHING must never be recorded ---
 # `env -S true <pm> install <pkg>` runs `true`, installs nothing, exits 0 and has
 # no compound operators, so every other guard in auto-record.sh passes. If the
@@ -87,6 +86,8 @@ for _c in "env -S true npm install evilpkg@9.9.9" \
   assert_eq "0" "$(count_entries)" "no sidecar entry for: $_c"
 done
 rm -rf .version-sentinel
+
+cd "$OLDPWD"
 
 
 finish_test
