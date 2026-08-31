@@ -40,4 +40,70 @@ assert_eq $'csproj\tSerilog\t3.1.1' "$out" "dotnet add package -v"
 out=$(parse_install_cmd "ls -la")
 assert_eq "" "$out" "ls → no match"
 
+# --- Command prefixes the shell strips before running the real command ------
+# An agent that writes `timeout 30 <pm> install x` or `FOO=1 <pm> install x` is
+# still installing x. These used to slip through: _parse_install_segment
+# anchored on ^(npm|...) so any prefix defeated it entirely, and the package
+# really did get installed. The hook `if` rules in hooks/hooks.json are shaped
+# `Bash(*<mgr> *)` so the hook still spawns for these forms.
+
+out=$(parse_install_cmd "FOO=bar npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "leading env assignment"
+
+out=$(parse_install_cmd "NODE_ENV=production npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "leading env assignment (known-safe var)"
+
+out=$(parse_install_cmd "A=1 B=2 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "multiple leading env assignments"
+
+out=$(parse_install_cmd "timeout 30 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "timeout wrapper with duration"
+
+out=$(parse_install_cmd "timeout 5s npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "timeout wrapper with suffixed duration"
+
+out=$(parse_install_cmd "nice npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "nice wrapper"
+
+out=$(parse_install_cmd "nice -n 10 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "nice wrapper with flag"
+
+out=$(parse_install_cmd "nohup pip install requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "nohup wrapper"
+
+out=$(parse_install_cmd "stdbuf -o0 cargo add serde")
+assert_eq $'cargo\tserde\t' "$out" "stdbuf wrapper with flag"
+
+out=$(parse_install_cmd "command npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "command builtin"
+
+out=$(parse_install_cmd "env FOO=1 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "env wrapper carrying an assignment"
+
+out=$(parse_install_cmd "sudo pip install requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "sudo wrapper"
+
+out=$(parse_install_cmd "time npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "time keyword"
+
+out=$(parse_install_cmd "FOO=1 timeout 30 nice npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "assignment plus stacked wrappers"
+
+out=$(parse_install_cmd "cd /tmp && FOO=1 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "prefix inside a compound command"
+
+# Stripping must not invent installs out of non-install commands.
+out=$(parse_install_cmd "timeout 30 ls -la")
+assert_eq "" "$out" "wrapper around a non-install command"
+
+out=$(parse_install_cmd "command -v npm")
+assert_eq "" "$out" "command -v lookup is not an install"
+
+out=$(parse_install_cmd "echo timeout npm install lodash@4.17.21")
+assert_eq "" "$out" "wrapper word inside an echo is not an install"
+
+out=$(parse_install_cmd "FOO=bar ls -la")
+assert_eq "" "$out" "assignment before a non-install command"
+
+
 finish_test

@@ -18,5 +18,5 @@
     "supply-chain-security"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./hooks/codex-hooks.json"
 }

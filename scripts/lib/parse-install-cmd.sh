@@ -22,8 +22,41 @@ parse_install_cmd() {
   done
 }
 
+# _strip_cmd_prefix <segment>
+# Removes shell prefixes that do not change which command actually runs:
+# leading environment assignments (`FOO=bar <cmd>`) and process wrappers that
+# exec their argument (`timeout 30 <cmd>`, `nice -n 10 <cmd>`, `sudo <cmd>`).
+# Without this, anchoring on ^(npm|...) meant any such prefix defeated the
+# guard completely and the package really did get installed. The wrapper list
+# mirrors the one Claude Code strips before matching Bash permission rules,
+# plus sudo/doas.
+#
+# COUPLED TO hooks/hooks.json: its `if` rules are shaped `Bash(*<mgr> *)`
+# rather than `Bash(<mgr> *)` precisely so the hook still spawns for these
+# prefixed forms. Measured: `Bash(<mgr> *)` does NOT fire for a wrapper prefix.
+# If you add a wrapper here, re-check that the rules still fire for it.
+_strip_cmd_prefix() {
+  local seg="$1" prev=""
+  while [[ "$seg" != "$prev" ]]; do
+    prev="$seg"
+    while [[ "$seg" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*) ]]; do
+      seg="${BASH_REMATCH[1]}"
+    done
+    if [[ "$seg" =~ ^(timeout|time|nice|nohup|stdbuf|command|builtin|noglob|env|xargs|sudo|doas)[[:space:]]+(.*) ]]; then
+      seg="${BASH_REMATCH[2]}"
+      # Consume the wrapper's own flags and operands (`timeout 30`, `nice -n 10`)
+      # and stop at the first word that could be the real command.
+      while [[ "$seg" =~ ^(-[^[:space:]]*|[0-9]+[smhd]?)[[:space:]]+(.*) ]]; do
+        seg="${BASH_REMATCH[2]}"
+      done
+    fi
+  done
+  printf '%s' "$seg"
+}
+
 _parse_install_segment() {
-  local seg="$1"
+  local seg
+  seg=$(_strip_cmd_prefix "$1")
   if [[ "$seg" =~ ^(npm|pnpm|yarn|bun)[[:space:]]+(add|install|i)[[:space:]]+(.*) ]]; then
     _emit_npm_packages "${BASH_REMATCH[3]}"; return
   fi

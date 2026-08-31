@@ -17,23 +17,25 @@
 # still printed PASS — it reported green with the npm rule deleted. Hence
 # checked_events below: if a loop is ever skipped, the test fails instead.
 #
-# KNOWN COUPLING — read before extending the parser. Measured on Claude Code
-# 2.1.227, `Bash(npm *)` does NOT fire for a leading env assignment
-# (`FOO=bar npm install x`) or a process wrapper (`timeout 30 npm install x`,
-# `nice npm install x`), despite the hooks reference claiming both are stripped
-# before rule matching. That costs nothing today because _parse_install_segment
-# anchors on `^(npm|...)` and misses those forms too, so gated and ungated
-# configs were verified to behave identically. But if the parser is ever taught
-# to handle wrappers or leading assignments, the `if` rules must be widened in
-# the same change — otherwise the parser fix passes its unit tests while the
-# hook never spawns to run it.
+# RULE SHAPE IS LOAD-BEARING. The rules are `Bash(*<mgr> *)`, not
+# `Bash(<mgr> *)`. Measured on Claude Code 2.1.227:
 #
-# Command shapes measured end-to-end with the gate on and confirmed STILL
-# BLOCKED: a pinned install behind a `cd ... &&` compound; the same install
-# split across two lines by a bare newline rather than an operator; one behind
-# `;`; one behind `||`; a pinned install written with doubled spaces; and a
-# pinned pip3 install. Only the wrapper and leading-assignment forms above
-# diverge, and there the parser misses them too.
+#   command form                     Bash(npm *)   Bash(*npm *)
+#   npm ...                              fires        fires
+#   FOO=bar npm ...                      fires        fires    (assignments stripped)
+#   timeout 30 npm ... / nice npm ...   DOES NOT      fires
+#
+# The hooks reference claims process wrappers are stripped before rule
+# matching; they are not, for `if`. Since lib/parse-install-cmd.sh now strips
+# those wrappers via _strip_cmd_prefix and therefore blocks the prefixed forms,
+# a narrowed `Bash(<mgr> *)` rule would mean the hook never spawns to run that
+# logic — the parser would pass its unit tests while the guard stayed off.
+# Widening costs ~1% of Bash calls in extra spawns, measured over 26,917 calls.
+#
+# Forms verified blocked end-to-end with the gate on: a pinned install behind a
+# `cd ... &&` compound; the same split across two lines by a bare newline; one
+# behind `;`; one behind `||`; doubled spaces; a pinned pip3 install; and each
+# of the wrapper and assignment prefixes above.
 set -u
 VS_TEST_NAME="hook-if-parity"
 source "$(dirname "$0")/assert.sh"
@@ -60,8 +62,15 @@ EXTRACT='s/.*"\$seg"[[:space:]]+=~[[:space:]]+\^(\(?[A-Za-z0-9._|?-]+\)?)\[\[:sp
 # Every parser branch must yield exactly one token. If sed's class ever fails to
 # cover a manager name, tokens < branches and this fails loudly rather than
 # quietly dropping that manager from the parity check below.
-branches=$(grep -cE '"\$seg"[[:space:]]+=~[[:space:]]+\^' "$PARSER" | tr -d ' ')
-tokens=$(sed -nE "$EXTRACT" "$PARSER" | grep -c . | tr -d ' ')
+# Scope to _parse_install_segment's body only. Sibling helpers such as
+# _strip_cmd_prefix match on "$seg" too, but their regexes are wrapper and
+# assignment patterns, not manager names.
+SEGBODY=$(awk '/^_parse_install_segment\(\) \{/{f=1;next} f&&/^\}/{exit} f' "$PARSER")
+if [[ -z "$SEGBODY" ]]; then
+  _fail "could not slice _parse_install_segment out of $PARSER; extraction below would be vacuous"
+fi
+branches=$(printf '%s\n' "$SEGBODY" | grep -cE '"\$seg"[[:space:]]+=~[[:space:]]+\^' | tr -d ' ')
+tokens=$(printf '%s\n' "$SEGBODY" | sed -nE "$EXTRACT" | grep -c . | tr -d ' ')
 assert_eq "$branches" "$tokens" "every _parse_install_segment branch yields one extracted token"
 
 managers=""
@@ -77,7 +86,7 @@ while IFS= read -r tok; do
       managers="$managers $alt"
     fi
   done
-done < <(sed -nE "$EXTRACT" "$PARSER")
+done < <(printf '%s\n' "$SEGBODY" | sed -nE "$EXTRACT")
 
 # Dedupe, preserving order. Space-delimited string keeps this bash 3.2 safe.
 uniq_managers=""
@@ -123,8 +132,8 @@ $line"
   # Parser -> hooks: no manager may be missing a rule (missing == silent bypass).
   for m in $uniq_managers; do
     case "$rules" in
-      *"Bash($m *)"*) ;;
-      *) _fail "$event is missing \`if\` rule 'Bash($m *)'" ;;
+      *"Bash(*$m *)"*) ;;
+      *) _fail "$event is missing \`if\` rule 'Bash(*$m *)'" ;;
     esac
   done
 
@@ -134,10 +143,10 @@ $line"
       'Bash('*) ;;
       *) continue ;;
     esac
-    mgr="${r#Bash(}"; mgr="${mgr%%\**}"; mgr="${mgr% }"
+    mgr="${r#Bash(\*}"; mgr="${mgr%% \*)}"
     case " $uniq_managers " in
       *" $mgr "*) ;;
-      *) _fail "$event rule 'Bash($mgr *)' names a manager parse-install-cmd.sh does not recognize" ;;
+      *) _fail "$event rule 'Bash(*$mgr *)' names a manager parse-install-cmd.sh does not recognize" ;;
     esac
   done
 
@@ -155,5 +164,37 @@ assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToo
 # unguarded. Keep it firing on everything.
 ungated=$(jq '[.hooks.PreToolUse[]? | select(.matcher != "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS")
 assert_eq "0" "$ungated" "manifest-edit hook stays ungated on purpose"
+
+# --- Codex gets its own UNGATED copy --------------------------------------
+# Measured on codex-cli 0.151.0: Codex loads hooks/hooks.json fine but ignores
+# the `if` field entirely — it ran the hook for `echo hi`, which no rule
+# matches. Because it ignores `if`, it runs every handler in the group, so the
+# 10 gated handlers meant 10 spawns of each script per shell command (20 total,
+# vs 2 before). Not a guard hole — the hook still fires and still blocks — but a
+# 10x overhead regression on that platform. So .codex-plugin/plugin.json points
+# at hooks/codex-hooks.json, which is the same wiring with one handler per
+# group and no `if`. The two files must not otherwise drift.
+CODEX_HOOKS="$ROOT/hooks/codex-hooks.json"
+CODEX_MANIFEST="$ROOT/.codex-plugin/plugin.json"
+
+assert_file_exists "$CODEX_HOOKS" "codex-hooks.json present"
+assert_eq "0" "$(jq empty "$CODEX_HOOKS" >/dev/null 2>&1; echo $?)" "codex-hooks.json is valid JSON"
+assert_eq "./hooks/codex-hooks.json" "$(jq -r '.hooks' "$CODEX_MANIFEST" 2>/dev/null)" \
+  ".codex-plugin/plugin.json points at the ungated copy"
+
+n_if=$(jq '[.hooks[][].hooks[] | select(has("if"))] | length' "$CODEX_HOOKS")
+assert_eq "0" "$n_if" "codex-hooks.json carries no \`if\` keys"
+
+# Same events, matchers and scripts in both files — `if` and the resulting
+# handler duplication are the only permitted difference.
+_wiring() {
+  jq -S -c '.hooks | to_entries
+            | map({event: .key,
+                   groups: (.value | map({matcher: (.matcher // "*"),
+                                          cmds: (.hooks | map(.command) | unique)}))})' "$1"
+}
+assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
+  "codex-hooks.json wires the same events/matchers/scripts as hooks.json"
+
 
 finish_test

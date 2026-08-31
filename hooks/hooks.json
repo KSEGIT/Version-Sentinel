@@ -25,52 +25,52 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(npm *)",
+            "if": "Bash(*npm *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pnpm *)",
+            "if": "Bash(*pnpm *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(yarn *)",
+            "if": "Bash(*yarn *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(bun *)",
+            "if": "Bash(*bun *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pip *)",
+            "if": "Bash(*pip *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pip3 *)",
+            "if": "Bash(*pip3 *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(poetry *)",
+            "if": "Bash(*poetry *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(uv *)",
+            "if": "Bash(*uv *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(cargo *)",
+            "if": "Bash(*cargo *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
             "type": "command",
-            "if": "Bash(dotnet *)",
+            "if": "Bash(*dotnet *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           }
         ]
@@ -82,52 +82,52 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(npm *)",
+            "if": "Bash(*npm *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pnpm *)",
+            "if": "Bash(*pnpm *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(yarn *)",
+            "if": "Bash(*yarn *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(bun *)",
+            "if": "Bash(*bun *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pip *)",
+            "if": "Bash(*pip *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(pip3 *)",
+            "if": "Bash(*pip3 *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(poetry *)",
+            "if": "Bash(*poetry *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(uv *)",
+            "if": "Bash(*uv *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(cargo *)",
+            "if": "Bash(*cargo *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
             "type": "command",
-            "if": "Bash(dotnet *)",
+            "if": "Bash(*dotnet *)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           }
         ]
