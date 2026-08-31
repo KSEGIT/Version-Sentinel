@@ -2,7 +2,27 @@
 # parse_install_cmd <bash-command-string>
 # Prints TAB-separated "ecosystem\tpkg\tversion" lines.
 
+# parse_install_cmd   — strips shell prefixes first. For the BLOCKING path.
+# parse_install_cmd_strict — no prefix stripping. For auto-record.
+#
+# The asymmetry is deliberate and is the structural defence against fabricated
+# records. Over-detection in PreToolUse costs a false block, which is annoying
+# but safe. Over-detection in PostToolUse writes a sidecar entry for a package
+# nobody checked, after which a genuine install of it is waved through — a
+# laundering primitive against the guard itself. Prefix stripping is textual
+# guesswork about which word is the real command, so it is kept out of the path
+# where guessing wrong is dangerous.
 parse_install_cmd() {
+  _VS_STRIP_PREFIX=1
+  _vs_parse_install_cmd "$1"
+}
+
+parse_install_cmd_strict() {
+  _VS_STRIP_PREFIX=0
+  _vs_parse_install_cmd "$1"
+}
+
+_vs_parse_install_cmd() {
   local cmd="$1"
   local segment
   local segments
@@ -47,7 +67,9 @@ parse_install_cmd() {
 # direction fabricates an install, while guessing wrong in the other direction
 # merely misses one, which is the pre-existing behaviour. With the table correct,
 # the word after a consumed operand IS the real command, so if it is a package
-# manager then an install genuinely is happening.
+# manager then an install genuinely is happening. Entries were checked against
+# the man pages on macOS/BSD (env -C/-P/-S/-u, xargs -I/-J/-L/-E, sudo -u/-g/
+# -p/-C/-U, nice -n, stdbuf -i/-o/-e, timeout -s/-k) rather than from memory.
 _strip_cmd_prefix() {
   local seg="$1" prev="" _vs_wrapper="" _vs_optflags=""
   while [[ "$seg" != "$prev" ]]; do
@@ -59,12 +81,12 @@ _strip_cmd_prefix() {
       _vs_wrapper="${BASH_REMATCH[1]}"
       seg="${BASH_REMATCH[2]}"
       case "$_vs_wrapper" in
-        sudo|doas) _vs_optflags='-u|-g|-p|-C|-r|-t|-U|--user|--group|--prompt|--close-from|--role|--type|--other-user' ;;
+        sudo|doas) _vs_optflags='-u|-g|-p|-C|-r|-t|-U|-D|-R|-T|--user|--group|--prompt|--close-from|--role|--type|--other-user|--chdir|--chroot|--command-timeout' ;;
         timeout)   _vs_optflags='-s|-k|--signal|--kill-after' ;;
         nice)      _vs_optflags='-n|--adjustment' ;;
         stdbuf)    _vs_optflags='-i|-o|-e|--input|--output|--error' ;;
-        env)       _vs_optflags='-u|-S|-C|--unset|--split-string|--chdir' ;;
-        xargs)     _vs_optflags='-I|-n|-L|-P|-s|-d|-E|-a|--replace|--max-args|--max-lines|--max-procs|--max-chars|--delimiter|--eof|--arg-file' ;;
+        env)       _vs_optflags='-u|-C|-P|--unset|--chdir' ;;
+        xargs)     _vs_optflags='-I|-J|-n|-L|-P|-s|-d|-E|-a|--replace|--max-args|--max-lines|--max-procs|--max-chars|--delimiter|--eof|--arg-file' ;;
         *)         _vs_optflags='' ;;
       esac
       while :; do
@@ -72,9 +94,17 @@ _strip_cmd_prefix() {
         if [[ "$seg" =~ ^--[[:space:]]+(.*) ]]; then
           seg="${BASH_REMATCH[1]}"; break
         fi
+        # `env -S` takes a COMMAND STRING as its operand, so the premise this
+        # whole function rests on -- that the word after an operand is the real
+        # command -- does not hold, in any of its spellings (-S x, -Sx,
+        # --split-string=x). Abandon stripping rather than guess.
+        if [[ "$seg" =~ ^(-S|--split-string)([=[:space:]]|$) ]] ||
+           [[ "$seg" =~ ^-S[^[:space:]] ]]; then
+          printf '%s' "$1"; return
+        fi
         # A flag of this wrapper that requires a separate operand.
         if [[ -n "$_vs_optflags" ]] &&
-           [[ "$seg" =~ ^($_vs_optflags)[[:space:]]+[^[:space:]]+[[:space:]]+(.*) ]]; then
+           [[ "$seg" =~ ^($_vs_optflags)[[:space:]]+[^[:space:]\"\']+[[:space:]]+(.*) ]]; then
           seg="${BASH_REMATCH[2]}"; continue
         fi
         # Attached flags (`-o0`, `--rm`) and bare durations (`30`, `5s`, `1.5`).
@@ -89,8 +119,10 @@ _strip_cmd_prefix() {
 }
 
 _parse_install_segment() {
-  local seg
-  seg=$(_strip_cmd_prefix "$1")
+  local seg="$1"
+  if [[ "${_VS_STRIP_PREFIX:-1}" == "1" ]]; then
+    seg=$(_strip_cmd_prefix "$1")
+  fi
   if [[ "$seg" =~ ^(npm|pnpm|yarn|bun)[[:space:]]+(add|install|i)[[:space:]]+(.*) ]]; then
     _emit_npm_packages "${BASH_REMATCH[3]}"; return
   fi

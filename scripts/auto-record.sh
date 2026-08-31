@@ -61,7 +61,9 @@ source "$DIR/lib/parse-install-cmd.sh"
 # shellcheck source=lib/sidecar.sh
 source "$DIR/lib/sidecar.sh"
 
-matches=$(parse_install_cmd "$cmd")
+# Strict: no prefix stripping. See the header of lib/parse-install-cmd.sh --
+# a fabricated record here turns the guard OFF for that package.
+matches=$(parse_install_cmd_strict "$cmd")
 [[ -z "$matches" ]] && exit 0
 
 path=$(sidecar_path "$PWD")

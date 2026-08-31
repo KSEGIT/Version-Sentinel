@@ -173,7 +173,7 @@ assert_eq "" "$out" "environment runners are deliberately not stripped"
 # install of it would then be allowed with no check ever performed. Hence the
 # per-wrapper table of flags that REQUIRE an operand.
 out=$(parse_install_cmd "env -i true npm install evilpkg@9.9.9")
-assert_eq "" "$out" "env -i does not take an operand; `true` is the command"
+assert_eq "" "$out" "env -i does not take an operand, so true is the command"
 
 out=$(parse_install_cmd "xargs -t echo npm install lodash@4.17.21")
 assert_eq "" "$out" "xargs -t does not take an operand; echo is the command"
@@ -198,6 +198,56 @@ assert_eq $'npm\tlodash\t4.17.21' "$out" "fractional suffixed timeout duration"
 
 out=$(parse_install_cmd "stdbuf -o 0 cargo add serde")
 assert_eq $'cargo\tserde\t' "$out" "stdbuf -o with separate operand"
+
+
+out=$(parse_install_cmd "env -P /usr/bin npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "env -P altpath (BSD)"
+
+out=$(parse_install_cmd "xargs -J % npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "xargs -J replstr (BSD)"
+
+out=$(parse_install_cmd "env -v true npm install evilpkg@9.9.9")
+assert_eq "" "$out" "env -v takes no operand, so true is the command"
+
+
+# `env -S` takes a COMMAND STRING as its operand, so the assumption that the
+# word after an operand is the real command does not hold. All spellings must
+# abandon stripping rather than guess.
+for _c in "env -S true npm install evilpkg@9.9.9" \
+          "env -Strue npm install evilpkg@9.9.9" \
+          "env --split-string=true npm install evilpkg@9.9.9"; do
+  out=$(parse_install_cmd "$_c")
+  assert_eq "" "$out" "env -S is not stripped past: $_c"
+done
+
+# This parser is not quote-aware, so a quoted operand can hide a whole command.
+out=$(parse_install_cmd 'sudo -p "x npm install evilpkg@1.0.0 " true')
+assert_eq "" "$out" "quoted flag operand does not fabricate an install"
+
+out=$(parse_install_cmd 'xargs -I "x npm install evilpkg@1.0.0 " true')
+assert_eq "" "$out" "quoted replstr does not fabricate an install"
+
+# sudo flags that unambiguously require an operand.
+out=$(parse_install_cmd "sudo -D /app npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -D/--chdir"
+
+out=$(parse_install_cmd "sudo -R /chroot npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -R/--chroot"
+
+# --- strict mode: no prefix stripping at all ------------------------------
+# auto-record.sh uses this. Over-detection there writes a check for a package
+# nobody verified, which switches the guard off for it; over-detection in the
+# blocking path only costs a false block. So the dangerous path does not guess.
+out=$(parse_install_cmd_strict "npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "strict still parses a bare install"
+
+for _c in "sudo npm install evilpkg@9.9.9" \
+          "timeout 30 npm install evilpkg@9.9.9" \
+          "env -S true npm install evilpkg@9.9.9" \
+          "FOO=bar npm install evilpkg@9.9.9"; do
+  out=$(parse_install_cmd_strict "$_c")
+  assert_eq "" "$out" "strict does not strip prefixes: $_c"
+done
 
 
 finish_test

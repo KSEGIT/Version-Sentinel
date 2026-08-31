@@ -71,4 +71,22 @@ assert_contains "$out" "exit=0" "DISABLE=true → exit 0"
 assert_eq "0" "$(count_entries)" "DISABLE=true → no sidecar entry"
 
 cd "$OLDPWD"
+# --- Laundering guard: a command that installs NOTHING must never be recorded ---
+# `env -S true <pm> install <pkg>` runs `true`, installs nothing, exits 0 and has
+# no compound operators, so every other guard in auto-record.sh passes. If the
+# prefix stripper is used here, it records a check for <pkg> and a genuine
+# install of that package is then allowed with no check ever performed. This is
+# why auto-record.sh calls parse_install_cmd_strict.
+for _c in "env -S true npm install evilpkg@9.9.9" \
+          "env -i true npm install evilpkg@9.9.9" \
+          "xargs -t echo npm install evilpkg@9.9.9" \
+          "sudo npm install evilpkg@9.9.9"; do
+  rm -rf .version-sentinel
+  json="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"},\"tool_response\":{\"exit_code\":0}}"
+  echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+  assert_eq "0" "$(count_entries)" "no sidecar entry for: $_c"
+done
+rm -rf .version-sentinel
+
+
 finish_test
