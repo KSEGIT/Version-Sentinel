@@ -76,12 +76,13 @@ SEGBODY=$(awk '/^_parse_install_segment\(\) \{/{f=1;next} f&&/^\}/{exit} f' "$PA
 if [[ -z "$SEGBODY" ]]; then
   _fail "could not slice _parse_install_segment out of $PARSER; extraction below would be vacuous"
 fi
-branches=$(printf '%s\n' "$SEGBODY" | grep -cE '"\$seg"[[:space:]]+=~[[:space:]]+\^' | tr -d ' ')
-tokens=$(printf '%s\n' "$SEGBODY" | sed -nE "$EXTRACT" | grep -c . | tr -d ' ')
+branches=$(printf '%s\n' "$SEGBODY" | grep -cE '"\$seg"[[:space:]]+=~[[:space:]]+\^' | tr -d ' \r')
+tokens=$(printf '%s\n' "$SEGBODY" | sed -nE "$EXTRACT" | grep -c . | tr -d ' \r')
 assert_eq "$branches" "$tokens" "every _parse_install_segment branch yields one extracted token"
 
 managers=""
 while IFS= read -r tok; do
+  tok="${tok%$'\r'}"          # jq/sed on Git Bash can emit CRLF
   [[ -z "$tok" ]] && continue
   tok="${tok#(}"; tok="${tok%)}"
   old_ifs="$IFS"; IFS='|'; set -- $tok; IFS="$old_ifs"
@@ -120,6 +121,7 @@ for event in PreToolUse PostToolUse; do
   rules=""
   n_rules=0
   while IFS= read -r line; do
+    line="${line%$'\r'}"       # jq on Git Bash can emit CRLF
     [[ -z "$line" ]] && continue
     rules="$rules
 $line"
@@ -148,6 +150,7 @@ $line"
   # Newline-delimited, not word-split: each rule contains a space, so `for r in
   # $rules` would split `Bash(*npm *)` into two tokens and glob-expand both.
   while IFS= read -r r; do
+    r="${r%$'\r'}"
     [[ -z "$r" ]] && continue
     case "$r" in
       'Bash('*) ;;
@@ -174,7 +177,7 @@ assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToo
 # literal tool name (an Edit(...) rule does not fire for the Write tool), so
 # gating that group buys little and risks a manifest pattern silently going
 # unguarded. Keep it firing on everything.
-ungated=$(jq '[.hooks.PreToolUse[]? | select(.matcher != "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS")
+ungated=$(jq '[.hooks.PreToolUse[]? | select(.matcher != "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS" | tr -d '\r')
 assert_eq "0" "$ungated" "manifest-edit hook stays ungated on purpose"
 
 # --- Codex gets its own UNGATED copy --------------------------------------
@@ -191,10 +194,10 @@ CODEX_MANIFEST="$ROOT/.codex-plugin/plugin.json"
 
 assert_file_exists "$CODEX_HOOKS" "codex-hooks.json present"
 assert_eq "0" "$(jq empty "$CODEX_HOOKS" >/dev/null 2>&1; echo $?)" "codex-hooks.json is valid JSON"
-assert_eq "./hooks/codex-hooks.json" "$(jq -r '.hooks' "$CODEX_MANIFEST" 2>/dev/null)" \
+assert_eq "./hooks/codex-hooks.json" "$(jq -r '.hooks' "$CODEX_MANIFEST" 2>/dev/null | tr -d '\r')" \
   ".codex-plugin/plugin.json points at the ungated copy"
 
-n_if=$(jq '[.hooks[][].hooks[] | select(has("if"))] | length' "$CODEX_HOOKS")
+n_if=$(jq '[.hooks[][].hooks[] | select(has("if"))] | length' "$CODEX_HOOKS" | tr -d '\r')
 assert_eq "0" "$n_if" "codex-hooks.json carries no \`if\` keys"
 
 # Same events, matchers and scripts in both files — `if` and the resulting
@@ -203,7 +206,7 @@ _wiring() {
   jq -S -c '.hooks | to_entries
             | map({event: .key,
                    groups: (.value | map({matcher: (.matcher // "*"),
-                                          cmds: (.hooks | map(.command) | unique)}))})' "$1"
+                                          cmds: (.hooks | map(.command) | unique)}))})' "$1" | tr -d '\r'
 }
 assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
   "codex-hooks.json wires the same events/matchers/scripts as hooks.json"
@@ -211,7 +214,7 @@ assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
 # _wiring uses `unique`, so a DUPLICATED handler would compare equal. Codex runs
 # every handler in a group, so a duplicate there is exactly the 10x-spawn
 # regression this file was split off to avoid. Pin the count as well.
-dupes=$(jq '[.hooks[][] | select((.hooks | length) != 1)] | length' "$CODEX_HOOKS")
+dupes=$(jq '[.hooks[][] | select((.hooks | length) != 1)] | length' "$CODEX_HOOKS" | tr -d '\r')
 assert_eq "0" "$dupes" "every codex-hooks.json group has exactly one handler"
 
 
