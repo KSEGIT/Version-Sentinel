@@ -76,7 +76,8 @@ assert_eq "0" "$(count_entries)" "DISABLE=true → no sidecar entry"
 # prefix stripper is used here, it records a check for <pkg> and a genuine
 # install of that package is then allowed with no check ever performed. This is
 # why auto-record.sh calls parse_install_cmd_strict.
-for _c in "env -S true npm install evilpkg@9.9.9" \
+for _c in "env -S npm install evilpkg@9.9.9" \
+          "env -S true npm install evilpkg@9.9.9" \
           "env -i true npm install evilpkg@9.9.9" \
           "xargs -t echo npm install evilpkg@9.9.9" \
           "sudo npm install evilpkg@9.9.9"; do

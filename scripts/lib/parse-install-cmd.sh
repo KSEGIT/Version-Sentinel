@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # parse_install_cmd <bash-command-string>
 # Prints TAB-separated "ecosystem\tpkg\tversion" lines.
+# The blocking parser uses "__ambiguous_command__\tenv -S\t" when it cannot
+# safely recover the command from env's split-string option.
 
 # parse_install_cmd   — strips shell prefixes first. For the BLOCKING path.
 # parse_install_cmd_strict — no prefix stripping. For auto-record.
@@ -19,6 +21,8 @@ parse_install_cmd() {
 parse_install_cmd_strict() {
   _vs_parse_install_cmd "$1" 0
 }
+
+VS_PARSE_AMBIGUOUS_ECOSYSTEM="__ambiguous_command__"
 
 # The strip flag is threaded through as an argument rather than a global: a
 # security boundary must not depend on which entry point ran last in the
@@ -109,7 +113,8 @@ _strip_cmd_prefix() {
         # `env -S` takes a COMMAND STRING as its operand, so the premise this
         # whole function rests on -- that the word after an operand is the real
         # command -- does not hold, in any of its spellings (-S x, -Sx,
-        # --split-string=x). Abandon stripping rather than guess.
+        # --split-string=x). Report ambiguity rather than guess so the blocking
+        # caller can fail closed.
         #
         # env ONLY. `sudo -S` means "read the password from stdin", takes no
         # operand, and the next word IS the command: `echo pw | sudo -S <pm>
@@ -118,7 +123,7 @@ _strip_cmd_prefix() {
         if [[ "$_vs_wrapper" == "env" ]] &&
            { [[ "$seg" =~ ^(-S|--split-string)([=[:space:]]|$) ]] ||
              [[ "$seg" =~ ^-S[^[:space:]] ]]; }; then
-          printf '%s' "$1"; return
+          return 2
         fi
         # A flag of this wrapper that requires a separate operand.
         if [[ -n "$_vs_optflags" ]] &&
@@ -139,7 +144,10 @@ _strip_cmd_prefix() {
 _parse_install_segment() {
   local seg="$1" strip="${2:-0}"
   if [[ "$strip" == "1" ]]; then
-    seg=$(_strip_cmd_prefix "$1")
+    if ! seg=$(_strip_cmd_prefix "$1"); then
+      printf '%s\tenv -S\t\n' "$VS_PARSE_AMBIGUOUS_ECOSYSTEM"
+      return
+    fi
   fi
   if [[ "$seg" =~ ^(npm|pnpm|yarn|bun)[[:space:]]+(add|install|i)[[:space:]]+(.*) ]]; then
     _emit_npm_packages "${BASH_REMATCH[3]}"; return

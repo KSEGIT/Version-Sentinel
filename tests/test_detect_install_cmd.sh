@@ -14,6 +14,12 @@ result=$(cat "$FIXTURES/bash_npm_install.json" | bash "$SCRIPT" 2>&1; echo "exit
 assert_contains "$result" "BLOCKED" "npm install blocked"
 assert_contains "$result" "lodash" "npm install names pkg"
 
+# Case 1b: env -S command strings cannot be parsed safely → fail closed
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"env -S npm install lodash@4.17.21"}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
+assert_contains "$result" "BLOCKED" "env -S install blocked"
+assert_contains "$result" "env -S" "env -S install explains ambiguity"
+assert_contains "$result" "exit=2" "env -S install: exit 2"
+
 # Case 2: pip install X==Y with no sidecar → block
 result=$(cat "$FIXTURES/bash_pip_install.json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "BLOCKED" "pip install blocked"

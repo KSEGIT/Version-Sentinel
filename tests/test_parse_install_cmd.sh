@@ -230,12 +230,13 @@ assert_eq "" "$out" "env -v takes no operand, so true is the command"
 
 # `env -S` takes a COMMAND STRING as its operand, so the assumption that the
 # word after an operand is the real command does not hold. All spellings must
-# abandon stripping rather than guess.
-for _c in "env -S true npm install evilpkg@9.9.9" \
+# return an explicit ambiguity tuple so the blocking caller can fail closed.
+for _c in "env -S npm install evilpkg@9.9.9" \
+          "env -S true npm install evilpkg@9.9.9" \
           "env -Strue npm install evilpkg@9.9.9" \
           "env --split-string=true npm install evilpkg@9.9.9"; do
   out=$(parse_install_cmd "$_c")
-  assert_eq "" "$out" "env -S is not stripped past: $_c"
+  assert_eq $'__ambiguous_command__\tenv -S\t' "$out" "env -S is ambiguous: $_c"
 done
 
 # This parser is not quote-aware, so a quoted operand can hide a whole command.
@@ -261,6 +262,7 @@ assert_eq $'npm\tlodash\t4.17.21' "$out" "strict still parses a bare install"
 
 for _c in "sudo npm install evilpkg@9.9.9" \
           "timeout 30 npm install evilpkg@9.9.9" \
+          "env -S npm install evilpkg@9.9.9" \
           "env -S true npm install evilpkg@9.9.9" \
           "FOO=bar npm install evilpkg@9.9.9"; do
   out=$(parse_install_cmd_strict "$_c")
