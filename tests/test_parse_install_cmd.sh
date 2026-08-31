@@ -106,4 +106,42 @@ out=$(parse_install_cmd "FOO=bar ls -la")
 assert_eq "" "$out" "assignment before a non-install command"
 
 
+# Wrapper flags that take a separate operand, and the `--` terminator. The `--`
+# case is the dangerous one: if the operand-consuming rule ran before the `--`
+# check it would swallow the real command and reopen the bypass.
+out=$(parse_install_cmd "sudo -u root pip install requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "sudo with -u <user>"
+
+out=$(parse_install_cmd "sudo -- npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo with -- terminator"
+
+out=$(parse_install_cmd "timeout -s KILL 30 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "timeout with -s <signal> and duration"
+
+out=$(parse_install_cmd "env -i FOO=1 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "env -i with assignment"
+
+out=$(parse_install_cmd "nohup timeout 60 nice -n 5 npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "stacked wrappers"
+
+out=$(parse_install_cmd "xargs npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "bare xargs"
+
+# A flag operand that merely looks like a package manager is not one.
+out=$(parse_install_cmd "sudo -u npm whoami")
+assert_eq "" "$out" "manager name as a flag operand is not an install"
+
+out=$(parse_install_cmd "nice -n 10 make build")
+assert_eq "" "$out" "wrapper around an unrelated build"
+
+out=$(parse_install_cmd "git commit -m \"bump npm install docs\"")
+assert_eq "" "$out" "manager words inside a commit message"
+
+# Known limit: environment runners are NOT stripped, matching Claude Code's own
+# wrapper list. `docker run ... <pm> install x` installs inside the container,
+# not into this project, so it is out of scope rather than an oversight.
+out=$(parse_install_cmd "docker run --rm node npm install lodash@4.17.21")
+assert_eq "" "$out" "environment runners are deliberately not stripped"
+
+
 finish_test

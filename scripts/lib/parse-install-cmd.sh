@@ -44,10 +44,26 @@ _strip_cmd_prefix() {
     done
     if [[ "$seg" =~ ^(timeout|time|nice|nohup|stdbuf|command|builtin|noglob|env|xargs|sudo|doas)[[:space:]]+(.*) ]]; then
       seg="${BASH_REMATCH[2]}"
-      # Consume the wrapper's own flags and operands (`timeout 30`, `nice -n 10`)
-      # and stop at the first word that could be the real command.
-      while [[ "$seg" =~ ^(-[^[:space:]]*|[0-9]+[smhd]?)[[:space:]]+(.*) ]]; do
-        seg="${BASH_REMATCH[2]}"
+      # Consume the wrapper's own flags and operands (`timeout 30`, `nice -n 10`,
+      # `sudo -u root`) and stop at the first word that could be the real
+      # command. Note the `--` case is checked first: it ends the wrapper's
+      # options, so the next word IS the command. Consuming it as if it were a
+      # flag operand would turn `sudo -- <pm> install x` into a bypass.
+      while :; do
+        if [[ "$seg" =~ ^--[[:space:]]+(.*) ]]; then
+          seg="${BASH_REMATCH[1]}"; break
+        fi
+        # Flags of the wrappers above that take a separate operand. Deliberately
+        # a fixed list: blanket "consume one word after any flag" would eat the
+        # real command whenever a flag happened to be the last option.
+        if [[ "$seg" =~ ^(-u|-g|-n|-s|-o|-i|-e|--user|--group|--adjustment|--signal)[[:space:]]+[^-][^[:space:]]*[[:space:]]+(.*) ]]; then
+          seg="${BASH_REMATCH[2]}"; continue
+        fi
+        # Attached flags (`-o0`, `--rm`) and bare durations (`30`, `5s`).
+        if [[ "$seg" =~ ^(-[^[:space:]]*|[0-9]+[smhd]?)[[:space:]]+(.*) ]]; then
+          seg="${BASH_REMATCH[2]}"; continue
+        fi
+        break
       done
     fi
   done
