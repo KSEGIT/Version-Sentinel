@@ -138,13 +138,43 @@ $line"
     *"<UNGATED>"*) _fail "$event: a Bash handler has no \`if\` rule; it would spawn on every Bash call" ;;
   esac
 
-  # Parser -> hooks: no manager may be missing a rule (missing == silent bypass).
+  # Parser -> hooks: every manager must be COVERED (missing == silent bypass).
+  # A rule `Bash(*r*)` matches any command text containing r, so it covers
+  # manager m whenever r is a substring of m: `Bash(*npm*)` covers pnpm and
+  # `Bash(*pip*)` covers pip3. Coverage is the property that matters, not one
+  # rule per manager -- demanding the latter cemented redundant rules that make
+  # those two managers fork the hook script twice per call.
   for m in $uniq_managers; do
-    case "$rules" in
-      *"Bash(*$m*)"*) ;;
-      *) _fail "$event is missing \`if\` rule 'Bash(*$m*)'" ;;
-    esac
+    covered=0
+    while IFS= read -r r; do
+      r="${r%$'\r'}"
+      [[ -z "$r" ]] && continue
+      tok="${r#Bash(\*}"; tok="${tok%%\*)}"
+      [[ -z "$tok" ]] && continue
+      case "$m" in *"$tok"*) covered=1; break ;; esac
+    done <<EOF
+$rules
+EOF
+    assert_eq "1" "$covered" "$event covers manager '$m'"
   done
+
+  # ...and the rule set must be MINIMAL: if one rule's token is a substring of
+  # another's, the shorter already matches everything the longer does, so the
+  # longer only forks the script a second time.
+  while IFS= read -r r1; do
+    r1="${r1%$'\r'}"; [[ -z "$r1" ]] && continue
+    t1="${r1#Bash(\*}"; t1="${t1%%\*)}"; [[ -z "$t1" ]] && continue
+    while IFS= read -r r2; do
+      r2="${r2%$'\r'}"; [[ -z "$r2" ]] && continue
+      t2="${r2#Bash(\*}"; t2="${t2%%\*)}"; [[ -z "$t2" ]] && continue
+      [[ "$t1" == "$t2" ]] && continue
+      case "$t2" in *"$t1"*) _fail "$event rule 'Bash(*$t2*)' is redundant: 'Bash(*$t1*)' already matches it" ;; esac
+    done <<EOF2
+$rules
+EOF2
+  done <<EOF
+$rules
+EOF
 
   # hooks -> parser: no rule may name a manager the parser cannot handle.
   # Newline-delimited, not word-split: a rule can contain a space, so `for r in
@@ -213,7 +243,9 @@ _wiring() {
   jq -S -c '.hooks | to_entries
             | map({event: .key,
                    groups: (.value | map({matcher: (.matcher // "*"),
-                                          cmds: (.hooks | map(.command) | unique)}))})' "$1" | tr -d '\r'
+                                          cmds: (.hooks | map(.command) | unique)})
+                                   | sort_by(.matcher))})
+            | sort_by(.event)' "$1" | tr -d '\r'
 }
 assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
   "codex-hooks.json wires the same events/matchers/scripts as hooks.json"
@@ -223,6 +255,64 @@ assert_eq "$(_wiring "$CODEX_HOOKS")" "$(_wiring "$HOOKS")" \
 # regression this file was split off to avoid. Pin the count as well.
 dupes=$(jq '[.hooks[][] | select((.hooks | length) != 1)] | length' "$CODEX_HOOKS" | tr -d '\r')
 assert_eq "0" "$dupes" "every codex-hooks.json group has exactly one handler"
+
+
+# --- The `if` gate must never miss what the parser can detect ---------------
+# The hooks reference calls `if` best-effort and says not to use it for hard
+# enforcement. Its documented failure direction is safe here -- "when Claude
+# Code can't determine which commands the Bash input runs, it runs your hook
+# regardless of the pattern" -- so uncertainty OVER-fires. The dangerous case is
+# a DETERMINATE non-match, which is exactly what the TAB form was:
+# `Bash(*npm *)` did not match a TAB-separated install although the parser did.
+#
+# Rules are shaped `Bash(*<tok>*)`, so the invariant that makes the gate sound
+# is: anything the parser detects contains a manager name as a substring, hence
+# some rule matches it. Assert it directly over the forms this guard cares
+# about, so a future rule-shape change cannot quietly break it.
+_rule_matches() {  # _rule_matches <command>
+  local cmd="$1" r tok
+  while IFS= read -r r; do
+    r="${r%$'\r'}"; [[ -z "$r" ]] && continue
+    tok="${r#Bash(\*}"; tok="${tok%%\*)}"; [[ -z "$tok" ]] && continue
+    case "$cmd" in *"$tok"*) return 0 ;; esac
+  done <<EOF
+$rules
+EOF
+  return 1
+}
+
+# shellcheck source=../scripts/lib/parse-install-cmd.sh
+source "$ROOT/scripts/lib/parse-install-cmd.sh"
+
+GATE_FIXTURES="$ROOT/tests/fixtures/gate-invariant-commands.txt"
+assert_file_exists "$GATE_FIXTURES" "gate-invariant fixture list present"
+n_fixtures=0
+while IFS= read -r _cmd; do
+  _cmd="${_cmd%$'\r'}"
+  [[ -z "$_cmd" || "$_cmd" == \#* ]] && continue
+  n_fixtures=$((n_fixtures + 1))
+  if [[ -z "$(parse_install_cmd "$_cmd")" ]]; then
+    _fail "fixture is not detected by the parser, so it proves nothing: $_cmd"
+    continue
+  fi
+  _rule_matches "$_cmd" || \
+    _fail "parser detects an install the \`if\` rules would never spawn for: $_cmd"
+done < "$GATE_FIXTURES"
+# A truncated or renamed fixture file would make the loop vacuous.
+if [[ "$n_fixtures" -lt 20 ]]; then
+  _fail "only $n_fixtures gate-invariant fixtures were read (expected >=20)"
+fi
+
+# The handler count is documented for users running `plugin details`. Pin it to
+# the number the docs actually state, so changing the rule set cannot silently
+# make docs/e2e-checklist.md wrong.
+doc_count=$(grep -oE 'reports \*\*[0-9]+\*\* hook handlers' "$ROOT/docs/e2e-checklist.md" | grep -oE '[0-9]+' | head -1)
+real_count=$(jq '[.hooks[][].hooks[]] | length' "$HOOKS" | tr -d '\r')
+if [[ -z "$doc_count" ]]; then
+  _fail "could not read the documented handler count out of docs/e2e-checklist.md"
+else
+  assert_eq "$doc_count" "$real_count" "hooks.json handler count matches docs/e2e-checklist.md"
+fi
 
 
 finish_test

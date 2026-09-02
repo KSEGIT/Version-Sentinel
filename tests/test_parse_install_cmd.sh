@@ -45,7 +45,7 @@ assert_eq "" "$out" "ls → no match"
 # still installing x. These used to slip through: _parse_install_segment
 # anchored on ^(npm|...) so any prefix defeated it entirely, and the package
 # really did get installed. The hook `if` rules in hooks/hooks.json are shaped
-# `Bash(*<mgr> *)` so the hook still spawns for these forms.
+# `Bash(*<mgr>*)` so the hook still spawns for these forms.
 
 out=$(parse_install_cmd "FOO=bar npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "leading env assignment"
@@ -282,6 +282,44 @@ assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -Sk clustered"
 
 out=$(parse_install_cmd "sudo -H -S npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -H -S"
+
+
+# An env-assignment value may be quoted and contain spaces. The value class must
+# understand quoting, or the stripper stops mid-value and the manager anchor
+# fails -- a real bypass, since the `if` rule still fires and the hook then
+# waves the install through.
+out=$(parse_install_cmd "CFLAGS='-O2 -g' pip install requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "single-quoted assignment value with a space"
+
+out=$(parse_install_cmd 'PIP_INDEX_URL="https://a b" pip install requests==2.31.0')
+assert_eq $'pip\trequests\t2.31.0' "$out" "double-quoted assignment value with a space"
+
+out=$(parse_install_cmd "A='x y' B='p q' npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "several quoted assignment values"
+
+out=$(parse_install_cmd "NODE_OPTIONS='--max-old-space-size=4096' npm install lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "quoted value without spaces still works"
+
+# TAB separation: _parse_install_segment anchors on [[:space:]]+, and the hook
+# rules are shaped `Bash(*<mgr>*)` with no trailing space so the gate fires for
+# it too. Tightening the parser to [ ]+ would pass CI while reopening that
+# bypass, so pin the behaviour the rule shape exists for.
+out=$(parse_install_cmd "$(printf 'npm\tinstall\tlodash@4.17.21')")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "TAB-separated npm install"
+
+out=$(parse_install_cmd "$(printf 'pip\tinstall\trequests==2.31.0')")
+assert_eq $'pip\trequests\t2.31.0' "$out" "TAB-separated pip install"
+
+out=$(parse_install_cmd "npm  install  lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "doubled spaces"
+
+# Known limits: nested command contexts are not split into segments, so the rule
+# matches the text, the hook fires, and then finds nothing.
+out=$(parse_install_cmd 'echo $(npm install evilpkg@9.9.9)')
+assert_eq "" "$out" "known limit: install inside \$() is not detected"
+
+out=$(parse_install_cmd "timeout 30 bash -c 'npm install evilpkg@1.0.0'")
+assert_eq "" "$out" "known limit: install inside bash -c is not detected"
 
 
 finish_test

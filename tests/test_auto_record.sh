@@ -10,7 +10,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$ROOT/scripts/auto-record.sh"
 SIDECAR=".version-sentinel/checks.json"
 
-cd "$VS_TMPDIR"
+# Guarded: several `rm -rf .version-sentinel` calls run below; under `set -u`
+# without `set -e` a failed cd would leave them deleting the caller's real
+# project state.
+cd "$VS_TMPDIR" || { echo "FAIL [$VS_TEST_NAME]: cannot cd to $VS_TMPDIR" >&2; exit 1; }
 
 # Helper: count entries in sidecar (0 if file missing/invalid)
 count_entries() {
@@ -76,6 +79,21 @@ assert_eq "0" "$(count_entries)" "DISABLE=true → no sidecar entry"
 # prefix stripper is used here, it records a check for <pkg> and a genuine
 # install of that package is then allowed with no check ever performed. This is
 # why auto-record.sh calls parse_install_cmd_strict.
+# A multi-line command whose BODY merely contains an install line installs
+# nothing: the text is heredoc data, a generated script, or a commit message.
+# parse_install_cmd splits on newlines, so that line becomes its own segment and
+# starts with a manager -- prefix stripping is not involved at all, which is why
+# the strict/lenient split alone does not close this.
+rm -rf .version-sentinel
+json='{"tool_name":"Bash","tool_input":{"command":"cat > notes.txt <<EOF\nnpm install evilpkg@9.9.9\nEOF"},"tool_response":{"exit_code":0}}'
+echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+assert_eq "0" "$(count_entries)" "heredoc body containing an install is not recorded"
+
+rm -rf .version-sentinel
+json='{"tool_name":"Bash","tool_input":{"command":"cat > build.sh <<SH\ncd app\nnpm install evilpkg@9.9.9\nSH"},"tool_response":{"exit_code":0}}'
+echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+assert_eq "0" "$(count_entries)" "generated script body is not recorded"
+
 for _c in "env -S npm install evilpkg@9.9.9" \
           "env -S true npm install evilpkg@9.9.9" \
           "env -i true npm install evilpkg@9.9.9" \

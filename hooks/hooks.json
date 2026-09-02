@@ -30,11 +30,6 @@
           },
           {
             "type": "command",
-            "if": "Bash(*pnpm*)",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
-          },
-          {
-            "type": "command",
             "if": "Bash(*yarn*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
@@ -46,11 +41,6 @@
           {
             "type": "command",
             "if": "Bash(*pip*)",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
-          },
-          {
-            "type": "command",
-            "if": "Bash(*pip3*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
           },
           {
@@ -87,11 +77,6 @@
           },
           {
             "type": "command",
-            "if": "Bash(*pnpm*)",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
-          },
-          {
-            "type": "command",
             "if": "Bash(*yarn*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
@@ -103,11 +88,6 @@
           {
             "type": "command",
             "if": "Bash(*pip*)",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
-          },
-          {
-            "type": "command",
-            "if": "Bash(*pip3*)",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
           },
           {
