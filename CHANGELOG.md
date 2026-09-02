@@ -2,6 +2,28 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.4](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.3...version-sentinel-v0.4.4) (2026-09-02)
+
+
+### Bug Fixes
+
+* block wrapper/assignment-prefixed installs, and unshare hooks with Codex ([c37e928](https://github.com/KSEGIT/Version-Sentinel/commit/c37e928f0377551288c1e2f32c26a9f13179fcc6))
+* close the TAB whitespace bypass, guard the second parity loop, correct stale notes ([114e44c](https://github.com/KSEGIT/Version-Sentinel/commit/114e44c4711583462aee186258477855ec69204c))
+* close two guard bypasses shipped in [#26](https://github.com/KSEGIT/Version-Sentinel/issues/26) (laundering via multi-line commands, quoted env assignments) ([2f9efd5](https://github.com/KSEGIT/Version-Sentinel/commit/2f9efd555b28b8c373473c9c21bd0ce7036c4c98))
+* close two guard bypasses shipped in [#26](https://github.com/KSEGIT/Version-Sentinel/issues/26), and tighten the gate contract ([0943981](https://github.com/KSEGIT/Version-Sentinel/commit/0943981cff829823f82cd620f612cedd56463957))
+* decide flag operands by the operand, not a flag list ([0e39f08](https://github.com/KSEGIT/Version-Sentinel/commit/0e39f08520cd9befafa63e2b3d82145c7285e6b4))
+* keep prefix stripping out of the auto-record path, and bail on env -S ([f133365](https://github.com/KSEGIT/Version-Sentinel/commit/f1333653f0b24321d27618c6e3d82722a685e5eb))
+* make the hook parity test CRLF-safe (Windows CI) ([d011535](https://github.com/KSEGIT/Version-Sentinel/commit/d011535ad549eb734d3510e9dc5b17435c485014))
+* make the if-parity guard bash 3.2 safe and correct the Codex claim ([71d9fa8](https://github.com/KSEGIT/Version-Sentinel/commit/71d9fa8afe32b734adf7fa7fa236d0bd161d35a6))
+* only consume a wrapper flag's operand when that flag requires one ([f48de16](https://github.com/KSEGIT/Version-Sentinel/commit/f48de168a2eda3fb5a51d4c8b0220787d6e6f817))
+* scope the -S bail to env, and stop the auto-record test deleting cwd state ([96fd445](https://github.com/KSEGIT/Version-Sentinel/commit/96fd44547f6189f538dcbccb8f2b92ff3d1acee7))
+* strip wrapper flags that take a separate operand ([b4b0db5](https://github.com/KSEGIT/Version-Sentinel/commit/b4b0db5628ea833b7ff620519217bca100870ac0))
+
+
+### Performance Improvements
+
+* gate Bash hooks behind `if` rules instead of spawning on every call ([5e96bdc](https://github.com/KSEGIT/Version-Sentinel/commit/5e96bdcab4cb47be422a049b51ea1e4bdf2f5199))
+
 ## [0.4.3](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.2...version-sentinel-v0.4.3) (2026-08-09)
 
 
