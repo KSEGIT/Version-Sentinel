@@ -42,8 +42,8 @@ docs/                 Documentation
 3. User runs WebSearch + `/vs-record` to record a check, then retries
 4. PostToolUse hook on Bash auto-records successful install commands
 
-The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm *)`,
-`Bash(*pip *)`, ...), one per package-manager binary, so they only spawn for
+The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm*)`,
+`Bash(*pip*)`, ...), one per covered manager, so they only spawn for
 package-manager commands instead of on every Bash tool call. Keyed on the
 binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
 all covered. `tests/test_hook_if_parity.sh` fails if a manager known to
@@ -60,7 +60,12 @@ matchers and scripts, one handler per group, no `if`. Codex honors that
 declared path (verified: 4 spawns per two commands, not 40), and blocking works
 end-to-end there. `tests/test_hook_if_parity.sh` fails if the two files drift.
 
-Rules are shaped `Bash(*<mgr> *)`, not `Bash(<mgr> *)`. Measured: the narrow
+Rules are shaped `Bash(*<mgr>*)` -- leading star, no trailing space. A rule
+covers every manager whose name contains its token, so `Bash(*npm*)` also covers
+pnpm and `Bash(*pip*)` covers pip3; adding rules for those would only fork the
+script twice per call. tests/test_hook_if_parity.sh asserts coverage AND
+minimality, and asserts the gate invariant: anything the parser detects must be
+matched by some rule, or the hook never spawns to run it. Measured: the narrow
 form does not fire for a process-wrapper prefix (`timeout ... `, `nice ... `),
 though it does for a leading env assignment. `lib/parse-install-cmd.sh` strips
 both prefixes in `_strip_cmd_prefix`, so the wide form is what makes that

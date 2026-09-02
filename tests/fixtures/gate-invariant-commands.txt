@@ -1,0 +1,32 @@
+# Commands the parser MUST detect, used by tests/test_hook_if_parity.sh to
+# assert the gate invariant: anything parse_install_cmd detects must also be
+# matched by at least one `if` rule in hooks/hooks.json, or the hook never
+# spawns to run the parser and the guard is silently off for that form.
+#
+# Blank lines and lines starting with # are ignored.
+npm install lodash@4.17.21
+pnpm add react@18.2.0
+yarn add react@18.2.0
+bun add react@18.2.0
+pip install requests==2.31.0
+pip3 install requests==2.31.0
+uv pip install requests==2.31.0
+poetry add flask@^3.0.0
+cargo add serde
+dotnet add package Serilog -v 3.1.1
+FOO=bar npm install lodash@4.17.21
+CFLAGS='-O2 -g' pip install requests==2.31.0
+NODE_OPTIONS='--max-old-space-size=4096' npm install lodash@4.17.21
+timeout 30 npm install lodash@4.17.21
+timeout 1.5 npm install lodash@4.17.21
+nice -n 10 npm install lodash@4.17.21
+nohup pip install requests==2.31.0
+sudo pip install requests==2.31.0
+sudo -u root pip install requests==2.31.0
+sudo -i npm install lodash@4.17.21
+sudo -S npm install lodash@4.17.21
+env -i npm install lodash@4.17.21
+xargs -I {} npm install lodash@4.17.21
+stdbuf -o 0 cargo add serde
+cd app && npm install lodash@4.17.21
+echo start ; npm install lodash@4.17.21

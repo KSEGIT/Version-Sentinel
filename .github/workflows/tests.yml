@@ -43,6 +43,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Validate hook manifests
+        run: |
+          python3 - <<'PY'
+          import json, os
+          for path in ('hooks/hooks.json', 'hooks/codex-hooks.json'):
+              with open(path) as f:
+                  h = json.load(f)['hooks']
+              for ev in ('SessionStart', 'PreToolUse', 'PostToolUse'):
+                  assert ev in h, f"{path}: missing {ev}"
+              for groups in h.values():
+                  for g in groups:
+                      assert g.get('hooks'), f"{path}: group with no handlers"
+          # Codex loads the path its own manifest declares; a rename would
+          # otherwise only be caught by the test suite.
+          with open('.codex-plugin/plugin.json') as f:
+              declared = json.load(f)['hooks']
+          assert os.path.isfile(declared.lstrip('./')), \
+              f".codex-plugin/plugin.json points at missing {declared}"
+          # codex-hooks.json must stay ungated: Codex ignores `if` and would run
+          # every handler in a group.
+          with open('hooks/codex-hooks.json') as f:
+              cx = json.load(f)['hooks']
+          for groups in cx.values():
+              for g in groups:
+                  assert len(g['hooks']) == 1, "codex-hooks.json: group must hold exactly one handler"
+                  assert 'if' not in g['hooks'][0], "codex-hooks.json: must carry no `if` keys"
+          print('hook manifests OK')
+          PY
+
       - name: Validate plugin.json
         run: |
           python3 - <<'PY'

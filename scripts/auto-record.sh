@@ -34,6 +34,17 @@ if [[ "$tool_name" != "Bash" ]]; then
 fi
 
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
+
+# A multi-line command's later lines are usually DATA, not commands: heredoc
+# bodies, generated scripts, commit messages. parse_install_cmd splits on
+# newlines, so such a line is seen as an install and would be recorded even
+# though nothing was installed -- and a recorded check switches the guard off
+# for that package. Recording is the dangerous direction (see the header of
+# lib/parse-install-cmd.sh), so decline rather than guess. The BLOCKING path is
+# unaffected and still inspects every line.
+case "$cmd" in
+  *$'\n'*) exit 0 ;;
+esac
 [[ -z "$cmd" ]] && exit 0
 
 # Refuse compound commands. The outer Bash exit code reflects only the last

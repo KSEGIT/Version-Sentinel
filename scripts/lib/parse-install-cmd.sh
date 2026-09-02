@@ -62,7 +62,7 @@ _vs_parse_install_cmd() {
 # mirrors the one Claude Code strips before matching Bash permission rules,
 # plus sudo/doas.
 #
-# COUPLED TO hooks/hooks.json: its `if` rules are shaped `Bash(*<mgr> *)`
+# COUPLED TO hooks/hooks.json: its `if` rules are shaped `Bash(*<mgr>*)`
 # rather than `Bash(<mgr> *)` precisely so the hook still spawns for these
 # prefixed forms. Measured: `Bash(<mgr> *)` does NOT fire for a wrapper prefix.
 # If you add a wrapper here, re-check that the rules still fire for it.
@@ -86,12 +86,19 @@ _vs_parse_install_cmd() {
 # manager then an install genuinely is happening. Entries were checked against
 # the man pages on macOS/BSD (env -C/-P/-S/-u, xargs -I/-J/-L/-E, sudo -u/-g/
 # -p/-C/-U, nice -n, stdbuf -i/-o/-e, timeout -s/-k) rather than from memory.
+_VS_ASSIGN_RE="^[A-Za-z_][A-Za-z0-9_]*=('[^']*'|\"[^\"]*\"|[^[:space:]]*)[[:space:]]+(.*)"
+
 _strip_cmd_prefix() {
   local seg="$1" prev="" _vs_wrapper="" _vs_optflags=""
   while [[ "$seg" != "$prev" ]]; do
     prev="$seg"
-    while [[ "$seg" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*) ]]; do
-      seg="${BASH_REMATCH[1]}"
+    # An assignment value may be single- or double-quoted and contain spaces
+    # (`CFLAGS='-O2 -g' <pm> install <pkg>`). A bare [^[:space:]]* class stops
+    # mid-value, leaving the tail in front of the manager so the ^ anchor fails
+    # -- a real bypass, because the `if` rule still fires and the hook then
+    # finds nothing. Held in a variable so the quoting stays readable.
+    while [[ "$seg" =~ $_VS_ASSIGN_RE ]]; do
+      seg="${BASH_REMATCH[2]}"
     done
     if [[ "$seg" =~ ^(timeout|time|nice|nohup|stdbuf|command|builtin|noglob|env|xargs|sudo|doas)[[:space:]]+(.*) ]]; then
       _vs_wrapper="${BASH_REMATCH[1]}"
