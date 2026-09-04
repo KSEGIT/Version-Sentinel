@@ -36,10 +36,17 @@ name. Fresh slopsquatting threads are running on Reddit right now.
 
 ## Required asset before any launch post
 
-**A demo GIF** (15–30 s): Claude Code tries `npm install <hallucinated>` →
-exit 2 block → `/vs-record` with a real npmjs.com URL → retry succeeds.
-Reddit dev-tool launches without a demo underperform badly. Record with
-asciinema or the macOS screenshot recorder; put it at the top of the README.
+**Demo media** — Reddit dev-tool launches without a demo underperform badly.
+Two assets now exist (recorded 2026-09-04):
+
+- `assets/demo.gif` — terminal demo of the real hooks: Claude Code tries
+  `npm install lodash@4.17.21` from memory → exit 2 block → registry check
+  (4.18.1) → `/vs-record` with the npmjs.com URL → verified install passes,
+  stale version stays blocked. Top of README.md.
+- `assets/anim/explainer.mp4` / `.gif` — 14 s human-friendly explainer
+  (agent → memory version → BLOCKED stamp → live registry check → verified
+  version lands in package.json). Use the MP4 for Reddit/Discord native
+  video, the GIF where video is not supported.
 
 ## Launch sequence
 
@@ -47,8 +54,13 @@ asciinema or the macOS screenshot recorder; put it at the top of the README.
 
 1. Update `docs/marketplaces.md` with the status changes above. *(done in
    this branch)*
-2. Record the demo GIF; add it to README.md.
-3. Add repo social preview image (owner: repo Settings → Social preview;
+2. Record the demo GIF; add it to README.md. *(done: `assets/demo.gif` —
+   terminal demo of the real hooks, source in `assets/demo/demo.sh`)*
+3. Human-friendly explainer animation for social posts. *(done:
+   `assets/anim/explainer.gif` for README/docs, `assets/anim/explainer.mp4`
+   for Reddit/Discord native video; deterministic source in
+   `assets/anim/explainer.html` — re-render via Playwright seek + ffmpeg)*
+4. Add repo social preview image (owner: repo Settings → Social preview;
    `assets/hero.png` is ready to upload).
 
 ### Phase 1 — Marketplaces and lists (mix of owner logins and agent work)
