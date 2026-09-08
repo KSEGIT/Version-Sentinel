@@ -13,6 +13,12 @@
 
 > If Claude tries to add `"lodash": "^4.17.21"` without looking up the latest version first, the tool call is rejected with exit 2. Claude must run `WebSearch`, then `/vs-record`, then retry. Five ecosystems supported in v0.1.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Demo: the hook blocks npm install lodash@4.17.21 from memory, Claude checks the registry (4.18.1), records the source, and the verified install proceeds — the stale version stays blocked" width="800" />
+</p>
+
+Every time the agent wants to add or install a package, the version is checked against the live registry first — so a stale or hallucinated version never reaches your manifest.
+
 **Keywords:** Claude Code, Anthropic, AI coding guardrails, LLM supply-chain security, dependency management, hallucinated package versions, npm, PyPI, Cargo, NuGet, PreToolUse hook.
 
 ## Why
