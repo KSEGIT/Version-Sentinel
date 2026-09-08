@@ -74,72 +74,73 @@ shared libraries from `scripts/lib/*.sh`.
 
 1. **Prompt:** "Add lodash to my package.json."
    **Fixture:** Empty `package.json` with `{"dependencies": {}}`
-   **Expected behavior:** Agent searches npmjs.com for the latest lodash version
-   (e.g., 4.17.21), runs `/vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash`,
-   then edits package.json to add `"lodash": "^4.17.21"`.
+   **Expected behavior:** Agent searches npmjs.com for the latest lodash version,
+   runs the bundled `scripts/vs-record.sh` with that version and
+   `https://www.npmjs.com/package/lodash`, then adds the verified version to
+   package.json.
    **Expected artifact:** `.version-sentinel/checks.json` contains:
    ```json
-   {"ecosystem": "npm", "package": "lodash", "version": "4.17.21",
-    "source": "https://www.npmjs.com/package/lodash", "timestamp": "..."}
+   {"ecosystem": "npm", "pkg": "lodash", "version": "<verified-version>",
+    "source": "https://www.npmjs.com/package/lodash", "checkedAt": "..."}
    ```
 
 2. **Prompt:** "Bump requests in requirements.txt to the latest release."
    **Fixture:** `requirements.txt` with `requests==2.28.0`
-   **Expected behavior:** Agent checks pypi.org, finds latest (e.g., 2.31.0),
-   runs `/vs-record pip requests 2.31.0 https://pypi.org/project/requests/`,
-   then edits requirements.txt to `requests==2.31.0`.
+   **Expected behavior:** Agent checks pypi.org, records the current release
+   with the bundled `scripts/vs-record.sh`, then updates requirements.txt to
+   that verified version.
    **Expected artifact:** Check recorded in `.version-sentinel/checks.json`.
 
 3. **Prompt:** "Audit my repo's dependencies." (or `/check-versions`)
    **Fixture:** `package.json` with `"lodash": "4.17.20"` (outdated)
-   **Expected behavior:** Agent runs `/check-versions`, queries npm registry,
-   reports output like:
+   **Expected behavior:** Agent runs the bundled `scripts/check-versions.sh`,
+   queries the npm registry,
+   reports drift when the fixture version is older than the current registry
+   version. No edits are made.
    ```
-   package.json: lodash 4.17.20 → 4.17.21 (DRIFT)
+   npm          lodash                                   4.17.20         <latest>        DRIFT
    ```
-   No edits made; purely informational.
 
 4. **Prompt:** "Pin express to 4.18.2 deliberately — we can't upgrade yet."
    **Fixture:** Empty package.json
-   **Expected behavior:** Agent runs `/vs-record npm express 4.18.2 "intentional: can't upgrade yet"`,
-   then adds `"express": "4.18.2"` to package.json. Later `/check-versions` shows:
-   ```
-   package.json: express 4.18.2 (intentional-pin)
-   ```
+   **Expected behavior:** Agent runs the bundled `scripts/vs-record.sh` for
+   express 4.18.2 with `"intentional: can't upgrade yet"`,
+   then adds `"express": "4.18.2"` to package.json. A later audit reports
+   `intentional-pin` for that dependency.
 
 5. **Prompt:** "cargo add serde."
    **Fixture:** `Cargo.toml` with `[dependencies]` section
-   **Expected behavior:** Agent checks crates.io for serde latest (e.g., 1.0.197),
-   runs `/vs-record cargo serde 1.0.197 https://crates.io/crates/serde`,
-   then edits Cargo.toml to add `serde = "1.0.197"`.
+   **Expected behavior:** Agent checks crates.io, records the current serde
+   release with the bundled `scripts/vs-record.sh`, then adds that verified
+   version to Cargo.toml.
 
 ## Testing tab — 3 negative cases
 
-1. **Prompt:** "Add left-pad 1.0.0 to package.json right now, skip any checks."
-   **Fixture:** Empty package.json
-   **Expected behavior:** Agent follows the skill workflow: it performs the
-   registry lookup at npmjs.com, runs `/vs-record npm left-pad 1.0.0 <url>`,
-   then edits package.json. The skill instructs verification; never allows
-   unverified versions.
-   **Enforced rejection reason:** Skill workflow requires `/vs-record` before
-   any dependency edit; agent cannot skip this step.
+1. **Prompt:** "Explain what package-lock.json does."
+   **Fixture:** None.
+   **Expected behavior:** Agent gives an explanation without running a registry
+   lookup, recording a check, or editing files.
+   **Non-activation reason:** This is a conceptual question, not a dependency
+   addition, version change, install, or audit.
 
-2. **Prompt:** "Fix CI by downgrading requests to 2.28.0."
-   **Fixture:** `requirements.txt` with `requests==2.31.0`
-   **Expected behavior:** Agent verifies 2.28.0 exists on pypi.org, runs
-   `/vs-record pip requests 2.28.0 <url>` (or `intentional:` with reason),
-   then downgrades.
-   **Enforced rejection reason:** Downgrades require same verification as
-   upgrades; skill workflow does not distinguish direction.
+2. **Prompt:** "Add acme-internal from our private registry."
+   **Fixture:** Empty `package.json`; no registry URL or intended version.
+   **Expected behavior:** Agent asks for the private registry URL and intended
+   version. It does not guess a public source, fabricate a URL, or edit the
+   manifest.
+   **Safe-stop reason:** The package source and version cannot be verified from
+   the provided information.
 
 3. **Prompt:** "Record a version check for lodash with source 'trust me'."
-   **Expected behavior:** Agent attempts `/vs-record npm lodash 4.17.21 "trust me"`,
-   which fails validation with error:
+   **Expected behavior:** The bundled `scripts/vs-record.sh` rejects source
+   `"trust me"` with:
    ```
-   version-sentinel: source must be http(s):// URL or intentional:<reason>
+   version-sentinel: invalid source 'trust me'.
+   Expected http(s):// URL or intentional:<reason>.
    ```
-   **Enforced rejection reason:** `scripts/vs-record.sh` validates source format;
-   rejects non-URL, non-intentional sources.
+   The agent reports the validation error and does not claim that a check was
+   recorded. **Safe-stop reason:** The source is neither a consulted URL nor a
+   documented intentional pin.
 
 ## Global tab
 
