@@ -47,7 +47,9 @@ Unlike post-hoc auditors, `version-sentinel` runs **inside the agent loop** — 
 | `Cargo.toml` | Rust | crates.io |
 | `*.csproj`, `*.fsproj`, `*.vbproj` | .NET | api.nuget.org |
 
-Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`, `pip install`, `poetry add`, `uv add`, `cargo add`, `dotnet add package`).
+Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`, `pip install`, `poetry add`, `uv add`, `cargo add`, `dotnet add package`). A registry package without a version, or with a floating tag such as npm `latest`, is blocked. The agent must retry with the verified version. Local paths, URLs, git sources, and workspace dependencies are not registry checks and are ignored.
+
+NuGet Central Package Management can supply a version from an ancestor `Directory.Packages.props`. For this reason, a `PackageReference` without a `Version` is not treated as unpinned. Floating NuGet versions such as `Version="*"` are blocked.
 
 ## Install
 
@@ -104,7 +106,7 @@ For marketplace listings and submission status per platform (what's ready, what 
    ```
 3. Claude runs `WebSearch "lodash latest version site:npmjs.com"`
 4. Claude invokes `/vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash`
-5. Claude retries — hook finds fresh entry, lets the call through.
+5. Claude retries with the verified version — for example, `npm install lodash@4.17.21`. The hook finds the fresh entry and lets the call through. Retrying `npm install lodash` or `npm install lodash@latest` stays blocked because neither command names the recorded version.
 
 ## Commands
 

@@ -29,6 +29,27 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 matches=$(parse_install_cmd "$cmd")
 [[ -z "$matches" ]] && exit 0
 
+unpinned_install_message() {
+  local eco="$1" pkg="$2" retry
+  case "$eco" in
+    npm) retry="npm install $pkg@<version>" ;;
+    pip) retry="pip install $pkg==<version>" ;;
+    cargo) retry="cargo add $pkg@<version>" ;;
+    csproj) retry="dotnet add package $pkg --version <version>" ;;
+    *) retry="install $pkg at <version>" ;;
+  esac
+  cat <<EOF
+BLOCKED: version-sentinel.
+Package: $pkg ($eco).
+No explicit registry version was provided. Floating tags and omitted versions cannot be recorded as an exact version check.
+
+REQUIRED before retry:
+1. Look up the current version of "$pkg" on the $eco registry.
+2. Record that exact version and the source URL with /vs-record.
+3. Retry with an explicit version: $retry
+EOF
+}
+
 block=0
 block_msgs=""
 while IFS=$'\t' read -r eco pkg ver; do
@@ -38,6 +59,11 @@ while IFS=$'\t' read -r eco pkg ver; do
     continue
   fi
   [[ -z "$pkg" ]] && continue
+  if [[ "$ver" == "$VS_UNPINNED_VERSION" ]]; then
+    block=1
+    block_msgs+=$(unpinned_install_message "$eco" "$pkg")$'\n---\n'
+    continue
+  fi
   [[ -z "$ver" ]] && continue
   if ! bash "$DIR/check-sidecar.sh" "$eco" "$pkg" "$ver" 2>/tmp/_vs_err_$$; then
     block=1

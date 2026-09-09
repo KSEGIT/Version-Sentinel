@@ -32,7 +32,9 @@ If a tool call exits 2 with `BLOCKED: version-sentinel`, you must:
 
    The source must be an `http(s)://` URL from your search OR prefixed with `intentional:` for deliberate pins.
 
-4. **Retry the original edit or install.** The hook will see the fresh entry and let the tool call through.
+4. **Retry with the verified version.** If the blocked input omitted the version or used a floating tag such as `latest`, rewrite it first. For example, use `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
+
+Local paths, URLs, git sources, and workspace dependencies are outside registry-version checks. A NuGet `PackageReference` without `Version` may use Central Package Management, so the manifest gate ignores that form.
 
 ## Intentional non-latest pins
 

@@ -15,4 +15,20 @@ expected=$(printf '%s\n' \
   "requests	2.31.0" | sort)
 assert_eq "$expected" "$out" "pyproject all sources"
 
+tmp=$(mktemp)
+printf '%s\n' \
+  '[project]' \
+  'dependencies = ["requests", "local @ file:///tmp/local"]' \
+  '[tool.poetry.dependencies]' \
+  'flask = "*"' \
+  'click = { optional = true }' \
+  'local = { path = "../local" }' > "$tmp"
+out=$(parse_pyproject "$tmp" | sort)
+expected=$(printf '%s\n' \
+  $'click\t__version_sentinel_unpinned__' \
+  $'flask\t__version_sentinel_unpinned__' \
+  $'requests\t__version_sentinel_unpinned__' | sort)
+assert_eq "$expected" "$out" "pyproject bare registry dependencies are unpinned; direct/path refs skipped"
+rm -f "$tmp"
+
 finish_test

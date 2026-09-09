@@ -23,6 +23,40 @@ parse_install_cmd_strict() {
 }
 
 VS_PARSE_AMBIGUOUS_ECOSYSTEM="__ambiguous_command__"
+VS_UNPINNED_VERSION="__version_sentinel_unpinned__"
+
+_strip_install_token_quotes() {
+  local tok="$1" n
+  n=${#tok}
+  if [[ "$n" -ge 2 ]] &&
+     { [[ "$tok" == \"*\" ]] || [[ "$tok" == \'*\' ]]; }; then
+    printf '%s' "${tok:1:n-2}"
+  else
+    printf '%s' "$tok"
+  fi
+}
+
+_is_non_registry_install_target() {
+  case "$1" in
+    .|..|./*|../*|/*|~/*|*.tgz|*.tar.gz|*.whl|file:*|link:*|workspace:*|portal:*|git:*|git+*|git@*|github:*|gitlab:*|bitbucket:*|http://*|https://*|ssh://*) return 0 ;;
+  esac
+  return 1
+}
+
+_npm_install_version() {
+  local raw="$1"
+  case "$raw" in
+    ""|"*"|latest|next) printf '%s' "$VS_UNPINNED_VERSION"; return ;;
+    file:*|link:*|workspace:*|portal:*|git:*|git+*|github:*|http://*|https://*|ssh://*|npm:*) return ;;
+  esac
+  # npm dist-tags do not start like a semver selector. Treat any such token as
+  # floating so tags such as beta/canary cannot be recorded as exact versions.
+  if [[ ! "$raw" =~ ^[v=\^~\<\>]*[0-9] ]]; then
+    printf '%s' "$VS_UNPINNED_VERSION"
+  else
+    printf '%s' "$raw"
+  fi
+}
 
 # The strip flag is threaded through as an argument rather than a global: a
 # security boundary must not depend on which entry point ran last in the
@@ -177,70 +211,128 @@ _parse_install_segment() {
 }
 
 _emit_npm_packages() {
-  local rest="$1" tok
+  local rest="$1" tok skip_next=0 pkg="" ver=""
   for tok in $rest; do
-    [[ "$tok" == -* ]] && continue
-    if [[ "$tok" == @*/* ]]; then
+    tok=$(_strip_install_token_quotes "$tok")
+    if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
+    case "$tok" in
+      -w|--workspace|--prefix|--registry|--cache|--userconfig|--tag|--filter|--cwd)
+        skip_next=1; continue ;;
+      -*) continue ;;
+    esac
+    _is_non_registry_install_target "$tok" && continue
+    pkg=""; ver=""
+    if [[ "$tok" == *@npm:* ]]; then
+      local target="${tok#*@npm:}"
+      if [[ "$target" == @*/* ]]; then
+        if [[ "$target" =~ ^(@[^/]+/[^@]+)(@(.+))?$ ]]; then
+          pkg="${BASH_REMATCH[1]}"
+          ver=$(_npm_install_version "${BASH_REMATCH[3]}")
+        fi
+      elif [[ "$target" == *@* ]]; then
+        pkg="${target%@*}"
+        ver=$(_npm_install_version "${target##*@}")
+      elif [[ "$target" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        pkg="$target"
+        ver="$VS_UNPINNED_VERSION"
+      fi
+    elif [[ "$tok" == @*/* ]]; then
       if [[ "$tok" =~ ^(@[^/]+/[^@]+)(@(.+))?$ ]]; then
-        printf 'npm\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}"
+        pkg="${BASH_REMATCH[1]}"
+        ver=$(_npm_install_version "${BASH_REMATCH[3]}")
       fi
     elif [[ "$tok" == *@* ]]; then
-      printf 'npm\t%s\t%s\n' "${tok%@*}" "${tok##*@}"
-    else
-      printf 'npm\t%s\t%s\n' "$tok" ""
+      pkg="${tok%@*}"
+      ver=$(_npm_install_version "${tok##*@}")
+    elif [[ "$tok" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      pkg="$tok"
+      ver="$VS_UNPINNED_VERSION"
     fi
+    [[ -n "$pkg" && -n "$ver" ]] && printf 'npm\t%s\t%s\n' "$pkg" "$ver"
   done
 }
 
 _emit_pep508() {
-  local rest="$1" tok
+  local rest="$1" tok skip_next=0
   for tok in $rest; do
-    [[ "$tok" == -* ]] && continue
-    if [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(==|~=|\>=|\<=|\>|\<|!=)([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
-      printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}"
-    else
-      printf 'pip\t%s\t%s\n' "$tok" ""
+    tok=$(_strip_install_token_quotes "$tok")
+    if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
+    case "$tok" in
+      -r|--requirement|-c|--constraint|-e|--editable|-f|--find-links|-i|--index-url|--extra-index-url|--trusted-host|--cert|--client-cert|--proxy|--src|--target|--platform|--python-version|--implementation|--abi|--root|--prefix|--cache-dir|--log|--report)
+        skip_next=1; continue ;;
+      -*) continue ;;
+    esac
+    _is_non_registry_install_target "$tok" && continue
+    [[ "$tok" == *@* ]] && continue
+    if [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?(==|~=|\>=|\<=|\>|\<|!=)([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
+      local ver="${BASH_REMATCH[4]}"
+      [[ "$ver" == "*" ]] && ver="$VS_UNPINNED_VERSION"
+      printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$ver"
+    elif [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?$ ]]; then
+      printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$VS_UNPINNED_VERSION"
     fi
   done
 }
 
 _emit_poetry() {
-  local rest="$1" tok
+  local rest="$1" tok skip_next=0
   for tok in $rest; do
-    [[ "$tok" == -* ]] && continue
+    tok=$(_strip_install_token_quotes "$tok")
+    if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
+    case "$tok" in
+      -e|--editable|--source|--group|-G) skip_next=1; continue ;;
+      -*) continue ;;
+    esac
+    _is_non_registry_install_target "$tok" && continue
     if [[ "$tok" == *@* ]]; then
       local p="${tok%@*}" v="${tok##*@}"
+      _is_non_registry_install_target "$v" && continue
       v="${v#[v^~>=]}"
       v="${v#=}"
+      case "$v" in ""|"*"|latest|next) v="$VS_UNPINNED_VERSION" ;; esac
       printf 'pip\t%s\t%s\n' "$p" "$v"
-    else
-      printf 'pip\t%s\t%s\n' "$tok" ""
+    elif [[ "$tok" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      printf 'pip\t%s\t%s\n' "$tok" "$VS_UNPINNED_VERSION"
     fi
   done
 }
 
 _emit_cargo_add() {
-  local rest="$1" tok name="" ver=""
+  local rest="$1" tok name="" ver="" take_ver=0 skip_next=0 non_registry=0
   for tok in $rest; do
-    if [[ "$tok" == "--vers" || "$tok" == "--version" ]]; then continue; fi
+    tok=$(_strip_install_token_quotes "$tok")
+    if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
+    if [[ "$take_ver" -eq 1 ]]; then ver="$tok"; take_ver=0; continue; fi
+    if [[ "$tok" == "--vers" || "$tok" == "--version" ]]; then take_ver=1; continue; fi
     if [[ "$tok" == --vers=* || "$tok" == --version=* ]]; then ver="${tok#*=}"; continue; fi
+    case "$tok" in
+      --path|--git) skip_next=1; non_registry=1; continue ;;
+      --path=*|--git=*) non_registry=1; continue ;;
+      --registry|--rename|--features|-F|--package|-p|--manifest-path) skip_next=1; continue ;;
+    esac
     [[ "$tok" == -* ]] && continue
     if [[ -z "$name" ]]; then
       if [[ "$tok" == *@* ]]; then name="${tok%@*}"; ver="${tok##*@}"; else name="$tok"; fi
     fi
   done
+  [[ "$non_registry" -eq 1 ]] && return
+  [[ -z "$ver" || "$ver" == "*" ]] && ver="$VS_UNPINNED_VERSION"
   [[ -n "$name" ]] && printf 'cargo\t%s\t%s\n' "$name" "$ver"
 }
 
 _emit_dotnet_add() {
-  local rest="$1" tok name="" ver="" take_ver=0
+  local rest="$1" tok name="" ver="" take_ver=0 skip_next=0
   for tok in $rest; do
+    tok=$(_strip_install_token_quotes "$tok")
+    if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     if [[ "$take_ver" -eq 1 ]]; then ver="$tok"; take_ver=0; continue; fi
     case "$tok" in
       --version|-v) take_ver=1 ;;
+      --source|-s|--framework|-f|--package-directory|--configfile|--verbosity) skip_next=1 ;;
       -*) ;;
       *) [[ -z "$name" ]] && name="$tok" ;;
     esac
   done
+  [[ -z "$ver" || "$ver" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
   [[ -n "$name" ]] && printf 'csproj\t%s\t%s\n' "$name" "$ver"
 }

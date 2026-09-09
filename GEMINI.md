@@ -22,8 +22,11 @@ shipping a hallucinated or stale package version remembered from training data.
    ```bash
    /vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash
    ```
-   Then retry the original edit or install — the hook finds the fresh entry
-   and lets it through.
+   Then retry with that exact version. For example, use
+   `npm install lodash@4.17.21`, not `npm install lodash` or
+   `npm install lodash@latest`. The hook finds the fresh entry and lets it
+   through. Local paths, URLs, git sources, and workspace dependencies are
+   outside registry-version checks.
 
 ## Intentional pins
 

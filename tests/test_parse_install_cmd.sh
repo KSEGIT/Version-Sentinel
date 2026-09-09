@@ -6,7 +6,52 @@ source "$SCRIPT_DIR/scripts/lib/parse-install-cmd.sh"
 
 # npm install pkg (no version)
 out=$(parse_install_cmd "npm install lodash")
-assert_eq $'npm\tlodash\t' "$out" "npm install <pkg> no version"
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install <pkg> no version"
+
+out=$(parse_install_cmd "npm install lodash@latest")
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install registry tag"
+
+out=$(parse_install_cmd "npm install @scope/pkg")
+assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "npm install scoped package without version"
+
+out=$(parse_install_cmd "npm install lodash@beta")
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install arbitrary registry tag"
+
+# Quoting a single package argument must not hide it. Quoted paths and URLs
+# remain non-registry inputs.
+out=$(parse_install_cmd 'npm install "lodash"')
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "quoted npm bare package"
+
+out=$(parse_install_cmd "npm install 'lodash@4.17.21'")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "quoted npm pinned package"
+
+out=$(parse_install_cmd 'pip install "requests"')
+assert_eq $'pip\trequests\t__version_sentinel_unpinned__' "$out" "quoted pip bare package"
+
+out=$(parse_install_cmd "pip install 'requests==2.31.0'")
+assert_eq $'pip\trequests\t2.31.0' "$out" "quoted pip pinned package"
+
+for _c in 'npm install "./local-package"' \
+          "npm install 'https://example.com/pkg.tgz'" \
+          'pip install "./local-package"' \
+          "pip install 'https://example.com/pkg.whl'"; do
+  out=$(parse_install_cmd "$_c")
+  assert_eq "" "$out" "quoted non-registry input is ignored: $_c"
+done
+
+# npm aliases resolve against their real registry target, not the local alias
+# name, so sidecar checks cannot be laundered through an alias.
+out=$(parse_install_cmd "npm install compat@npm:lodash")
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "unversioned npm alias"
+
+out=$(parse_install_cmd "npm install compat@npm:@scope/pkg")
+assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "unversioned scoped npm alias"
+
+out=$(parse_install_cmd "npm install compat@npm:lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "versioned npm alias resolves real target"
+
+out=$(parse_install_cmd "npm install compat@npm:@scope/pkg@1.2.3")
+assert_eq $'npm\t@scope/pkg\t1.2.3' "$out" "versioned scoped npm alias resolves real target"
 
 # npm install pkg@version
 out=$(parse_install_cmd "npm install lodash@4.17.21")
@@ -26,7 +71,7 @@ assert_eq $'pip\tflask\t3.0.0' "$out" "poetry add"
 
 # cargo add no version
 out=$(parse_install_cmd "cargo add serde")
-assert_eq $'cargo\tserde\t' "$out" "cargo add no version"
+assert_eq $'cargo\tserde\t__version_sentinel_unpinned__' "$out" "cargo add no version"
 
 # dotnet add package --version
 out=$(parse_install_cmd "dotnet add package Newtonsoft.Json --version 13.0.3")
@@ -72,7 +117,7 @@ out=$(parse_install_cmd "nohup pip install requests==2.31.0")
 assert_eq $'pip\trequests\t2.31.0' "$out" "nohup wrapper"
 
 out=$(parse_install_cmd "stdbuf -o0 cargo add serde")
-assert_eq $'cargo\tserde\t' "$out" "stdbuf wrapper with flag"
+assert_eq $'cargo\tserde\t__version_sentinel_unpinned__' "$out" "stdbuf wrapper with flag"
 
 out=$(parse_install_cmd "command npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "command builtin"
@@ -215,7 +260,36 @@ out=$(parse_install_cmd "timeout 0.5m npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "fractional suffixed timeout duration"
 
 out=$(parse_install_cmd "stdbuf -o 0 cargo add serde")
-assert_eq $'cargo\tserde\t' "$out" "stdbuf -o with separate operand"
+assert_eq $'cargo\tserde\t__version_sentinel_unpinned__' "$out" "stdbuf -o with separate operand"
+
+# Inputs and option operands that are not registry package names must not be
+# converted into unpinned findings.
+for _c in "pip install -r requirements.txt" \
+          "pip install --requirement requirements.txt" \
+          "pip install -e ." \
+          "pip install ./local-package" \
+          "pip install https://example.com/pkg.whl" \
+          "npm install ./local-package" \
+          "npm install local-package.tgz" \
+          "npm install link:../local-package" \
+          "npm install workspace:*" \
+          "npm install git+https://example.com/repo.git" \
+          "npm install github:user/repo" \
+          "npm install https://example.com/pkg.tgz" \
+          "poetry add ../local-package" \
+          "poetry add git+https://example.com/repo.git" \
+          "poetry add https://example.com/pkg.whl" \
+          "cargo add --path ../local-crate" \
+          "cargo add --git https://example.com/repo.git"; do
+  out=$(parse_install_cmd "$_c")
+  assert_eq "" "$out" "non-registry input is ignored: $_c"
+done
+
+out=$(parse_install_cmd "pip install --report report.json requests")
+assert_eq $'pip\trequests\t__version_sentinel_unpinned__' "$out" "pip --report operand is not a package"
+
+out=$(parse_install_cmd "cargo add --package app --manifest-path ./Cargo.toml serde@1.0.196")
+assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo workspace option operands are not packages"
 
 
 out=$(parse_install_cmd "env -P /usr/bin npm install lodash@4.17.21")
