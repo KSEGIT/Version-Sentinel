@@ -35,6 +35,10 @@ _npm_manifest_version() {
 
 _emit_npm_manifest_dependency() {
   local pkg="$1" raw="$2" target ver
+  # jq writes CRLF on Git Bash. Remove the record separator before matching
+  # npm aliases or classifying the version.
+  pkg="${pkg%$'\r'}"
+  raw="${raw%$'\r'}"
   if [[ "$raw" == npm:* ]]; then
     target="${raw#npm:}"
     if [[ "$target" == @*/* ]]; then

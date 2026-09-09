@@ -37,6 +37,11 @@ expected=$(printf '%s\n' \
 assert_eq "$expected" "$out" "npm aliases use real targets and duplicate section entries are preserved"
 rm -f "$tmp"
 
+# jq emits CRLF on Git Bash. The parser must normalize the record before it
+# classifies an npm alias.
+out=$(_emit_npm_manifest_dependency "compat" $'npm:lodash\r')
+assert_eq $'lodash\t__version_sentinel_unpinned__' "$out" "npm alias with CRLF record"
+
 # Empty manifest → empty output, exit 0
 out=$(parse_npm "$FIXTURES/package_no_deps.json")
 assert_eq "" "$out" "no deps → empty"
