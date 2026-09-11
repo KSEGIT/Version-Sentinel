@@ -84,6 +84,16 @@ for target in "@scope/pkg" "lodash@latest" "lodash@next" "lodash@beta" "lodash@*
   assert_contains "$result" "exit=2" "npm floating/scoped target exits 2: $target"
 done
 
+for command in "npm install lodash@1.*" \
+               "pip install requests==1.*" \
+               'pip install "requests>=1,!=1.5.*"' \
+               "poetry add flask@1.*" \
+               "cargo add serde@1.*"; do
+  result=$(jq -nc --arg command "$command" '{tool_name:"Bash",tool_input:{command:$command}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
+  assert_contains "$result" "BLOCKED" "registry wildcard blocked: $command"
+  assert_contains "$result" "exit=2" "registry wildcard exits 2: $command"
+done
+
 # Shell quotes around one package argument do not bypass either blocking path.
 for command in 'npm install "lodash"' "npm install 'lodash@9.9.9'" \
                'pip install "requests"' "pip install 'requests==9.9.9'"; do

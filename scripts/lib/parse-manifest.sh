@@ -35,6 +35,10 @@ _npm_manifest_version() {
     printf '%s' "$VS_UNPINNED_VERSION"
     return
   fi
+  if [[ "$raw" =~ [[:space:]] || "$raw" == *"||"* ]]; then
+    printf '%s' "$VS_UNPINNED_VERSION"
+    return
+  fi
   # A dist-tag such as beta or canary is a floating registry selector.
   if [[ ! "$raw" =~ ^[v=\^~\<\>]*[0-9] ]]; then
     printf '%s' "$VS_UNPINNED_VERSION"
@@ -102,7 +106,7 @@ parse_pip() {
     [[ "$line" == *@* && "$line" != *==* ]] && continue
     if [[ "$line" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?[[:space:]]*(==|~=|\>=|\<=|\>|\<|!=)[[:space:]]*([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
       local pkg="${BASH_REMATCH[1]}" ver="${BASH_REMATCH[4]}"
-      [[ "$ver" == "*" ]] && ver="$VS_UNPINNED_VERSION"
+      [[ "$line" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
       printf '%s\t%s\n' "$pkg" "$ver"
     elif [[ "$line" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?[[:space:]]*$ ]]; then
       printf '%s\t%s\n' "${BASH_REMATCH[1]}" "$VS_UNPINNED_VERSION"
@@ -130,6 +134,9 @@ def emit(name, raw):
         return
     if raw.startswith(("file:", "git+", "http://", "https://", "./", "../", "/")): return
     if " @ " in raw: return
+    if "*" in raw:
+        print(f"{name}\t{UNPINNED}")
+        return
     m = VER_RE.match(raw)
     if not m: return
     ver = m.group(1)
@@ -174,14 +181,14 @@ def walk(section):
     for name, spec in (section or {}).items():
         if isinstance(spec, str):
             ver = spec.lstrip('^~v= ')
-            print(f"{name}\t{UNPINNED if not ver or ver == '*' else ver}")
+            print(f"{name}\t{UNPINNED if not ver or '*' in ver else ver}")
         elif isinstance(spec, dict):
             if "path" in spec or "git" in spec or spec.get("workspace") is True:
                 continue
             ver = spec.get("version")
             if isinstance(ver, str):
                 ver = ver.lstrip('^~v= ')
-                print(f"{name}\t{UNPINNED if not ver or ver == '*' else ver}")
+                print(f"{name}\t{UNPINNED if not ver or '*' in ver else ver}")
             else:
                 print(f"{name}\t{UNPINNED}")
 

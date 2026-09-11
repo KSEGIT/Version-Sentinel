@@ -26,11 +26,13 @@ assert_eq "$expected" "$out" "npm tags and missing versions are unpinned; local/
 rm -f "$tmp"
 
 tmp=$(mktemp)
-printf '%s\n' '{"dependencies":{"major-x":"1.x","major-X":"1.X","major-star":"1.*","partial-major":"1","partial-minor":"1.2","compound":"1.x || 2.x","partial-union":"1.2 || 2.3.4","partial-hyphen":"1.2 - 2.3.4","bounded":">=1.x <2","scoped-alias":"npm:@scope/pkg@1.2"}}' > "$tmp"
+printf '%s\n' '{"dependencies":{"major-x":"1.x","major-X":"1.X","major-star":"1.*","partial-major":"1","partial-minor":"1.2","compound":"1.x || 2.x","partial-union":"1.2 || 2.3.4","partial-hyphen":"1.2 - 2.3.4","exact-union":"1.2.3 || 2.3.4","exact-hyphen":"1.2.3 - 2.3.4","bounded":">=1.x <2","scoped-alias":"npm:@scope/pkg@1.2"}}' > "$tmp"
 out=$(parse_npm "$tmp" | sort)
 expected=$(printf '%s\n' \
   $'bounded\t__version_sentinel_unpinned__' \
   $'compound\t__version_sentinel_unpinned__' \
+  $'exact-hyphen\t__version_sentinel_unpinned__' \
+  $'exact-union\t__version_sentinel_unpinned__' \
   $'major-X\t__version_sentinel_unpinned__' \
   $'major-star\t__version_sentinel_unpinned__' \
   $'major-x\t__version_sentinel_unpinned__' \

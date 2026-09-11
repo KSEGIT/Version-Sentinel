@@ -25,23 +25,17 @@ parse_install_cmd_strict() {
 VS_PARSE_AMBIGUOUS_ECOSYSTEM="__ambiguous_command__"
 VS_UNPINNED_VERSION="__version_sentinel_unpinned__"
 
-_strip_install_token_quotes() {
-  local tok="$1" n
+_restore_install_token_chars() {
+  local tok="$1"
   # Use tr instead of ${value//pattern/replacement}: Bash 5 can treat `&` in
   # the replacement as the matched text, while Bash 3 treats it literally.
   tok=$(printf '%s' "$tok" | LC_ALL=C tr $'\034\035\036\037' ' ;&|')
-  n=${#tok}
-  if [[ "$n" -ge 2 ]] &&
-     { [[ "$tok" == \"*\" ]] || [[ "$tok" == \'*\' ]]; }; then
-    printf '%s' "${tok:1:n-2}"
-  else
-    printf '%s' "$tok"
-  fi
+  printf '%s' "$tok"
 }
 
 # Keep whitespace and shell separators inside a quoted argument opaque while
 # the intentionally small shell parser splits command segments and words. The
-# control characters are restored by _strip_install_token_quotes. This is not
+# control characters are restored by _restore_install_token_chars. This is not
 # a shell evaluator: it only preserves the argument boundary needed for quoted
 # version ranges such as "pkg@1.x || 2.x".
 _protect_install_cmd_quotes() {
@@ -78,10 +72,11 @@ _protect_install_cmd_quotes() {
     fi
     if [[ -z "$quote" ]]; then
       case "$ch" in
-        "'"|'"') quote="$ch" ;;
+        "'"|'"') quote="$ch"; ch="" ;;
       esac
     elif [[ "$ch" == "$quote" ]]; then
       quote=""
+      ch=""
     else
       case "$ch" in
         ' '|$'\t'|$'\n') ch=$'\034' ;;
@@ -120,6 +115,11 @@ _npm_install_version() {
   # node-semver treats a missing minor or patch component as an implicit
   # wildcard (for example, 1 means 1.x.x and 1.2 means 1.2.x).
   if [[ "$raw" =~ $partial_re ]]; then
+    printf '%s' "$VS_UNPINNED_VERSION"
+    return
+  fi
+  # Compound selectors cannot identify one registry version to verify.
+  if [[ "$raw" =~ [[:space:]] || "$raw" == *"||"* ]]; then
     printf '%s' "$VS_UNPINNED_VERSION"
     return
   fi
@@ -361,7 +361,7 @@ _find_unknown_npm_option() {
   local manager="$1" rest="$2" tok skip_next=0 options_done=0 redir_kind=0
   VS_UNKNOWN_OPTION=""
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?
     [[ "$redir_kind" -eq 0 ]] && { skip_next=1; continue; }
@@ -425,7 +425,7 @@ _emit_npm_packages() {
     return
   fi
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?
     [[ "$redir_kind" -eq 0 ]] && { skip_next=1; continue; }
@@ -467,7 +467,7 @@ _emit_npm_packages() {
 _emit_pep508() {
   local manager="$1" rest="$2" tok skip_next=0 redir_kind=0
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?
     [[ "$redir_kind" -eq 0 ]] && { skip_next=1; continue; }
@@ -477,8 +477,8 @@ _emit_pep508() {
     _is_non_registry_install_target "$tok" && continue
     [[ "$tok" == *@* ]] && continue
     if [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?(==|~=|\>=|\<=|\>|\<|!=)([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
-      local ver="${BASH_REMATCH[4]}"
-      [[ "$ver" == "*" ]] && ver="$VS_UNPINNED_VERSION"
+      local ver="${BASH_REMATCH[4]}" requirement_part="${tok%%;*}"
+      [[ "$requirement_part" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
       printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$ver"
     elif [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?$ ]]; then
       printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$VS_UNPINNED_VERSION"
@@ -489,7 +489,7 @@ _emit_pep508() {
 _emit_poetry() {
   local rest="$1" tok skip_next=0 redir_kind=0
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?
     [[ "$redir_kind" -eq 0 ]] && { skip_next=1; continue; }
@@ -502,7 +502,7 @@ _emit_poetry() {
       _is_non_registry_install_target "$v" && continue
       v="${v#[v^~>=]}"
       v="${v#=}"
-      case "$v" in ""|"*"|latest|next) v="$VS_UNPINNED_VERSION" ;; esac
+      case "$v" in ""|*"*"*|latest|next) v="$VS_UNPINNED_VERSION" ;; esac
       printf 'pip\t%s\t%s\n' "$p" "$v"
     elif [[ "$tok" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
       printf 'pip\t%s\t%s\n' "$tok" "$VS_UNPINNED_VERSION"
@@ -513,7 +513,7 @@ _emit_poetry() {
 _emit_cargo_add() {
   local rest="$1" tok name="" ver="" take_ver=0 skip_next=0 non_registry=0 redir_kind=0
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     if [[ "$take_ver" -eq 1 ]]; then ver="$tok"; take_ver=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?
@@ -532,14 +532,14 @@ _emit_cargo_add() {
     fi
   done
   [[ "$non_registry" -eq 1 ]] && return
-  [[ -z "$ver" || "$ver" == "*" ]] && ver="$VS_UNPINNED_VERSION"
+  [[ -z "$ver" || "$ver" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
   [[ -n "$name" ]] && printf 'cargo\t%s\t%s\n' "$name" "$ver"
 }
 
 _emit_dotnet_add() {
   local rest="$1" tok name="" ver="" take_ver=0 skip_next=0 redir_kind=0
   for tok in $rest; do
-    tok=$(_strip_install_token_quotes "$tok")
+    tok=$(_restore_install_token_chars "$tok")
     if [[ "$skip_next" -eq 1 ]]; then skip_next=0; continue; fi
     if [[ "$take_ver" -eq 1 ]]; then ver="$tok"; take_ver=0; continue; fi
     _redirection_kind "$tok"; redir_kind=$?

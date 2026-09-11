@@ -55,6 +55,11 @@ assert_eq "0" "$(count_entries)" "failed install → no sidecar entry"
 for _c in "npm install lodash" \
           "npm install lodash@latest" \
           "npm install lodash@beta" \
+          "npm install lodash@1.*" \
+          "pip install requests==1.*" \
+          'pip install "requests>=1,!=1.5.*"' \
+          "poetry add flask@1.*" \
+          "cargo add serde@1.*" \
           "pip install requests" \
           "cargo add serde" \
           "dotnet add package Newtonsoft.Json" \

@@ -24,4 +24,14 @@ expected=$(printf '%s\n' \
 assert_eq "$expected" "$out" "pip bare registry requirements are unpinned; includes and sources skipped"
 rm -f "$tmp"
 
+tmp=$(mktemp)
+printf '%s\n' 'requests==1.*' 'urllib3!=2.*' 'idna>=1,!=1.5.*' > "$tmp"
+out=$(parse_pip "$tmp" | sort)
+expected=$(printf '%s\n' \
+  $'requests\t__version_sentinel_unpinned__' \
+  $'idna\t__version_sentinel_unpinned__' \
+  $'urllib3\t__version_sentinel_unpinned__' | sort)
+assert_eq "$expected" "$out" "pip wildcard specifiers are unpinned"
+rm -f "$tmp"
+
 finish_test

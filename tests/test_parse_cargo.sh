@@ -19,11 +19,15 @@ printf '%s\n' \
   '[dependencies]' \
   'registry-dep = {}' \
   'wildcard-dep = "*"' \
+  'partial-wildcard = "1.*"' \
+  'dict-wildcard = { version = "2.*" }' \
   'local = { path = "../local" }' \
   'shared = { workspace = true }' > "$tmp"
 out=$(parse_cargo "$tmp" | sort)
 expected=$(printf '%s\n' \
   $'registry-dep\t__version_sentinel_unpinned__' \
+  $'dict-wildcard\t__version_sentinel_unpinned__' \
+  $'partial-wildcard\t__version_sentinel_unpinned__' \
   $'wildcard-dep\t__version_sentinel_unpinned__' | sort)
 assert_eq "$expected" "$out" "cargo registry tables without versions are unpinned; path/workspace refs skipped"
 rm -f "$tmp"

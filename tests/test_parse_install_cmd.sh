@@ -17,7 +17,7 @@ assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "npm install 
 out=$(parse_install_cmd "npm install lodash@beta")
 assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install arbitrary registry tag"
 
-for _selector in '1.x' '1.X' '1.*' '1' '1.2' '>=1.x' '1.x || 2.x' '1.2 || 2.3.4' '1.2 - 2.3.4'; do
+for _selector in '1.x' '1.X' '1.*' '1' '1.2' '>=1.x' '1.x || 2.x' '1.2 || 2.3.4' '1.2 - 2.3.4' '1.2.3 || 2.3.4' '1.2.3 - 2.3.4'; do
   out=$(parse_install_cmd "npm install \"lodash@$_selector\"")
   assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm wildcard selector is unpinned: $_selector"
 done
@@ -27,6 +27,40 @@ assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm alias wildca
 
 out=$(parse_install_cmd "npm install compat@npm:@scope/pkg@1.2")
 assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "scoped npm alias partial selector is unpinned"
+
+for _command in \
+  'pip install requests==1.*' \
+  'pip install "requests>=1,!=1.5.*"' \
+  'poetry add flask@1.*' \
+  'cargo add serde@1.*'; do
+  out=$(parse_install_cmd "$_command")
+  case "$_command" in
+    cargo*) expected=$'cargo\tserde\t__version_sentinel_unpinned__' ;;
+    poetry*) expected=$'pip\tflask\t__version_sentinel_unpinned__' ;;
+    *) expected=$'pip\trequests\t__version_sentinel_unpinned__' ;;
+  esac
+  assert_eq "$expected" "$out" "registry wildcard is unpinned: $_command"
+done
+
+out=$(parse_install_cmd "pip install 'requests==2.31.0; python_version == \"3.*\"'")
+assert_eq $'pip\trequests\t2.31.0' "$out" "wildcard in a PEP 508 environment marker does not unpin an exact requirement"
+
+# Adjacent quoted and unquoted fragments form one shell word. The parser must
+# join them too, or a syntactically valid install can bypass the hook.
+for _case in \
+  $'npm install lo"d"ash@4.17.21\tnpm\tlodash\t4.17.21' \
+  $'pnpm add re"a"ct@18.2.0\tnpm\treact\t18.2.0' \
+  $'yarn add re"a"ct@18.2.0\tnpm\treact\t18.2.0' \
+  $'bun add re"a"ct@18.2.0\tnpm\treact\t18.2.0' \
+  $'pip install requ"es"ts==2.31.0\tpip\trequests\t2.31.0' \
+  $'poetry add fl"as"k@3.0.0\tpip\tflask\t3.0.0' \
+  $'uv add requ"es"ts==2.31.0\tpip\trequests\t2.31.0' \
+  $'cargo add se"rd"e@1.0.196\tcargo\tserde\t1.0.196' \
+  $'dotnet package add Newtonsoft."Json"@13.0.3\tcsproj\tNewtonsoft.Json\t13.0.3'; do
+  IFS=$'\t' read -r _command _eco _pkg _ver <<< "$_case"
+  out=$(parse_install_cmd "$_command")
+  assert_eq "$(printf '%s\t%s\t%s' "$_eco" "$_pkg" "$_ver")" "$out" "shell word fragments are joined: $_command"
+done
 
 # Quoting a single package argument must not hide it. Quoted paths and URLs
 # remain non-registry inputs.
