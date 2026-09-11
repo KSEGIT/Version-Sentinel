@@ -21,10 +21,20 @@ _is_non_registry_version() {
 
 _npm_manifest_version() {
   local raw="$1"
+  local partial_re='(^|[[:space:]|])[v=^~<>]*[[:space:]]*[0-9]+([.][0-9]+)?($|[[:space:]|])'
   _is_non_registry_version "$raw" && return
   case "$raw" in
     ""|"*"|latest|next) printf '%s' "$VS_UNPINNED_VERSION"; return ;;
   esac
+  if [[ "$raw" =~ (^|[.])([xX]|\*)([.]|$|[[:space:]]|\|) ]]; then
+    printf '%s' "$VS_UNPINNED_VERSION"
+    return
+  fi
+  # Missing minor/patch components are implicit npm X-ranges.
+  if [[ "$raw" =~ $partial_re ]]; then
+    printf '%s' "$VS_UNPINNED_VERSION"
+    return
+  fi
   # A dist-tag such as beta or canary is a floating registry selector.
   if [[ ! "$raw" =~ ^[v=\^~\<\>]*[0-9] ]]; then
     printf '%s' "$VS_UNPINNED_VERSION"

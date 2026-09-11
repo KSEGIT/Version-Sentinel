@@ -20,6 +20,13 @@ assert_contains "$result" "BLOCKED" "env -S install blocked"
 assert_contains "$result" "env -S" "env -S install explains ambiguity"
 assert_contains "$result" "exit=2" "env -S install: exit 2"
 
+# npm exposes arbitrary config keys as CLI flags. Unknown flags are ambiguous
+# because they may consume the next word, so the blocking path fails closed.
+result=$(echo '{"tool_name":"Bash","tool_input":{"command":"npm install --future-option value lodash@4.17.21"}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
+assert_contains "$result" "BLOCKED" "unknown npm option blocked"
+assert_contains "$result" "npm option --future-option" "unknown npm option explains ambiguity"
+assert_contains "$result" "exit=2" "unknown npm option exits 2"
+
 # Case 2: pip install X==Y with no sidecar → block
 result=$(cat "$FIXTURES/bash_pip_install.json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "BLOCKED" "pip install blocked"

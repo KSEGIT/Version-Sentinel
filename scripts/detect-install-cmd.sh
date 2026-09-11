@@ -55,7 +55,7 @@ block_msgs=""
 while IFS=$'\t' read -r eco pkg ver; do
   if [[ "$eco" == "$VS_PARSE_AMBIGUOUS_ECOSYSTEM" ]]; then
     block=1
-    block_msgs+=$'BLOCKED: version-sentinel.\nCannot safely inspect an env -S command.\n---\n'
+    block_msgs+="BLOCKED: version-sentinel."$'\n'"Cannot safely inspect command: $pkg."$'\n---\n'
     continue
   fi
   [[ -z "$pkg" ]] && continue

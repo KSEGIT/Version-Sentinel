@@ -17,6 +17,17 @@ assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "npm install 
 out=$(parse_install_cmd "npm install lodash@beta")
 assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install arbitrary registry tag"
 
+for _selector in '1.x' '1.X' '1.*' '1' '1.2' '>=1.x' '1.x || 2.x' '1.2 || 2.3.4' '1.2 - 2.3.4'; do
+  out=$(parse_install_cmd "npm install \"lodash@$_selector\"")
+  assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm wildcard selector is unpinned: $_selector"
+done
+
+out=$(parse_install_cmd "npm install compat@npm:lodash@1.x")
+assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm alias wildcard selector is unpinned"
+
+out=$(parse_install_cmd "npm install compat@npm:@scope/pkg@1.2")
+assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "scoped npm alias partial selector is unpinned"
+
 # Quoting a single package argument must not hide it. Quoted paths and URLs
 # remain non-registry inputs.
 out=$(parse_install_cmd 'npm install "lodash"')
@@ -291,6 +302,142 @@ assert_eq $'pip\trequests\t__version_sentinel_unpinned__' "$out" "pip --report o
 out=$(parse_install_cmd "cargo add --package app --manifest-path ./Cargo.toml serde@1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo workspace option operands are not packages"
 
+# Value-taking options must consume their operands. Boolean options and
+# --option=value forms must not consume the following package.
+out=$(parse_install_cmd "npm install --omit dev lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "npm value option operand is not a package"
+
+out=$(parse_install_cmd "pnpm add --filter app react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "pnpm value option operand is not a package"
+
+out=$(parse_install_cmd "pnpm add -w react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "pnpm workspace-root boolean does not consume package"
+
+out=$(parse_install_cmd "pnpm add --save-catalog react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "pnpm save-catalog boolean does not consume package"
+
+for _flag in -p -d -o -e --config --workspace; do
+  out=$(parse_install_cmd "pnpm add $_flag react@18.2.0")
+  assert_eq $'npm\treact\t18.2.0' "$out" "pnpm documented boolean does not consume package: $_flag"
+done
+
+out=$(parse_install_cmd "npm install --save lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "npm save boolean does not consume package"
+
+for _flag in -S -B -P -f --save-bundle --strict-allow-scripts --dangerously-allow-all-scripts; do
+  out=$(parse_install_cmd "npm install $_flag lodash@4.17.21")
+  assert_eq $'npm\tlodash\t4.17.21' "$out" "npm documented boolean does not consume package: $_flag"
+done
+
+for _flag in --no-package-lock --no-audit --no-bin-links --no-fund; do
+  out=$(parse_install_cmd "npm install $_flag lodash@4.17.21")
+  assert_eq $'npm\tlodash\t4.17.21' "$out" "npm negated boolean does not consume package: $_flag"
+done
+
+out=$(parse_install_cmd "npm install -DPE lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "npm short boolean bundle does not consume package"
+
+out=$(parse_install_cmd "npm install -wtools lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "npm attached short value does not consume package"
+
+out=$(parse_install_cmd "yarn add --mode skip-builds react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "yarn value option operand is not a package"
+
+out=$(parse_install_cmd "yarn add -F react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "yarn fixed boolean does not consume package"
+
+out=$(parse_install_cmd "bun add --backend copyfile react@18.2.0")
+assert_eq $'npm\treact\t18.2.0' "$out" "bun value option operand is not a package"
+
+for _flag in -y -p -f -E -a --save --quiet --no-verify --save-text-lockfile; do
+  out=$(parse_install_cmd "bun add $_flag react@18.2.0")
+  assert_eq $'npm\treact\t18.2.0' "$out" "bun documented boolean does not consume package: $_flag"
+done
+
+out=$(parse_install_cmd "npm install --omit=dev --save-dev lodash@4.17.21")
+assert_eq $'npm\tlodash\t4.17.21' "$out" "npm equals option and boolean option preserve package"
+
+out=$(parse_install_cmd "pip install --timeout 30 requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "pip global value option operand is not a package"
+
+out=$(parse_install_cmd "pip install -C builddir=tmp requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "pip short value option operand is not a package"
+
+out=$(parse_install_cmd "pip install -rrequirements.txt requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "pip attached short value does not consume package"
+
+out=$(parse_install_cmd "uv pip install --python-platform x86_64-unknown-linux-gnu requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "uv value option operand is not a package"
+
+out=$(parse_install_cmd "uv add --native-tls requests==2.31.0")
+assert_eq $'pip\trequests\t2.31.0' "$out" "uv boolean option does not consume package"
+
+out=$(parse_install_cmd "poetry add --python '^3.12' flask@3.0.0")
+assert_eq $'pip\tflask\t3.0.0' "$out" "poetry value option operand is not a package"
+
+out=$(parse_install_cmd "poetry add --editable flask@3.0.0")
+assert_eq $'pip\tflask\t3.0.0' "$out" "poetry boolean option does not consume package"
+
+out=$(parse_install_cmd "cargo add --color always serde@1.0.196")
+assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo global value option operand is not a package"
+
+out=$(parse_install_cmd "cargo add --base core serde@1.0.196")
+assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo base option operand is not a package"
+
+out=$(parse_install_cmd "cargo add -m ./Cargo.toml serde@1.0.196")
+assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo short manifest-path operand is not a package"
+
+out=$(parse_install_cmd "dotnet add package --framework net8.0 Newtonsoft.Json --version 13.0.3")
+assert_eq $'csproj\tNewtonsoft.Json\t13.0.3' "$out" "dotnet value option operand is not a package"
+
+out=$(parse_install_cmd "dotnet add package --interactive Newtonsoft.Json --version 13.0.3")
+assert_eq $'csproj\tNewtonsoft.Json\t13.0.3' "$out" "dotnet boolean option does not consume package"
+
+out=$(parse_install_cmd "dotnet add package --configfile NuGet.Config --verbosity quiet Newtonsoft.Json --version 13.0.3")
+assert_eq $'csproj\tNewtonsoft.Json\t13.0.3' "$out" "dotnet compatibility option operands are not packages"
+
+out=$(parse_install_cmd "dotnet package add Newtonsoft.Json --version 13.0.3")
+assert_eq $'csproj\tNewtonsoft.Json\t13.0.3' "$out" "dotnet noun-first package add"
+
+out=$(parse_install_cmd "dotnet package add Newtonsoft.Json@13.0.3")
+assert_eq $'csproj\tNewtonsoft.Json\t13.0.3' "$out" "dotnet package-at-version syntax"
+
+# npm accepts arbitrary config keys as command-line options. An option missing
+# from the reviewed value/boolean table is ambiguous: block in the lenient
+# pre-hook, and emit nothing in strict auto-record mode.
+out=$(parse_install_cmd "npm install --future-option value lodash@4.17.21")
+assert_eq $'__ambiguous_command__\tnpm option --future-option\t' "$out" "unknown npm option fails closed"
+
+out=$(parse_install_cmd_strict "npm install --future-option value lodash@4.17.21")
+assert_eq "" "$out" "unknown npm option cannot auto-record"
+
+# Shell redirections and their filenames are not package arguments. A package
+# after a redirection target must still be found.
+for _c in \
+  "npm install lodash@4.17.21 > install.log" \
+  "npm install > install.log lodash@4.17.21" \
+  "npm install lodash@4.17.21 >>install.log" \
+  "npm install 2> errors.log lodash@4.17.21" \
+  "npm install lodash@4.17.21 2>&1" \
+  "npm install lodash@4.17.21 &>install.log" \
+  "npm install &>install.log lodash@4.17.21" \
+  "npm install 2>&1 lodash@4.17.21" \
+  "npm install >& install.log lodash@4.17.21" \
+  "npm install <& input.fd lodash@4.17.21" \
+  "npm install 2>& 1 lodash@4.17.21" \
+  "npm install 10> install.log lodash@4.17.21" \
+  "npm install >| install.log lodash@4.17.21"; do
+  out=$(parse_install_cmd "$_c")
+  assert_eq $'npm\tlodash\t4.17.21' "$out" "npm shell redirection is ignored: $_c"
+done
+
+
+out=$(parse_install_cmd "pip install requests==2.31.0 2> errors.log")
+assert_eq $'pip\trequests\t2.31.0' "$out" "pip redirection target is ignored"
+
+out=$(parse_install_cmd "cargo add 2> errors.log serde@1.0.196")
+assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo package after redirection target is preserved"
+
 
 out=$(parse_install_cmd "env -P /usr/bin npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "env -P altpath (BSD)"
@@ -333,6 +480,16 @@ assert_eq $'npm\tlodash\t4.17.21' "$out" "sudo -R/--chroot"
 # blocking path only costs a false block. So the dangerous path does not guess.
 out=$(parse_install_cmd_strict "npm install lodash@4.17.21")
 assert_eq $'npm\tlodash\t4.17.21' "$out" "strict still parses a bare install"
+
+for _c in 'echo foo\; npm install evilpkg@9.9.9' \
+          'echo foo\| npm install evilpkg@9.9.9' \
+          'echo foo\& npm install evilpkg@9.9.9'; do
+  out=$(parse_install_cmd_strict "$_c")
+  assert_eq "" "$out" "strict does not split an escaped shell separator: $_c"
+done
+
+out=$(parse_install_cmd_strict 'npm install lodash\@4.17.21')
+assert_eq $'npm\tlodash\t4.17.21' "$out" "escaped ordinary character keeps the package visible"
 
 for _c in "sudo npm install evilpkg@9.9.9" \
           "timeout 30 npm install evilpkg@9.9.9" \
