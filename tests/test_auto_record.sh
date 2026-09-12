@@ -44,6 +44,22 @@ assert_eq "1" "$(count_entries)" "versioned alias → 1 sidecar entry"
 assert_eq "lodash" "$(jq -r '.entries[0].pkg' "$SIDECAR")" "versioned alias records real target"
 assert_eq "4.17.21" "$(jq -r '.entries[0].version' "$SIDECAR")" "versioned alias records target version"
 
+# Exact selectors for every ecosystem are normalized before recording.
+for _case in \
+  $'npm install lodash@=4.17.21\tnpm\tlodash\t4.17.21' \
+  $'pip install requests==2.31.0\tpip\trequests\t2.31.0' \
+  $'poetry add flask@=3.0.0\tpip\tflask\t3.0.0' \
+  $'cargo add serde@=1.0.196\tcargo\tserde\t1.0.196'; do
+  IFS=$'\t' read -r _command _eco _pkg _ver <<< "$_case"
+  rm -rf .version-sentinel
+  json=$(jq -nc --arg command "$_command" '{tool_name:"Bash",tool_input:{command:$command},tool_response:{exit_code:0}}')
+  echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+  assert_eq "1" "$(count_entries)" "exact selector records one entry: $_command"
+  assert_eq "$_eco" "$(jq -r '.entries[0].ecosystem' "$SIDECAR")" "exact selector ecosystem: $_command"
+  assert_eq "$_pkg" "$(jq -r '.entries[0].pkg' "$SIDECAR")" "exact selector package: $_command"
+  assert_eq "$_ver" "$(jq -r '.entries[0].version' "$SIDECAR")" "exact selector normalized version: $_command"
+done
+
 # --- Case 2: failed install (non-zero exit_code) → no entry added ---
 rm -rf .version-sentinel
 json='{"tool_name":"Bash","tool_input":{"command":"npm install bogus@9.9.9"},"tool_response":{"exit_code":1}}'
@@ -55,11 +71,23 @@ assert_eq "0" "$(count_entries)" "failed install → no sidecar entry"
 for _c in "npm install lodash" \
           "npm install lodash@latest" \
           "npm install lodash@beta" \
+          "npm install lodash@^1.2.3" \
+          "npm install lodash@!=1.2.3" \
           "npm install lodash@1.*" \
-          "pip install requests==1.*" \
-          'pip install "requests>=1,!=1.5.*"' \
-          "poetry add flask@1.*" \
+          'npm install "lodash@>=1.2.3 <2.0.0"' \
+          "pip install requests>=2.31.0" \
+          "pip install requests!=2.31.0" \
+          "pip install requests==2.*" \
+          'pip install "requests>=2,<3"' \
+          "poetry add flask@^3.0.0" \
+          "poetry add flask@!=3.0.0" \
+          "poetry add flask@3.*" \
+          'poetry add "flask@>=3,<4"' \
+          "cargo add serde@1.0.196" \
+          "cargo add serde@^1.0.196" \
+          "cargo add serde@!=1.0.196" \
           "cargo add serde@1.*" \
+          'cargo add "serde@>=1,<2"' \
           "pip install requests" \
           "cargo add serde" \
           "dotnet add package Newtonsoft.Json" \

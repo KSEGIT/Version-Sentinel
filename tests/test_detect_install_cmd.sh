@@ -84,14 +84,28 @@ for target in "@scope/pkg" "lodash@latest" "lodash@next" "lodash@beta" "lodash@*
   assert_contains "$result" "exit=2" "npm floating/scoped target exits 2: $target"
 done
 
-for command in "npm install lodash@1.*" \
-               "pip install requests==1.*" \
-               'pip install "requests>=1,!=1.5.*"' \
-               "poetry add flask@1.*" \
-               "cargo add serde@1.*"; do
+# Ranges, exclusions, wildcards, and compounds all block for every ecosystem.
+for command in \
+  "npm install lodash@^1.2.3" \
+  "npm install lodash@!=1.2.3" \
+  "npm install lodash@1.*" \
+  'npm install "lodash@>=1.2.3 <2.0.0"' \
+  "pip install requests>=2.31.0" \
+  "pip install requests!=2.31.0" \
+  "pip install requests==2.*" \
+  'pip install "requests>=2,<3"' \
+  "poetry add flask@^3.0.0" \
+  "poetry add flask@!=3.0.0" \
+  "poetry add flask@3.*" \
+  'poetry add "flask@>=3,<4"' \
+  "cargo add serde@1.0.196" \
+  "cargo add serde@^1.0.196" \
+  "cargo add serde@!=1.0.196" \
+  "cargo add serde@1.*" \
+  'cargo add "serde@>=1,<2"'; do
   result=$(jq -nc --arg command "$command" '{tool_name:"Bash",tool_input:{command:$command}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
-  assert_contains "$result" "BLOCKED" "registry wildcard blocked: $command"
-  assert_contains "$result" "exit=2" "registry wildcard exits 2: $command"
+  assert_contains "$result" "BLOCKED" "non-exact registry selector blocked: $command"
+  assert_contains "$result" "exit=2" "non-exact registry selector exits 2: $command"
 done
 
 # Shell quotes around one package argument do not bypass either blocking path.
@@ -143,13 +157,27 @@ done
 mkdir -p .version-sentinel
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > .version-sentinel/checks.json <<EOF
-{"entries":[{"ecosystem":"npm","pkg":"lodash","version":"4.17.21","source":"https://x","checkedAt":"$now"}]}
+{"entries":[
+  {"ecosystem":"npm","pkg":"lodash","version":"4.17.21","source":"https://x","checkedAt":"$now"},
+  {"ecosystem":"pip","pkg":"requests","version":"2.31.0","source":"https://x","checkedAt":"$now"},
+  {"ecosystem":"pip","pkg":"flask","version":"3.0.0","source":"https://x","checkedAt":"$now"},
+  {"ecosystem":"cargo","pkg":"serde","version":"1.0.196","source":"https://x","checkedAt":"$now"}
+]}
 EOF
 result=$(cat "$FIXTURES/bash_npm_install.json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "fresh sidecar: pass"
 
 result=$(echo '{"tool_name":"Bash","tool_input":{"command":"npm install compat@npm:lodash@4.17.21"}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "versioned npm alias uses real target sidecar entry"
+
+for command in \
+  "npm install lodash@=4.17.21" \
+  "pip install requests==2.31.0" \
+  "poetry add flask@=3.0.0" \
+  "cargo add serde@=1.0.196"; do
+  result=$(jq -nc --arg command "$command" '{tool_name:"Bash",tool_input:{command:$command}}' | bash "$SCRIPT" 2>&1; echo "exit=$?")
+  assert_contains "$result" "exit=0" "normalized exact selector uses sidecar entry: $command"
+done
 
 cd "$OLDPWD"
 finish_test

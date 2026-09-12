@@ -98,38 +98,55 @@ _is_non_registry_install_target() {
   return 1
 }
 
+_normalize_exact_install_version() {
+  local raw="$1" style="${2:-literal}"
+  raw="${raw#v}"
+  # Once an ecosystem-specific exact operator has been removed, selector
+  # syntax must not remain. This keeps ranges, exclusions, wildcards, and
+  # compound requirements out of sidecar lookups and auto-recorded entries.
+  case "$raw" in
+    ""|*"*"*|*"<"*|*">"*|*"="*|*"^"*|*"~"*|*","*|*"|"*|*[[:space:]]*)
+      printf '%s' "$VS_UNPINNED_VERSION"; return ;;
+  esac
+  if [[ "$style" == "semver" ]]; then
+    if [[ "$raw" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+      printf '%s' "$raw"
+    else
+      printf '%s' "$VS_UNPINNED_VERSION"
+    fi
+    return
+  fi
+  if [[ "$raw" =~ ^[0-9][0-9A-Za-z._!+-]*$ ]]; then
+    printf '%s' "$raw"
+  else
+    printf '%s' "$VS_UNPINNED_VERSION"
+  fi
+}
+
 _npm_install_version() {
   local raw="$1"
-  local partial_re='(^|[[:space:]|])[v=^~<>]*[[:space:]]*[0-9]+([.][0-9]+)?($|[[:space:]|])'
   case "$raw" in
-    ""|"*"|latest|next) printf '%s' "$VS_UNPINNED_VERSION"; return ;;
     file:*|link:*|workspace:*|portal:*|git:*|git+*|github:*|http://*|https://*|ssh://*|npm:*) return ;;
   esac
-  # x, X, and * are wildcard identifiers when they are a complete dot-
-  # separated comparator component. Any range containing one is floating,
-  # including unions such as "1.x || 2.x".
-  if [[ "$raw" =~ (^|[.])([xX]|\*)([.]|$|[[:space:]]|\|) ]]; then
+  raw="${raw#=}"
+  _normalize_exact_install_version "$raw" semver
+}
+
+_poetry_install_version() {
+  local raw="$1"
+  raw="${raw#=}"
+  _normalize_exact_install_version "$raw"
+}
+
+_cargo_install_version() {
+  local raw="$1"
+  # A bare Cargo version requirement is caret-compatible. Only =version names
+  # one registry release, whether supplied as package@=version or --vers.
+  if [[ "$raw" != =* ]]; then
     printf '%s' "$VS_UNPINNED_VERSION"
     return
   fi
-  # node-semver treats a missing minor or patch component as an implicit
-  # wildcard (for example, 1 means 1.x.x and 1.2 means 1.2.x).
-  if [[ "$raw" =~ $partial_re ]]; then
-    printf '%s' "$VS_UNPINNED_VERSION"
-    return
-  fi
-  # Compound selectors cannot identify one registry version to verify.
-  if [[ "$raw" =~ [[:space:]] || "$raw" == *"||"* ]]; then
-    printf '%s' "$VS_UNPINNED_VERSION"
-    return
-  fi
-  # npm dist-tags do not start like a semver selector. Treat any such token as
-  # floating so tags such as beta/canary cannot be recorded as exact versions.
-  if [[ ! "$raw" =~ ^[v=\^~\<\>]*[0-9] ]]; then
-    printf '%s' "$VS_UNPINNED_VERSION"
-  else
-    printf '%s' "$raw"
-  fi
+  _normalize_exact_install_version "${raw#=}" semver
 }
 
 # The strip flag is threaded through as an argument rather than a global: a
@@ -476,10 +493,13 @@ _emit_pep508() {
     [[ "$tok" == -* ]] && continue
     _is_non_registry_install_target "$tok" && continue
     [[ "$tok" == *@* ]] && continue
-    if [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?(==|~=|\>=|\<=|\>|\<|!=)([A-Za-z0-9][A-Za-z0-9._*+-]*) ]]; then
-      local ver="${BASH_REMATCH[4]}" requirement_part="${tok%%;*}"
-      [[ "$requirement_part" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
-      printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$ver"
+    local requirement_part="${tok%%;*}"
+    if [[ "$requirement_part" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?([\<\>\=\!\~].*)$ ]]; then
+      local pkg="${BASH_REMATCH[1]}" selector="${BASH_REMATCH[3]}" ver="$VS_UNPINNED_VERSION"
+      if [[ "$selector" == ==* && "$selector" != ===* ]]; then
+        ver=$(_normalize_exact_install_version "${selector#==}")
+      fi
+      printf 'pip\t%s\t%s\n' "$pkg" "$ver"
     elif [[ "$tok" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^]]+\])?$ ]]; then
       printf 'pip\t%s\t%s\n' "${BASH_REMATCH[1]}" "$VS_UNPINNED_VERSION"
     fi
@@ -500,9 +520,7 @@ _emit_poetry() {
     if [[ "$tok" == *@* ]]; then
       local p="${tok%@*}" v="${tok##*@}"
       _is_non_registry_install_target "$v" && continue
-      v="${v#[v^~>=]}"
-      v="${v#=}"
-      case "$v" in ""|*"*"*|latest|next) v="$VS_UNPINNED_VERSION" ;; esac
+      v=$(_poetry_install_version "$v")
       printf 'pip\t%s\t%s\n' "$p" "$v"
     elif [[ "$tok" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
       printf 'pip\t%s\t%s\n' "$tok" "$VS_UNPINNED_VERSION"
@@ -532,7 +550,7 @@ _emit_cargo_add() {
     fi
   done
   [[ "$non_registry" -eq 1 ]] && return
-  [[ -z "$ver" || "$ver" == *"*"* ]] && ver="$VS_UNPINNED_VERSION"
+  ver=$(_cargo_install_version "$ver")
   [[ -n "$name" ]] && printf 'cargo\t%s\t%s\n' "$name" "$ver"
 }
 

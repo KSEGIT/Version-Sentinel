@@ -17,7 +17,7 @@ assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "npm install 
 out=$(parse_install_cmd "npm install lodash@beta")
 assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm install arbitrary registry tag"
 
-for _selector in '1.x' '1.X' '1.*' '1' '1.2' '>=1.x' '1.x || 2.x' '1.2 || 2.3.4' '1.2 - 2.3.4' '1.2.3 || 2.3.4' '1.2.3 - 2.3.4'; do
+for _selector in '1.x' '1.X' '1.*' '1' '1.2' '^1.2.3' '~1.2.3' '>=1.x' '!=1.2.3' '1.x || 2.x' '1.2 || 2.3.4' '1.2 - 2.3.4' '1.2.3 || 2.3.4' '1.2.3 - 2.3.4'; do
   out=$(parse_install_cmd "npm install \"lodash@$_selector\"")
   assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm wildcard selector is unpinned: $_selector"
 done
@@ -28,18 +28,40 @@ assert_eq $'npm\tlodash\t__version_sentinel_unpinned__' "$out" "npm alias wildca
 out=$(parse_install_cmd "npm install compat@npm:@scope/pkg@1.2")
 assert_eq $'npm\t@scope/pkg\t__version_sentinel_unpinned__' "$out" "scoped npm alias partial selector is unpinned"
 
-for _command in \
-  'pip install requests==1.*' \
-  'pip install "requests>=1,!=1.5.*"' \
-  'poetry add flask@1.*' \
-  'cargo add serde@1.*'; do
+# Every ecosystem must reject ranges, exclusions, wildcards, and compounds.
+for _case in \
+  $'npm install lodash@^1.2.3\tnpm\tlodash' \
+  $'npm install lodash@!=1.2.3\tnpm\tlodash' \
+  $'npm install lodash@1.*\tnpm\tlodash' \
+  $'npm install "lodash@>=1.2.3 <2.0.0"\tnpm\tlodash' \
+  $'pip install requests>=2.31.0\tpip\trequests' \
+  $'pip install requests!=2.31.0\tpip\trequests' \
+  $'pip install requests==2.*\tpip\trequests' \
+  $'pip install "requests>=2,<3"\tpip\trequests' \
+  $'poetry add flask@^3.0.0\tpip\tflask' \
+  $'poetry add flask@!=3.0.0\tpip\tflask' \
+  $'poetry add flask@3.*\tpip\tflask' \
+  $'poetry add "flask@>=3,<4"\tpip\tflask' \
+  $'cargo add serde@1.0.196\tcargo\tserde' \
+  $'cargo add serde@^1.0.196\tcargo\tserde' \
+  $'cargo add serde@!=1.0.196\tcargo\tserde' \
+  $'cargo add serde@1.*\tcargo\tserde' \
+  $'cargo add "serde@>=1,<2"\tcargo\tserde'; do
+  IFS=$'\t' read -r _command _eco _pkg <<< "$_case"
   out=$(parse_install_cmd "$_command")
-  case "$_command" in
-    cargo*) expected=$'cargo\tserde\t__version_sentinel_unpinned__' ;;
-    poetry*) expected=$'pip\tflask\t__version_sentinel_unpinned__' ;;
-    *) expected=$'pip\trequests\t__version_sentinel_unpinned__' ;;
-  esac
-  assert_eq "$expected" "$out" "registry wildcard is unpinned: $_command"
+  expected=$(printf '%s\t%s\t%s' "$_eco" "$_pkg" "$VS_UNPINNED_VERSION")
+  assert_eq "$expected" "$out" "non-exact registry selector is unpinned: $_command"
+done
+
+# Exact-selector operators are removed before sidecar lookup or recording.
+for _case in \
+  $'npm install lodash@=4.17.21\tnpm\tlodash\t4.17.21' \
+  $'pip install requests==2.31.0\tpip\trequests\t2.31.0' \
+  $'poetry add flask@=3.0.0\tpip\tflask\t3.0.0' \
+  $'cargo add serde@=1.0.196\tcargo\tserde\t1.0.196'; do
+  IFS=$'\t' read -r _command _eco _pkg _ver <<< "$_case"
+  out=$(parse_install_cmd "$_command")
+  assert_eq "$(printf '%s\t%s\t%s' "$_eco" "$_pkg" "$_ver")" "$out" "exact selector is normalized: $_command"
 done
 
 out=$(parse_install_cmd "pip install 'requests==2.31.0; python_version == \"3.*\"'")
@@ -55,7 +77,7 @@ for _case in \
   $'pip install requ"es"ts==2.31.0\tpip\trequests\t2.31.0' \
   $'poetry add fl"as"k@3.0.0\tpip\tflask\t3.0.0' \
   $'uv add requ"es"ts==2.31.0\tpip\trequests\t2.31.0' \
-  $'cargo add se"rd"e@1.0.196\tcargo\tserde\t1.0.196' \
+  $'cargo add se"rd"e@=1.0.196\tcargo\tserde\t1.0.196' \
   $'dotnet package add Newtonsoft."Json"@13.0.3\tcsproj\tNewtonsoft.Json\t13.0.3'; do
   IFS=$'\t' read -r _command _eco _pkg _ver <<< "$_case"
   out=$(parse_install_cmd "$_command")
@@ -111,7 +133,7 @@ out=$(parse_install_cmd "pip install requests==2.31.0")
 assert_eq $'pip\trequests\t2.31.0' "$out" "pip install pinned"
 
 # poetry add
-out=$(parse_install_cmd "poetry add flask@^3.0.0")
+out=$(parse_install_cmd "poetry add flask@=3.0.0")
 assert_eq $'pip\tflask\t3.0.0' "$out" "poetry add"
 
 # cargo add no version
@@ -333,7 +355,7 @@ done
 out=$(parse_install_cmd "pip install --report report.json requests")
 assert_eq $'pip\trequests\t__version_sentinel_unpinned__' "$out" "pip --report operand is not a package"
 
-out=$(parse_install_cmd "cargo add --package app --manifest-path ./Cargo.toml serde@1.0.196")
+out=$(parse_install_cmd "cargo add --package app --manifest-path ./Cargo.toml serde@=1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo workspace option operands are not packages"
 
 # Value-taking options must consume their operands. Boolean options and
@@ -412,13 +434,13 @@ assert_eq $'pip\tflask\t3.0.0' "$out" "poetry value option operand is not a pack
 out=$(parse_install_cmd "poetry add --editable flask@3.0.0")
 assert_eq $'pip\tflask\t3.0.0' "$out" "poetry boolean option does not consume package"
 
-out=$(parse_install_cmd "cargo add --color always serde@1.0.196")
+out=$(parse_install_cmd "cargo add --color always serde@=1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo global value option operand is not a package"
 
-out=$(parse_install_cmd "cargo add --base core serde@1.0.196")
+out=$(parse_install_cmd "cargo add --base core serde@=1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo base option operand is not a package"
 
-out=$(parse_install_cmd "cargo add -m ./Cargo.toml serde@1.0.196")
+out=$(parse_install_cmd "cargo add -m ./Cargo.toml serde@=1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo short manifest-path operand is not a package"
 
 out=$(parse_install_cmd "dotnet add package --framework net8.0 Newtonsoft.Json --version 13.0.3")
@@ -469,7 +491,7 @@ done
 out=$(parse_install_cmd "pip install requests==2.31.0 2> errors.log")
 assert_eq $'pip\trequests\t2.31.0' "$out" "pip redirection target is ignored"
 
-out=$(parse_install_cmd "cargo add 2> errors.log serde@1.0.196")
+out=$(parse_install_cmd "cargo add 2> errors.log serde@=1.0.196")
 assert_eq $'cargo\tserde\t1.0.196' "$out" "cargo package after redirection target is preserved"
 
 
