@@ -15,4 +15,23 @@ out=$(parse_pip "$FIXTURES/requirements_tricky.txt" | sort)
 expected=$(printf '%s\n' "PyYAML	6.0" "click	8.1.7" | sort)
 assert_eq "$expected" "$out" "pip tricky (comments/includes/editable/range skipped)"
 
+tmp=$(mktemp)
+printf '%s\n' 'requests' 'flask[async]' '-r base.txt' '-e .' './local' 'SomeProject@https://example.com/pkg.whl' > "$tmp"
+out=$(parse_pip "$tmp" | sort)
+expected=$(printf '%s\n' \
+  $'flask\t__version_sentinel_unpinned__' \
+  $'requests\t__version_sentinel_unpinned__' | sort)
+assert_eq "$expected" "$out" "pip bare registry requirements are unpinned; includes and sources skipped"
+rm -f "$tmp"
+
+tmp=$(mktemp)
+printf '%s\n' 'requests==1.*' 'urllib3!=2.*' 'idna>=1,!=1.5.*' > "$tmp"
+out=$(parse_pip "$tmp" | sort)
+expected=$(printf '%s\n' \
+  $'requests\t__version_sentinel_unpinned__' \
+  $'idna\t__version_sentinel_unpinned__' \
+  $'urllib3\t__version_sentinel_unpinned__' | sort)
+assert_eq "$expected" "$out" "pip wildcard specifiers are unpinned"
+rm -f "$tmp"
+
 finish_test
