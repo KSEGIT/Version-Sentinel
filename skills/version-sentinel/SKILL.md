@@ -11,10 +11,11 @@ The `version-sentinel` setup blocks dependency changes until you've verified the
 
 If a tool call exits 2 with `BLOCKED: version-sentinel`, you must:
 
-1. **Resolve the intended dependency.** Identify the ecosystem, package, and
-   intended version. If the request or project does not establish them, ask the
-   user. For a private registry, ask for its URL instead of guessing a public
-   source.
+1. **Resolve the intended dependency.** Identify the ecosystem and package. For
+   a public package without a version, treat it as a latest-version request and
+   look up the current release. Ask the user only when the dependency is
+   ambiguous or private. For a private registry, ask for its URL instead of
+   guessing a public source.
 
 2. **Verify the version.** For a latest-version request, look up the current
    release. For a deliberate pin, verify that the requested version exists and
