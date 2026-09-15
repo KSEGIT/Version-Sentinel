@@ -2,6 +2,18 @@
 
 All notable changes to version-sentinel.
 
+## [0.4.5](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.4...version-sentinel-v0.4.5) (2026-09-15)
+
+
+### Bug Fixes
+
+* block unpinned dependency inputs ([a9a4721](https://github.com/KSEGIT/Version-Sentinel/commit/a9a472113d582db4ab12f5fbca2b394557c862c1))
+* block unpinned dependency inputs ([cac5196](https://github.com/KSEGIT/Version-Sentinel/commit/cac519649919f6222755d0113aa7bd9875382995))
+* close remaining parser review gaps ([5221ade](https://github.com/KSEGIT/Version-Sentinel/commit/5221adee547449f0bce1f36ec73ccd123472f76c))
+* harden install command parsing ([4bd09c6](https://github.com/KSEGIT/Version-Sentinel/commit/4bd09c6eb2a53d4b1e6a3be40b2c7e840c5ab8e7))
+* normalize npm alias records on Windows ([8e9bbfd](https://github.com/KSEGIT/Version-Sentinel/commit/8e9bbfd6b6d9617238a71e64a8be11915f21545a))
+* reject non-exact dependency selectors ([b82edc2](https://github.com/KSEGIT/Version-Sentinel/commit/b82edc271366eeaef6b7e2134c4864f27a37a6ba))
+
 ## [0.4.4](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.3...version-sentinel-v0.4.4) (2026-09-02)
 
 
