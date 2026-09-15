@@ -20,6 +20,11 @@ the package ecosystem, package name, intended version, source URL or intentional
 pin reason, and timestamp. This file stays in the user's environment unless the
 user or another tool chooses to copy, commit, or share it.
 
+Registry lookups can also persist ETags and full registry response bodies in
+`.version-sentinel/.etag-cache/` inside the user's project. The cache has no
+automatic expiry and stays in the user's environment unless the user or another
+tool chooses to copy, commit, or share it.
+
 ## Network requests
 
 To check package versions, Version Sentinel can send package names and standard
@@ -31,7 +36,9 @@ under the host provider's terms and privacy policy.
 ## Data retention and deletion
 
 Version Sentinel has no maintainer-operated data store. Users control local
-records and can delete `.version-sentinel/checks.json` at any time.
+records and can delete `.version-sentinel/checks.json` at any time. To remove
+all Version Sentinel local data, delete `.version-sentinel/checks.json` and
+`.version-sentinel/.etag-cache/`.
 
 ## Security
 

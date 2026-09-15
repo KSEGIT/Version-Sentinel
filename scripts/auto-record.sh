@@ -62,7 +62,8 @@ if [[ -n "$exit_code" && "$exit_code" != "0" ]]; then
   exit 0
 fi
 # Some runners report .tool_response.success instead.
-success=$(echo "$input" | jq -r '.tool_response.success // empty')
+success=$(echo "$input" | jq -r \
+  'if (.tool_response.success? == null) then empty else (.tool_response.success | tostring) end')
 if [[ -n "$success" && "$success" != "true" ]]; then
   exit 0
 fi
@@ -81,6 +82,7 @@ path=$(sidecar_path "$PWD")
 while IFS=$'\t' read -r eco pkg ver; do
   [[ -z "$pkg" ]] && continue
   [[ -z "$ver" ]] && continue
+  [[ "$ver" == "$VS_UNPINNED_VERSION" ]] && continue
   if sidecar_write_entry "$path" "$eco" "$pkg" "$ver" "auto-recorded: post-install" 2>/dev/null; then
     echo "version-sentinel: auto-recorded $eco/$pkg@$ver" >&2
   fi

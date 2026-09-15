@@ -24,7 +24,7 @@ If a hook blocks an edit or install (exit 2, `BLOCKED: version-sentinel`), or if
    bash scripts/vs-record.sh csproj Serilog 3.1.1 "intentional: CVE lock pending audit"
    ```
 
-3. **Retry the edit or install.** With a fresh entry on record, the hook (where present) lets the operation through.
+3. **Retry with the verified version.** If the blocked edit or command omitted the version or used a floating tag such as `latest`, replace it with the exact version you recorded. For example, retry `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
 
 Never fabricate a source URL you did not actually consult, and never bypass the record step to force a dependency change through.
 
@@ -39,6 +39,8 @@ Scans manifests within 4 directory levels of the current directory, compares eac
 ## Supported manifests
 
 `package.json` (npm/pnpm/yarn/bun), `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (pip, Poetry, uv), `Cargo.toml`, and `*.csproj` / `*.fsproj` / `*.vbproj` (NuGet).
+
+Local paths, URLs, git sources, and workspace dependencies do not name a registry version, so the gate ignores them. A NuGet `PackageReference` without a `Version` may use Central Package Management from an ancestor `Directory.Packages.props`; the manifest parser also ignores that form. It still blocks floating NuGet versions such as `Version="*"`.
 
 ## Escape hatch
 

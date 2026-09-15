@@ -12,4 +12,10 @@ expected=$(printf '%s\n' \
   "Serilog	3.1.1" | sort)
 assert_eq "$expected" "$out" "csproj PackageReference parsing"
 
+tmp=$(mktemp --suffix=.csproj 2>/dev/null || mktemp)
+printf '%s\n' '<Project><ItemGroup><PackageReference Include="Polly" Version="*" /><PackageReference Include="Central.Versioned" /></ItemGroup></Project>' > "$tmp"
+out=$(parse_csproj "$tmp")
+assert_eq $'Polly\t__version_sentinel_unpinned__' "$out" "csproj floating Version is unpinned; omitted Version may use central management"
+rm -f "$tmp"
+
 finish_test

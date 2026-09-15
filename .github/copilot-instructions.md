@@ -12,7 +12,9 @@ This workspace uses version-sentinel: dependency edits and install commands are 
 2. Record the check by running in the terminal:
    `bash scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url>`
    The source must be an `http(s)://` URL you actually saw, or `intentional: <reason>` for deliberate pins.
-3. Retry the original edit or install — the hook will see the fresh record and let it through.
+3. Retry with the exact version you recorded. If the blocked input omitted the version or used a floating tag such as `latest`, rewrite it first. For example, use `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
+
+Local paths, URLs, git sources, and workspace dependencies are outside registry-version checks. A NuGet `PackageReference` without `Version` may use Central Package Management, so the manifest gate ignores that form.
 
 ## Intentional pins
 

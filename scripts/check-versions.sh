@@ -32,6 +32,10 @@ while IFS= read -r mf; do
   [[ -z "$eco" ]] && continue
   while IFS=$'\t' read -r pkg cur; do
     [[ -z "$pkg" ]] && continue
+    if [[ "$cur" == "$VS_UNPINNED_VERSION" ]]; then
+      printf '%-12s %-40s %-15s %-15s %s\n' "$eco" "$pkg" "(unpinned)" "?" "UNPINNED"
+      continue
+    fi
     if cb_is_open "$VS_CB_STATE" "$eco"; then
       latest="?"
       status="circuit-open"

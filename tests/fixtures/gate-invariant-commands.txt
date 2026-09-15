@@ -5,14 +5,26 @@
 #
 # Blank lines and lines starting with # are ignored.
 npm install lodash@4.17.21
+npm install lodash
+npm install @scope/pkg
+npm install lodash@beta
 pnpm add react@18.2.0
+pnpm add react
 yarn add react@18.2.0
+yarn add react
 bun add react@18.2.0
+bun add react
 pip install requests==2.31.0
+pip install requests
 pip3 install requests==2.31.0
+pip3 install requests
 uv pip install requests==2.31.0
+uv pip install requests
+uv add requests
 poetry add flask@^3.0.0
+poetry add flask
 cargo add serde
+dotnet add package Serilog
 dotnet add package Serilog -v 3.1.1
 FOO=bar npm install lodash@4.17.21
 CFLAGS='-O2 -g' pip install requests==2.31.0

@@ -36,6 +36,30 @@ assert_eq "npm"      "$(jq -r '.entries[0].ecosystem' "$SIDECAR")" "entry ecosys
 assert_eq "lodash"   "$(jq -r '.entries[0].pkg'       "$SIDECAR")" "entry pkg=lodash"
 assert_eq "4.17.21"  "$(jq -r '.entries[0].version'   "$SIDECAR")" "entry version=4.17.21"
 
+# A versioned npm alias records the real registry target and version.
+rm -rf .version-sentinel
+json='{"tool_name":"Bash","tool_input":{"command":"npm install compat@npm:lodash@4.17.21"},"tool_response":{"exit_code":0}}'
+echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+assert_eq "1" "$(count_entries)" "versioned alias → 1 sidecar entry"
+assert_eq "lodash" "$(jq -r '.entries[0].pkg' "$SIDECAR")" "versioned alias records real target"
+assert_eq "4.17.21" "$(jq -r '.entries[0].version' "$SIDECAR")" "versioned alias records target version"
+
+# Exact selectors for every ecosystem are normalized before recording.
+for _case in \
+  $'npm install lodash@=4.17.21\tnpm\tlodash\t4.17.21' \
+  $'pip install requests==2.31.0\tpip\trequests\t2.31.0' \
+  $'poetry add flask@=3.0.0\tpip\tflask\t3.0.0' \
+  $'cargo add serde@=1.0.196\tcargo\tserde\t1.0.196'; do
+  IFS=$'\t' read -r _command _eco _pkg _ver <<< "$_case"
+  rm -rf .version-sentinel
+  json=$(jq -nc --arg command "$_command" '{tool_name:"Bash",tool_input:{command:$command},tool_response:{exit_code:0}}')
+  echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+  assert_eq "1" "$(count_entries)" "exact selector records one entry: $_command"
+  assert_eq "$_eco" "$(jq -r '.entries[0].ecosystem' "$SIDECAR")" "exact selector ecosystem: $_command"
+  assert_eq "$_pkg" "$(jq -r '.entries[0].pkg' "$SIDECAR")" "exact selector package: $_command"
+  assert_eq "$_ver" "$(jq -r '.entries[0].version' "$SIDECAR")" "exact selector normalized version: $_command"
+done
+
 # --- Case 2: failed install (non-zero exit_code) → no entry added ---
 rm -rf .version-sentinel
 json='{"tool_name":"Bash","tool_input":{"command":"npm install bogus@9.9.9"},"tool_response":{"exit_code":1}}'
@@ -43,15 +67,49 @@ out=$(echo "$json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$out" "exit=0" "failed install → exit 0"
 assert_eq "0" "$(count_entries)" "failed install → no sidecar entry"
 
-# --- Case 2b: success="false" (string) variant → no entry added ---
-# Note: the script uses `jq -r '.tool_response.success // empty'`, which treats a
-# JSON boolean `false` as empty (jq's // default operator). So we test the string
-# form that runners in practice use.
+# --- Case 2a: unpinned, floating and non-registry targets are never records ---
+for _c in "npm install lodash" \
+          "npm install lodash@latest" \
+          "npm install lodash@beta" \
+          "npm install lodash@^1.2.3" \
+          "npm install lodash@!=1.2.3" \
+          "npm install lodash@1.*" \
+          'npm install "lodash@>=1.2.3 <2.0.0"' \
+          "pip install requests>=2.31.0" \
+          "pip install requests!=2.31.0" \
+          "pip install requests==2.*" \
+          'pip install "requests>=2,<3"' \
+          "poetry add flask@^3.0.0" \
+          "poetry add flask@!=3.0.0" \
+          "poetry add flask@3.*" \
+          'poetry add "flask@>=3,<4"' \
+          "cargo add serde@1.0.196" \
+          "cargo add serde@^1.0.196" \
+          "cargo add serde@!=1.0.196" \
+          "cargo add serde@1.*" \
+          'cargo add "serde@>=1,<2"' \
+          "pip install requests" \
+          "cargo add serde" \
+          "dotnet add package Newtonsoft.Json" \
+          "npm install ./local-package" \
+          "npm install workspace:*" \
+          "npm install git+https://example.com/repo.git" \
+          "pip install -r requirements.txt" \
+          "poetry add ../local-package" \
+          "cargo add --path ../local-crate" \
+          "cargo add --git https://example.com/repo.git"; do
+  rm -rf .version-sentinel
+  json=$(jq -nc --arg command "$_c" '{tool_name:"Bash",tool_input:{command:$command},tool_response:{exit_code:0}}')
+  echo "$json" | bash "$SCRIPT" >/dev/null 2>&1
+  assert_eq "0" "$(count_entries)" "no sidecar entry for unrecordable target: $_c"
+done
+
+# --- Case 2b: JSON boolean success=false → no entry added ---
 rm -rf .version-sentinel
-json='{"tool_name":"Bash","tool_input":{"command":"npm install bogus@9.9.9"},"tool_response":{"success":"false"}}'
+json='{"tool_name":"Bash","tool_input":{"command":"npm install bogus@9.9.9"},"tool_response":{"success":false}}'
 out=$(echo "$json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
-assert_contains "$out" "exit=0" "success=\"false\" → exit 0"
-assert_eq "0" "$(count_entries)" "success=\"false\" → no sidecar entry"
+assert_contains "$out" "exit=0" "success=false → exit 0"
+assert_eq "0" "$(count_entries)" "success=false → no sidecar entry"
 
 # --- Case 3: tool_name != Bash → no-op ---
 rm -rf .version-sentinel

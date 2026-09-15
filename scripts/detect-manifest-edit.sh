@@ -123,10 +123,29 @@ post_deps=$(parse_manifest_by_path "$tmp_post" 2>/dev/null)
 changes=$(diff_manifest_sets "$pre_deps" "$post_deps")
 [[ -z "$changes" ]] && exit 0
 
+unpinned_manifest_message() {
+  local eco="$1" pkg="$2"
+  cat <<EOF
+BLOCKED: version-sentinel.
+Package: $pkg ($eco).
+No explicit registry version was provided. Floating tags, wildcards, and omitted versions cannot be recorded as an exact version check.
+
+REQUIRED before retry:
+1. Look up the current version of "$pkg" on the $eco registry.
+2. Record that exact version and the source URL with /vs-record.
+3. Set "$pkg" to that explicit registry version in the manifest and retry the edit.
+EOF
+}
+
 block=0
 block_msgs=""
 while IFS=$'\t' read -r kind pkg ver; do
   [[ -z "$pkg" ]] && continue
+  if [[ "$ver" == "$VS_UNPINNED_VERSION" ]]; then
+    block=1
+    block_msgs+=$(unpinned_manifest_message "$eco" "$pkg")$'\n---\n'
+    continue
+  fi
   if ! bash "$DIR/check-sidecar.sh" "$eco" "$pkg" "$ver" 2>/tmp/_vs_err_$$; then
     block=1
     block_msgs+=$(cat /tmp/_vs_err_$$)$'\n---\n'

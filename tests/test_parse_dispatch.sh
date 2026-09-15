@@ -38,4 +38,16 @@ out=$(diff_manifest_sets "$pre" "$post" | sort)
 expected=$(printf 'added\texpress\t4.19.2\nchanged\tlodash\t4.17.21\n' | sort)
 assert_eq "$expected" "$out" "diff: added + changed, removed/unchanged ignored"
 
+# Duplicate package names in separate npm sections are compared as full
+# package/version pairs. An unchanged pair must not hide a new floating pair.
+pre=$(printf 'lodash\t4.17.21\n')
+post=$(printf 'lodash\t4.17.21\nlodash\t__version_sentinel_unpinned__\n')
+out=$(diff_manifest_sets "$pre" "$post")
+assert_eq $'changed\tlodash\t__version_sentinel_unpinned__' "$out" "diff: duplicate package pair is compared safely"
+
+pre=$(printf 'lodash\t4.17.20\nlodash\t4.17.21\n')
+post="$pre"
+out=$(diff_manifest_sets "$pre" "$post")
+assert_eq "" "$out" "diff: unchanged duplicate package pairs stay unchanged"
+
 finish_test
