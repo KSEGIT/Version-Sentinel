@@ -2,8 +2,6 @@
 
 Where Version Sentinel can be installed from and listed, per platform — and what
 still requires the owner's interactive action. Research date: **2026-09-04**
-(refreshed during the marketing pass; see `docs/marketing-plan.md` for the
-promotion strategy built on top of this matrix).
 
 Submission status legend:
 
