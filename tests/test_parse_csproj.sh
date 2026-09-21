@@ -7,9 +7,9 @@ source "$SCRIPT_DIR/scripts/lib/parse-manifest.sh"
 
 out=$(parse_csproj "$FIXTURES/Demo.csproj" | sort)
 expected=$(printf '%s\n' \
-  "Dapper	2.1.28" \
-  "Newtonsoft.Json	13.0.3" \
-  "Serilog	3.1.1" | sort)
+  "Dapper	2.1.86" \
+  "Newtonsoft.Json	13.0.5-beta1" \
+  "Serilog	4.4.1-dev-02447" | sort)
 assert_eq "$expected" "$out" "csproj PackageReference parsing"
 
 tmp=$(mktemp --suffix=.csproj 2>/dev/null || mktemp)
