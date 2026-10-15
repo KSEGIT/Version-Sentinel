@@ -1,5 +1,8 @@
 .playwright-mcp
 
+# Isolated development checkouts
+.worktrees/
+
 # .NET build artifacts (esp. under tests/fixtures/Demo.csproj)
 **/obj/
 tests/fixtures/**/bin/
