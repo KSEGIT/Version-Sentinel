@@ -10,6 +10,22 @@
 
 **Spec:** [design.md](design.md). Design approved in chat; user resumed after the written spec handoff. Fresh builder review: nothing important left.
 
+### Live tooling check, 2026-10-19
+
+The npm registry returned these stable versions during read-only preparation:
+
+| Development tool | Version | Declared Node requirement | Consulted upstream URL |
+| --- | --- | --- | --- |
+| `@playwright/test` | `1.64.1` | `>=20` | <https://registry.npmjs.org/@playwright%2ftest/latest> |
+| `@axe-core/playwright` | `4.14.0` | `>=22.12.0` | <https://registry.npmjs.org/@axe-core%2fplaywright/latest> |
+| `@lhci/cli` | `0.15.1` | none declared | <https://registry.npmjs.org/@lhci%2fcli/latest> |
+| `html-validate` | `11.16.4` | `^22.22.0 || >=24.8.0` | <https://registry.npmjs.org/html-validate/latest> |
+
+Use a Node 24 release >=24.8.0 in CI so all declared engine requirements are met.
+This is planning evidence, not a Version Sentinel record or authorization to
+install. Refresh the registry checks if stale, record the intended exact versions
+with Version Sentinel, then add the manifest during Task 1 after plan approval.
+
 ## Global Constraints
 
 - Production target: `https://ksegit.github.io/Version-Sentinel/`; base path `/Version-Sentinel/`.
