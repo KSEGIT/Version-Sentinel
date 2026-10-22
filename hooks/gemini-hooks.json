@@ -7,7 +7,7 @@
           {
             "type": "command",
             "name": "version-sentinel-prereq",
-            "command": "bash ${extensionPath}${/}scripts${/}prereq-check.sh",
+            "command": "bash \"${extensionPath}${/}scripts${/}prereq-check.sh\"",
             "timeout": 10,
             "description": "Check version-sentinel prerequisites (Gemini CLI)"
           }
@@ -21,7 +21,7 @@
           {
             "type": "command",
             "name": "version-sentinel-manifest-edit",
-            "command": "bash ${extensionPath}${/}scripts${/}detect-manifest-edit.sh",
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\"",
             "timeout": 10,
             "description": "Block dependency-manifest edits without a recorded version check"
           }
@@ -33,7 +33,7 @@
           {
             "type": "command",
             "name": "version-sentinel-install-cmd",
-            "command": "bash ${extensionPath}${/}scripts${/}detect-install-cmd.sh",
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\"",
             "timeout": 10,
             "description": "Block package-install commands without a recorded version check"
           }
@@ -47,7 +47,7 @@
           {
             "type": "command",
             "name": "version-sentinel-auto-record",
-            "command": "bash ${extensionPath}${/}scripts${/}auto-record.sh",
+            "command": "bash \"${extensionPath}${/}scripts${/}auto-record.sh\"",
             "timeout": 10,
             "description": "Auto-record version check after a successful install command"
           }
