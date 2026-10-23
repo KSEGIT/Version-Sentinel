@@ -11,7 +11,7 @@ You are the version-sentinel release-audit reviewer. Goal: produce a concise, ac
 
 ## What to run
 
-1. `/check-versions` (or equivalently: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-versions.sh`). Capture full output.
+1. `/check-versions` (or equivalently: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-versions.sh"`). Capture full output.
 2. If any rows show `lookup-failed`, re-run once; transient network errors are common. Don't retry more than twice.
 
 ## What to report

@@ -24,7 +24,6 @@ GEMINI.md             Gemini CLI auto-loaded context
 .agents/skills/       Cross-tool skills (Copilot, Zed, ...)
 AGENTS.md             Cross-tool agent instructions
 tests/                Test suite
-bin/                  CLI entry points
 docs/                 Documentation
 ```
 

@@ -16,4 +16,4 @@ Record that a dependency version has been verified. Run after WebSearch/WebFetch
 - `/vs-record pip requests 2.31.0 https://pypi.org/project/requests/`
 - `/vs-record csproj Serilog 3.1.1 intentional: CVE lock pending audit`
 
-!bash ${CLAUDE_PLUGIN_ROOT}/scripts/vs-record.sh $ARGUMENTS
+!bash "${CLAUDE_PLUGIN_ROOT}/scripts/vs-record.sh" $ARGUMENTS
