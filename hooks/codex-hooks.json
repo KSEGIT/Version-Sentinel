@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/prereq-check.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/prereq-check.sh\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-manifest-edit.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/detect-manifest-edit.sh\""
           }
         ]
       },
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/detect-install-cmd.sh\""
           }
         ]
       }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\""
           }
         ]
       }
