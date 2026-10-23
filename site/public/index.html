@@ -24,14 +24,16 @@
   <link rel="preload" href="/Version-Sentinel/assets/IBMPlexSans-Regular-Latin1.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/Version-Sentinel/assets/IBMPlexSans-SemiBold-Latin1.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/Version-Sentinel/assets/IBMPlexMono-Regular-Latin1.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="/Version-Sentinel/theme-init.js"></script>
   <link rel="stylesheet" href="/Version-Sentinel/styles.css">
+  <script type="module" src="/Version-Sentinel/main.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header wrap">
     <a class="brand" href="#top"><img src="/Version-Sentinel/assets/logo.svg" width="42" height="42" alt="">Version Sentinel</a>
     <nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#install">Install</a><a href="https://github.com/KSEGIT/Version-Sentinel">GitHub</a></nav>
-    <button id="theme-toggle" type="button" hidden>Change color theme</button>
+    <button id="theme-toggle" type="button" hidden>Theme</button>
   </header>
   <main id="main">
     <section id="top" class="hero wrap" aria-labelledby="hero-title">
@@ -102,7 +104,7 @@
     </section>
 
     <section id="agents" class="section workflow-section" aria-labelledby="agents-title"><div class="wrap"><div class="section-intro"><h2 id="agents-title">One workflow across your agents.</h2><p>Shared scripts and local records, with a thin adapter for each platform. Enforcement depends on the host’s hook support and setup.</p></div>
-      <ul class="agent-list"><li><h3>Claude Code</h3><p>Plugin hooks block before an edit or install.</p></li><li><h3>Kimi Code</h3><p>Plugin adapter and hook wiring. The repository’s live checks exclude the TUI plugin-install flow.</p></li><li><h3>GitHub Copilot in VS Code</h3><p>Workspace adapters. Hooks are Preview in the repository checklist; live verification is still pending.</p></li><li><h3>Gemini CLI</h3><p>Extension plus hook setup script and restart. Live verification is pending in the repository checklist.</p></li><li><h3>OpenAI Codex</h3><p>Plugin hooks require explicit trust through <code>/hooks</code>.</p></li><li><h3>Zed</h3><p>Advisory workflow with project instructions and skills. No automatic hook blocking.</p></li></ul>
+      <ul class="agent-list"><li><h3><a href="#install-claude">Claude Code</a></h3><p>Plugin hooks block before an edit or install.</p></li><li><h3><a href="#install-kimi">Kimi Code</a></h3><p>Plugin adapter and hook wiring. The repository’s live checks exclude the TUI plugin-install flow.</p></li><li><h3><a href="#install-copilot">GitHub Copilot in VS Code</a></h3><p>Workspace adapters. Hooks are Preview in the repository checklist; live verification is still pending.</p></li><li><h3><a href="#install-gemini">Gemini CLI</a></h3><p>Extension plus hook setup script and restart. Live verification is pending in the repository checklist.</p></li><li><h3><a href="#install-codex">OpenAI Codex</a></h3><p>Plugin hooks require explicit trust through <code>/hooks</code>.</p></li><li><h3><a href="#install-zed">Zed</a></h3><p>Advisory workflow with project instructions and skills. No automatic hook blocking.</p></li></ul>
       <p class="aside">z.ai GLM Coding Plan / ZCode uses the Claude Code plugin format according to the repository. This page does not claim a live ZCode verification. <a href="https://github.com/KSEGIT/Version-Sentinel/blob/main/docs/e2e-checklist.md">Read the platform verification checklist</a>.</p>
     </div></section>
 

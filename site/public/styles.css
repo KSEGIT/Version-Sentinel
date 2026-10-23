@@ -793,3 +793,51 @@ smaller sizes are reserved for code and captions. */
 .section p,.ecosystem-list dd {
   font-size:1rem
 }
+/* Hidden enhancements reserve their final size without exposing inert controls. */
+#theme-toggle {
+  width:5.5rem;
+  flex:none
+}
+#theme-toggle[hidden],[data-copy-target][hidden] {
+  display:inline-block!important;
+  visibility:hidden
+}
+.install-selectors [aria-selected="true"] {
+  background:var(--teal);
+  color:var(--page);
+  border-color:var(--teal);
+  text-decoration:underline;
+  text-underline-offset:.25em
+}
+.install-panel[role="tabpanel"] {
+  border-top:0
+}
+.agent-list h3 a {
+  display:inline-block;
+  padding-block:10px;
+  margin-block:-10px 2px
+}
+/* Theme changes crossfade; suppress the browser's default geometry animation. */
+::view-transition-group(root) {
+  animation:none
+}
+::view-transition-old(root) {
+  animation:theme-out 150ms ease-out both;
+  mix-blend-mode:normal
+}
+::view-transition-new(root) {
+  animation:theme-in 150ms ease-out both;
+  mix-blend-mode:normal
+}
+@keyframes theme-out {
+  to { opacity:0 }
+}
+@keyframes theme-in {
+  from { opacity:0 }
+  to { opacity:1 }
+}
+@media(prefers-reduced-motion:reduce) {
+  ::view-transition-old(root),::view-transition-new(root) {
+    animation:none!important
+  }
+}
