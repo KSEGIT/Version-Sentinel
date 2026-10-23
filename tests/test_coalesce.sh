@@ -2,6 +2,10 @@
 VS_TEST_NAME="coalesce"
 source "$(dirname "$0")/assert.sh"
 
+# Keep the paused-owner and marker fixtures independent of the caller's timing.
+VS_LOCK_TIMEOUT=5
+VS_LOCK_STALE_SEC=30
+VS_COALESCE_TTL=10
 source "$(dirname "$0")/../scripts/lib/coalesce.sh"
 
 VS_TMPDIR="$(mktemp -d)"
