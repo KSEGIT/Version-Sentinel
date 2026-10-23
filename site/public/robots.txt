@@ -1,0 +1,4 @@
+# Project-path file: this does not control robots at the owner-site root.
+User-agent: *
+Allow: /Version-Sentinel/
+Sitemap: https://ksegit.github.io/Version-Sentinel/sitemap.xml

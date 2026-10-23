@@ -1,5 +1,8 @@
 .playwright-mcp
 
+# Isolated development checkouts
+.worktrees/
+
 # .NET build artifacts (esp. under tests/fixtures/Demo.csproj)
 **/obj/
 tests/fixtures/**/bin/
@@ -72,4 +75,7 @@ $RECYCLE.BIN/
 
 # Local-only design docs / plans (kept out of GitHub)
 docs/superpowers/
-.worktrees/
+
+# Website verification artifacts
+site/reports/
+site/.lighthouseci/
