@@ -9,6 +9,8 @@
   <img src="https://img.shields.io/badge/ecosystems-npm%20%7C%20pip%20%7C%20cargo%20%7C%20nuget-22c55e" alt="Supported ecosystems" />
 </p>
 
+<p align="center"><a href="https://ksegit.github.io/Version-Sentinel/">Website and installation guide</a></p>
+
 <p align="center">Claude Code plugin that <strong>hard-blocks</strong> dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded.</p>
 
 > If Claude tries to add `"lodash": "^4.17.21"` without looking up the latest version first, the tool call is rejected with exit 2. Claude must run `WebSearch`, then `/vs-record`, then retry. Five ecosystems supported in v0.1.
