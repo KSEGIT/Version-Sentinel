@@ -1,0 +1,65 @@
+{
+  "browser": "156.0.8078.4",
+  "viewport": "375x900",
+  "cpuSlowdown": 4,
+  "mobile": true,
+  "touch": true,
+  "cls": 0,
+  "allLayoutShiftValues": 0,
+  "phases": {
+    "load": {
+      "frames": 296,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 116.70000000000002,
+      "framesOver25ms": 1,
+      "longestConsecutiveOver25ms": 1,
+      "longTasks": 1,
+      "maxLongTaskMs": 98
+    },
+    "replay": {
+      "frames": 301,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.80000000000109,
+      "framesOver25ms": 0,
+      "longestConsecutiveOver25ms": 0,
+      "longTasks": 0,
+      "maxLongTaskMs": 0
+    },
+    "copy-success": {
+      "frames": 40,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.80000000000109,
+      "framesOver25ms": 0,
+      "longestConsecutiveOver25ms": 0,
+      "longTasks": 0,
+      "maxLongTaskMs": 0
+    },
+    "copy-denied": {
+      "frames": 39,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.700000000000728,
+      "framesOver25ms": 0,
+      "longestConsecutiveOver25ms": 0,
+      "longTasks": 0,
+      "maxLongTaskMs": 0
+    },
+    "scroll": {
+      "frames": 248,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.80000000000109,
+      "framesOver25ms": 0,
+      "longestConsecutiveOver25ms": 0,
+      "longTasks": 0,
+      "maxLongTaskMs": 0
+    }
+  },
+  "longTasks": [
+    {
+      "start": 99.20000000018626,
+      "duration": 98,
+      "phase": "load"
+    }
+  ],
+  "layoutShifts": [],
+  "limits": "Headless Chromium on the host CPU with CDP 4x slowdown and a mobile viewport/touch emulation. rAF intervals measure callback cadence, not physical screen presentation. No device GPU, mobile network, heat, battery, or physical-phone measurement is claimed."
+}

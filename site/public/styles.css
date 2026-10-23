@@ -121,6 +121,9 @@ button:hover {
   outline:3px solid var(--teal);
   outline-offset:5px
 }
+.terminal :focus-visible {
+  outline-color:var(--terminal-teal)
+}
 code,pre {
   font-family:"IBM Plex Mono",monospace;
   font-size:.85em
@@ -573,8 +576,29 @@ tbody td:first-of-type {
   font-size:.95rem
 }
 .copy-status {
-  min-height:1.55em;
-  margin-top:1rem
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap
+}
+.copy-feedback {
+  display:grid;
+  padding:.5rem 1rem .75rem;
+  font-size:.875rem;
+  line-height:1.55
+}
+/* Reserve the longest message at the current width and text size from first
+   paint. Both outcomes occupy the same cell without moving nearby content. */
+.copy-feedback::before {
+  content:"Clipboard unavailable. Select the visible commands and copy them manually.";
+  visibility:hidden
+}
+.copy-feedback::before,.copy-feedback>span {
+  grid-area:1 / 1
 }
 footer {
   display:flex;

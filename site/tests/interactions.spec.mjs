@@ -3,6 +3,45 @@ import { test, expect } from '@playwright/test';
 const agents = ['claude', 'kimi', 'gemini', 'codex', 'copilot', 'zed'];
 const claudeCommand = '/plugin marketplace add https://github.com/KSEGIT/Version-Sentinel.git\n/plugin install version-sentinel@version-sentinel-marketplace';
 
+// Catch hero feedback sent only to the distant shared live region, layout
+// changes on feedback, lost focus, and a failed attempt that cannot be retried.
+test('hero copy feedback stays beside the control on success, denial, and retry', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.addInitScript(() => {
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+    let attempts = 0;
+    navigator.clipboard.writeText = text => ++attempts === 2
+      ? Promise.reject(new DOMException('Denied', 'NotAllowedError')) : write(text);
+  });
+  await page.goto('./');
+  await page.evaluate(() => document.fonts.ready);
+  const button = page.getByRole('button', { name: 'Copy commands', exact: true });
+  const feedback = page.locator('.install-command .copy-feedback');
+  await button.scrollIntoViewIfNeeded();
+  const geometry = () => page.locator('#top, .install-command, .command-heading, #hero-install-command, .text-link').evaluateAll(nodes => nodes.map(node => {
+    const { x, y, width, height } = node.getBoundingClientRect();
+    return { x, y, width, height };
+  }));
+  const before = await geometry();
+  for (const denied of [false, true, false]) {
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(feedback).toContainText(denied ? /clipboard unavailable.*select.*commands.*copy.*manually/i : /copied/i);
+    await expect(feedback).toBeVisible();
+    await expect(feedback).toBeInViewport({ ratio: 1 });
+    await expect(button).toBeFocused();
+    expect(await feedback.evaluate((node, target) => {
+      const box = node.getBoundingClientRect();
+      const control = document.querySelector(target).getBoundingClientRect();
+      return box.top >= control.bottom && box.top - control.bottom <= 32;
+    }, '[data-copy-target="hero-install-command"]')).toBe(true);
+    expect(await geometry()).toEqual(before);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(claudeCommand);
+  }
+  await expect(page.getByRole('status')).toHaveCount(1);
+  await expect(page.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+});
+
 // Catch broken system updates and an explicit choice that gets overwritten.
 test('theme follows live system changes until the user chooses, then persists on reload', async ({ page }, testInfo) => {
   await page.goto('./');

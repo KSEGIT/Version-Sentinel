@@ -56,16 +56,20 @@ export function initCopyControls(root) {
   if (!status) return;
   for (const button of root.querySelectorAll('[data-copy-target]')) {
     const code = root.getElementById(button.dataset.copyTarget);
-    if (!code) continue;
+    const feedback = root.getElementById(`${button.dataset.copyTarget}-feedback`);
+    if (!code || !feedback) continue;
     button.addEventListener('click', async () => {
       // Clear the shared region so a repeated action can be announced again.
       status.textContent = '';
+      let message;
       try {
         await navigator.clipboard.writeText(code.textContent);
-        status.textContent = 'Commands copied to clipboard.';
+        message = 'Commands copied to clipboard.';
       } catch {
-        status.textContent = 'Clipboard unavailable. Select the visible commands and copy them manually.';
+        message = 'Clipboard unavailable. Select the visible commands and copy them manually.';
       }
+      feedback.textContent = message;
+      status.textContent = message;
     });
     button.hidden = false;
   }

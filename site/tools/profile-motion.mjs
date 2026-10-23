@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { once } from 'node:events';
 
-const output = new URL('../reports/task-3/', import.meta.url);
+const output = new URL('../reports/final-fix/', import.meta.url);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch();
 try {
@@ -36,6 +36,19 @@ try {
   await page.evaluate(() => { window.motionProfile.phase = 'replay'; });
   await page.locator('#demo-replay').click();
   await page.waitForFunction(() => document.getElementById('terminal-demo').dataset.state === 'complete');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.locator('[data-copy-target="hero-install-command"]').scrollIntoViewIfNeeded();
+  await page.evaluate(() => { window.motionProfile.phase = 'copy-success'; });
+  await page.locator('[data-copy-target="hero-install-command"]').tap();
+  await page.waitForFunction(() => document.getElementById('hero-install-command-feedback').textContent.includes('copied'));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    window.motionProfile.phase = 'copy-denied';
+    navigator.clipboard.writeText = async () => { throw new DOMException('Denied', 'NotAllowedError'); };
+  });
+  await page.locator('[data-copy-target="hero-install-command"]').tap();
+  await page.waitForFunction(() => document.getElementById('hero-install-command-feedback').textContent.includes('manually'));
+  await page.waitForTimeout(600);
   await page.evaluate(() => { window.motionProfile.phase = 'scroll'; });
   // The harness scrolls in short increments; the production page has no scroll loop.
   await page.evaluate(() => scrollTo(0, 0));
@@ -61,7 +74,7 @@ try {
   }
   await cdp.send('IO.close', { handle: stream });
   await writeFile(new URL('motion-trace.json', output), trace);
-  const phases = Object.fromEntries(['load', 'replay', 'scroll'].map(phase => {
+  const phases = Object.fromEntries(['load', 'replay', 'copy-success', 'copy-denied', 'scroll'].map(phase => {
     const frames = measurements.frames.filter(frame => frame.phase === phase).map(frame => frame.duration).sort((a, b) => a - b);
     const longTasks = measurements.longTasks.filter(task => task.phase === phase);
     let run = 0, longestRun = 0;
