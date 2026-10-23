@@ -114,30 +114,62 @@ test('enabling reduced motion cancels an active native theme transition', async 
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
 
-// Registry data must be available for pointer and keyboard users.
-test('registry details support hover and keyboard focus and reduced motion restores grid states', async ({ page }) => {
+// Omitting any agent/ecosystem disclosure or hiding it from either input breaks this.
+test('all registry details support hover and keyboard focus and reduced motion restores grid states', async ({ page }) => {
   await page.goto('./');
-  await page.locator('#ecosystems').scrollIntoViewIfNeeded();
-  const detail = page.locator('.registry-detail').first();
-  await page.locator('.ecosystem-list > div').first().hover();
-  await expect(detail).toBeVisible();
-  await page.locator('.registry-toggle').first().focus();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('.registry-info').first()).toHaveAttribute('open', '');
-  await expect(detail).toBeVisible();
+  await expect(page.locator('.ecosystem-list .registry-info')).toHaveCount(4);
+  await expect(page.locator('.agent-list .registry-info')).toHaveCount(6);
+  for (const card of await page.locator('.ecosystem-list > div, .agent-list > li').all()) {
+    const detail = card.locator('.registry-detail');
+    const before = await card.evaluate(node => node.offsetHeight);
+    await card.hover();
+    await expect(detail).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(detail).toBeHidden();
+    await card.locator('.registry-toggle').focus();
+    await expect(detail).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(card.locator('.registry-info')).toHaveAttribute('open', '');
+    await expect(detail).toBeVisible();
+    expect(await card.evaluate(node => node.offsetHeight)).toBe(before);
+  }
+  for (const detail of await page.locator('.agent-list .registry-detail').all()) {
+    await expect(detail).toContainText('same npm, PyPI, crates.io, and NuGet registries');
+  }
+  await expect(page.locator('.agent-list a[href^="#install-"]')).toHaveCount(6);
+  await expect(page.locator('.agent-list > li').last()).toContainText('No automatic hook blocking.');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const item of await page.locator('.ecosystem-list > div, .agent-list > li').all()) {
     expect(await item.evaluate(node => getComputedStyle(node).opacity)).toBe('1');
   }
 });
 
-test('registry details are discoverable on a touch mobile viewport', async ({ browser }) => {
+test('all registry details are discoverable on a touch mobile viewport', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 900 }, isMobile: true, hasTouch: true });
   const page = await context.newPage();
   await page.goto('http://127.0.0.1:4173/Version-Sentinel/');
-  await page.locator('.registry-toggle').first().tap();
-  await expect(page.locator('.registry-detail').first()).toBeVisible();
-  await expect(page.locator('.registry-info').first()).toHaveAttribute('open', '');
+  await expect(page.locator('.registry-toggle')).toHaveCount(10);
+  for (const card of await page.locator('.ecosystem-list > div, .agent-list > li').all()) {
+    const before = await card.evaluate(node => node.offsetHeight);
+    await card.locator('.registry-toggle').tap();
+    await expect(card.locator('.registry-detail')).toBeVisible();
+    await expect(card.locator('.registry-info')).toHaveAttribute('open', '');
+    expect(await card.evaluate(node => node.offsetHeight)).toBe(before);
+  }
+  await context.close();
+});
+
+test('all registry disclosures work without JavaScript', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 375, height: 900 } });
+  const page = await context.newPage();
+  await page.goto('http://127.0.0.1:4173/Version-Sentinel/');
+  await expect(page.locator('.registry-toggle')).toHaveCount(10);
+  for (const card of await page.locator('.ecosystem-list > div, .agent-list > li').all()) {
+    await card.locator('.registry-toggle').click();
+    await expect(card.locator('.registry-info')).toHaveAttribute('open', '');
+    await expect(card.locator('.registry-detail')).toBeVisible();
+  }
+  await expect(page.locator('#demo-result')).toBeVisible();
   await context.close();
 });
 

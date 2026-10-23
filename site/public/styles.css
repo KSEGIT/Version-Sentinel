@@ -852,14 +852,15 @@ smaller sizes are reserved for code and captions. */
 .terminal-controls button { width:9rem; flex:none }
 .flow-node .flow-active { fill:none; stroke:var(--teal); stroke-width:3; opacity:0 }
 .registry-info { min-block-size:12rem }
+.agent-list .registry-info { margin-top:.9rem }
 .registry-toggle { cursor:pointer; min-height:44px; padding-block:10px; color:var(--teal); text-decoration:underline; text-underline-offset:.2em }
 .registry-detail { padding-top:.5rem; font-size:1rem }
 .registry-toggle:focus-visible { outline:3px solid var(--teal); outline-offset:4px; border-radius:2px }
 /* Hover previews the same native disclosure used by keyboard and touch.
    Its reserved height prevents opening it from moving the next section. */
 @media(hover:hover) {
-  .ecosystem-list>div:hover .registry-info::details-content { content-visibility:visible }
-  .ecosystem-list>div:hover .registry-info>.registry-detail { display:block }
+  :is(.ecosystem-list>div,.agent-list>li):hover .registry-info::details-content { content-visibility:visible }
+  :is(.ecosystem-list>div,.agent-list>li):hover .registry-info>.registry-detail { display:block }
 }
 .registry-info:focus-within::details-content { content-visibility:visible }
 .registry-info:focus-within>.registry-detail { display:block }

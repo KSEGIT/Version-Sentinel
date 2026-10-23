@@ -44,7 +44,10 @@ try {
     await page.evaluate(y => scrollTo(0, y), y);
     await page.waitForTimeout(45);
   }
-  await page.locator('.registry-toggle').first().tap();
+  for (const toggle of await page.locator('.registry-toggle').all()) {
+    await toggle.tap();
+    await page.waitForTimeout(50);
+  }
   await page.waitForTimeout(250);
   const measurements = await page.evaluate(() => window.motionProfile);
   const completed = once(cdp, 'Tracing.tracingComplete');
