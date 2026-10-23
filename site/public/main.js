@@ -1,3 +1,5 @@
+import { initTerminalDemo } from './terminal.js';
+
 /** @param {Document} root */
 export function initThemeToggle(root) {
   const button = root.getElementById('theme-toggle');
@@ -129,3 +131,5 @@ export function initInstallTabs(root) {
 initThemeToggle(document);
 initCopyControls(document);
 initInstallTabs(document);
+
+initTerminalDemo(document);
