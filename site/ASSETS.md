@@ -6,7 +6,7 @@ The public page makes no third-party asset requests.
 
 Source: [IBM/plex](https://github.com/IBM/plex), revision
 `71f558992315a12ca1f06a2215d57962a1992162`, consulted 23 October 2026.
-Only the required Latin1 WOFF2 files are included, unchanged:
+Only the required Latin1 WOFF2 files are included. Font bytes are unchanged:
 
 | Local file under `public/assets/` | Fixed upstream URL |
 | --- | --- |
@@ -18,7 +18,8 @@ Only the required Latin1 WOFF2 files are included, unchanged:
 Sans regular and semibold serve prose/headings; Mono regular serves code.
 All three are preloaded. `font-display: optional` prevents a late font swap.
 The fallback remains readable if fonts cannot load. IBM Plex is licensed under
-SIL Open Font License 1.1; the upstream license is retained as `OFL.txt`.
+SIL Open Font License 1.1; the upstream license text is retained as `OFL.txt`,
+with LF line endings and trailing whitespace normalized.
 
 ## Repository logo and generated images
 
