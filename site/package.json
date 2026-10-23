@@ -6,10 +6,17 @@
   "scripts": {
     "serve": "node tools/serve.mjs",
     "test": "env -u NO_COLOR playwright test",
-    "check:html": "html-validate public/index.html",
+    "check:html": "node tools/check-html.mjs",
+    "test:tools": "node --test tests/tools/*.test.mjs",
     "check:links": "node tools/check-links.mjs",
     "check:lighthouse": "lhci autorun --config=lighthouserc.cjs",
     "profile:motion": "node tools/profile-motion.mjs"
+  },
+  "overrides": {
+    "lighthouse": "13.5.0",
+    "tmp": "0.2.7",
+    "basic-ftp": "6.2.3",
+    "uuid": "11.1.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

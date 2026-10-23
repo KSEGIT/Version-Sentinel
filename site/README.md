@@ -1,48 +1,74 @@
 # Version Sentinel site
 
-A framework-free static page served at `/Version-Sentinel/`. Production files
-are only in `public/`; no runtime packages or third-party page requests are needed.
-Development tools are exact versions in `package-lock.json`.
+A static page at `/Version-Sentinel/`. Only `public/` is deployed. It uses local
+assets and has no runtime dependencies or third-party page requests.
 
-From this directory, with a current Node.js release and npm:
+Use Node.js 24 and npm from this directory:
 
 ```sh
 npm ci
-npx playwright install chromium
+npx --no-install playwright install --with-deps chromium
 npm run serve
 ```
 
-Open http://127.0.0.1:4173/Version-Sentinel/. Paths outside that prefix return 404.
-The server uses Node built-ins and serves only `public/` on loopback port 4173.
+Open http://127.0.0.1:4173/Version-Sentinel/. The loopback server rejects paths
+outside that prefix. `PORT` selects another port; Lighthouse owns port 4174.
+
+Run the same quality gates as CI:
 
 ```sh
-npm run test -- tests/content.spec.mjs
+npm audit
+npm run test:tools
 npm run check:html
-```
-
-Tests run Chromium at 375, 768, and 1440 pixels, each in light and dark mode.
-They also open JavaScript-disabled contexts in each project. HTML and JSON test
-reports, full-page screenshots, and test artifacts are written under ignored
-`reports/`. The test command removes the inherited `NO_COLOR` variable so it
-does not conflict with Playwright's `FORCE_COLOR` preference.
-
-The complete-site commands below are reserved for the later quality-gate tools:
-
-```sh
 npm run check:links
+npm test
 npm run check:lighthouse
 npm run profile:motion
+bash ../scripts/check-versions.sh
 ```
 
-The public files can be deployed without a build step. Package only `public/`,
-including `.nojekyll`; exclude plans, tools, tests, reports, package manifests,
-and `node_modules/`. The project-path `robots.txt` cannot control the owner-site
-root. Repository settings and production deployment are separate approval steps.
+HTML validation uses the recommended rules and reports document and failure
+counts. The link checker validates document IDs, local assets, CSS URLs, script
+imports, SEO URLs, and the project base path. The known production origin/base
+maps to `public/` until deployment; this does not prove production is live.
+External URLs use four workers, two attempts, and a 12-second request timeout.
+Any HTTP or network failure fails the command with its source file and URL.
 
-See [ASSETS.md](ASSETS.md) for fixed upstream font sources, licenses, historical
-example verification, and local image generation. Read the repository's
-Version Sentinel instructions before changing tool dependencies.
+Chromium tests run at 375, 768, and 1440 pixels in both themes. They cover normal
+scrolling, keyboard controls, theme storage, copy feedback, motion preferences,
+JavaScript-off content, overflow, and all six install tabs. Axe scans the full
+page with every tab selected and all registry disclosures closed and open in
+all six viewport/theme combinations (72 scans), plus six normal-motion scans.
+Every violation fails, including
+lower-impact findings. Automated checks do not prove complete WCAG conformance.
 
-The static page preserves the final example transcript and every installation
-section without JavaScript. Interactive controls are hidden until an enhancement
-provides their behavior. No scripts are needed for this static baseline.
+Six final full-page screenshots wait for fonts, the final transcript, and normal
+scroll traversal. Capture then uses the documented reduced-motion final state
+so scroll-driven sections stay visible in the full-page image. Each PNG is
+attached to the Playwright report. The small reviewed subset is committed under
+`review/screenshots/`; full evidence stays in ignored `reports/`.
+
+Lighthouse CI performs three mobile runs on the real project path. Every run
+must score at least 0.95 for performance, accessibility, best practices, and SEO,
+with CLS exactly zero. JSON and HTML output goes to `reports/lighthouse/`.
+The dependency overrides keep LHCI 0.15.1 with Lighthouse 13.5.0 and patched tmp,
+basic-ftp, and uuid. uuid 11.1.1 is a deliberate CommonJS compatibility pin.
+Before changing these, consult upstream metadata, record exact versions with
+Version Sentinel, run full `npm audit` (including development dependencies), and
+prove LHCI collect/assert/report still works. `check-versions.sh` does not inspect
+npm overrides; check their dependency tree separately with:
+
+```sh
+npm ls lighthouse puppeteer-core @puppeteer/browsers extract-zip tmp basic-ftp uuid
+```
+
+CI retains `reports/` for 14 days even when a quality step fails. Pages runs only
+on main, validates first, and uploads only `public/`, including `.nojekyll`.
+Tests, plans, tools, package files, node_modules, reports, and review screenshots
+are outside the Pages artifact. Pages auto-enable is disabled. Repository
+settings and first production deployment require separate approval. The
+project-path `robots.txt` cannot control the owner-site root.
+
+See [ASSETS.md](ASSETS.md) for asset licenses and provenance. Without JavaScript,
+the final transcript, all install instructions, and native registry disclosures
+remain available.
