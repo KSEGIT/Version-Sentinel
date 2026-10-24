@@ -8,4 +8,4 @@ Supported (v0.1): `package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.
 
 Intentional pins (via `/vs-record ... "intentional: ..."`) show as `intentional-pin`, not `DRIFT`.
 
-!bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-versions.sh
+!bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-versions.sh"
