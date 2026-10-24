@@ -2,6 +2,20 @@
 
 All notable changes to version-sentinel.
 
+## [0.5.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.5...version-sentinel-v0.5.0) (2026-10-24)
+
+
+### Features
+
+* add Version Sentinel landing site ([#37](https://github.com/KSEGIT/Version-Sentinel/issues/37)) ([3075b23](https://github.com/KSEGIT/Version-Sentinel/commit/3075b23d3e03a8adfd5ce26cd15a9a20f233f081))
+
+
+### Bug Fixes
+
+* make plugin installable in Chat and Cowork ([#36](https://github.com/KSEGIT/Version-Sentinel/issues/36)) ([abbda37](https://github.com/KSEGIT/Version-Sentinel/commit/abbda37c0eae90d6c2514c568462b75184cded0c))
+* quote plugin-root path in hook commands ([9eebec3](https://github.com/KSEGIT/Version-Sentinel/commit/9eebec3eead20cef3ccda876f4b5fda7bc131a6c))
+* quote plugin-root path in hook commands ([6bbbe51](https://github.com/KSEGIT/Version-Sentinel/commit/6bbbe512516857510b81116c56d7e8667cdffb65))
+
 ## [0.4.5](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.4...version-sentinel-v0.4.5) (2026-09-15)
 
 
