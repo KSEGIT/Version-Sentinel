@@ -3,8 +3,8 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "bash scripts/prereq-check.sh",
-        "timeout": 10
+        "command": "bash scripts/session-start.sh",
+        "timeout": 120
       }
     ],
     "PreToolUse": [

@@ -14,14 +14,24 @@ for prerequisite in jq curl python3; do
 done
 input=$(cat)
 if [[ -n "$input" ]]; then
-  if ! printf '%s' "$input" | jq -e 'type == "object" and ((.cwd // "")|type == "string") and ((.session_id // "")|type == "string")' >/dev/null 2>&1; then
+  if ! printf '%s' "$input" | vs_jq -e 'type == "object" and ((.cwd // "")|type == "string") and ((.session_id // "")|type == "string")' >/dev/null 2>&1; then
     echo 'BLOCKED: version-sentinel. Invalid startup payload; mandatory audit was not completed.' >&2
     exit 2
   fi
-  root=$(printf '%s' "$input" | jq -r '.cwd // empty')
+  root=$(printf '%s' "$input" | vs_jq -r '.cwd // empty')
   export VS_SESSION_ID
-  VS_SESSION_ID=$(printf '%s' "$input" | jq -r '.session_id // empty')
+  VS_SESSION_ID=$(printf '%s' "$input" | vs_jq -r '.session_id // empty')
   if [[ -n "$root" ]]; then cd "$root" || exit 2; fi
 fi
 bash "$DIR/audit-state.sh" invalidate "$PWD" || exit 2
+if [[ "${1:-}" == --gemini ]]; then
+  # Gemini permits JSON only on stdout; its lifecycle event is advisory.
+  audit_output=$(bash "$DIR/check-versions.sh")
+  audit_status=$?
+  printf '%s\n' "$audit_output" >&2
+  if [[ "$audit_status" -eq 0 ]]; then
+    printf '%s' "$audit_output" | vs_jq -Rs '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+  fi
+  exit "$audit_status"
+fi
 exec bash "$DIR/check-versions.sh"

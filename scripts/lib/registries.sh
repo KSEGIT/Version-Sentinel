@@ -3,6 +3,8 @@
 # Exits 1 on failure.
 
 _REGISTRIES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=json.sh
+source "$_REGISTRIES_DIR/json.sh"
 if [[ -z "${_VS_RETRY_LOADED:-}" ]]; then
   if source "$_REGISTRIES_DIR/retry.sh"; then
     _VS_RETRY_LOADED=1
@@ -37,7 +39,7 @@ _registry_fetch_json() {
 # the caller's claimed source. No custom URL can become verification evidence.
 registry_url() {
   local eco="$1" pkg="$2" encoded
-  encoded=$(printf '%s' "$pkg" | jq -sRr @uri) || return 1
+  encoded=$(printf '%s' "$pkg" | vs_jq -sRr @uri) || return 1
   case "$eco" in
     npm) printf 'https://registry.npmjs.org/%s\n' "$encoded" ;;
     pip|pyproject) printf 'https://pypi.org/pypi/%s/json\n' "$encoded" ;;
@@ -69,20 +71,20 @@ registry_verify_version() {
     -A 'version-sentinel (+https://github.com/KSEGIT/Version-Sentinel)') || return 1
   case "$eco" in
     npm)
-      latest=$(printf '%s' "$json" | jq -er '.["dist-tags"].latest | select(type=="string" and length>0)') || return 1
-      printf '%s' "$json" | jq -e --arg ver "$ver" '(.versions|type)=="object" and (.versions[$ver]|type)=="object"' >/dev/null || return 1 ;;
+      latest=$(printf '%s' "$json" | vs_jq -er '.["dist-tags"].latest | select(type=="string" and length>0)') || return 1
+      printf '%s' "$json" | vs_jq -e --arg ver "$ver" '(.versions|type)=="object" and (.versions[$ver]|type)=="object"' >/dev/null || return 1 ;;
     pip|pyproject)
-      latest=$(printf '%s' "$json" | jq -er '.info.version | select(type=="string" and length>0)') || return 1
-      printf '%s' "$json" | jq -e --arg ver "$ver" '.releases[$ver] | type=="array" and length>0 and all(.[]; type=="object") and any(.[]; .yanked==false)' >/dev/null || return 1 ;;
+      latest=$(printf '%s' "$json" | vs_jq -er '.info.version | select(type=="string" and length>0)') || return 1
+      printf '%s' "$json" | vs_jq -e --arg ver "$ver" '.releases[$ver] | type=="array" and length>0 and all(.[]; type=="object") and any(.[]; .yanked==false)' >/dev/null || return 1 ;;
     csproj)
-      latest=$(printf '%s' "$json" | jq -er '.versions | select(type=="array" and all(.[]; type=="string" and length>0)) | map(select(contains("-")|not))[-1] | select(type=="string" and length>0)') || return 1
-      printf '%s' "$json" | jq -e --arg ver "$ver" '.versions | index($ver) != null' >/dev/null || return 1 ;;
+      latest=$(printf '%s' "$json" | vs_jq -er '.versions | select(type=="array" and all(.[]; type=="string" and length>0)) | map(select(contains("-")|not))[-1] | select(type=="string" and length>0)') || return 1
+      printf '%s' "$json" | vs_jq -e --arg ver "$ver" '.versions | index($ver) != null' >/dev/null || return 1 ;;
     cargo)
-      latest=$(printf '%s' "$json" | jq -er '.crate.max_stable_version | select(type=="string" and length>0)') || return 1
-      printf '%s' "$json" | jq -e --arg ver "$ver" 'any(.versions[]; .num==$ver and .yanked!=true)' >/dev/null || return 1 ;;
+      latest=$(printf '%s' "$json" | vs_jq -er '.crate.max_stable_version | select(type=="string" and length>0)') || return 1
+      printf '%s' "$json" | vs_jq -e --arg ver "$ver" 'any(.versions[]; .num==$ver and .yanked!=true)' >/dev/null || return 1 ;;
     *) return 1 ;;
   esac
-  jq -nc --arg url "$url" --arg latest "$latest" --arg version "$ver" \
+  vs_jq -nc --arg url "$url" --arg latest "$latest" --arg version "$ver" \
     --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{url:$url,latest:$latest,version:$version,exists:true,online:true,verifiedAt:$at}'
 }
@@ -92,26 +94,26 @@ registry_latest() {
   local url="" json=""
   case "$eco" in
     npm)
-      url="https://registry.npmjs.org/$(printf '%s' "$pkg" | jq -sRr @uri)"
+      url="https://registry.npmjs.org/$(printf '%s' "$pkg" | vs_jq -sRr @uri)"
       json=$(_registry_fetch_json "$url") || return 1
-      echo "$json" | jq -er '.["dist-tags"].latest | select(type=="string" and length>0)' || return 1
+      echo "$json" | vs_jq -er '.["dist-tags"].latest | select(type=="string" and length>0)' || return 1
       ;;
     pip|pyproject)
-      url="https://pypi.org/pypi/$(printf '%s' "$pkg" | jq -sRr @uri)/json"
+      url="https://pypi.org/pypi/$(printf '%s' "$pkg" | vs_jq -sRr @uri)/json"
       json=$(_registry_fetch_json "$url") || return 1
-      echo "$json" | jq -er '.info.version | select(type=="string" and length>0)' || return 1
+      echo "$json" | vs_jq -er '.info.version | select(type=="string" and length>0)' || return 1
       ;;
     csproj)
       local low
       low=$(printf '%s' "$pkg" | tr '[:upper:]' '[:lower:]')
       url="https://api.nuget.org/v3-flatcontainer/${low}/index.json"
       json=$(_registry_fetch_json "$url") || return 1
-      echo "$json" | jq -er '.versions | select(type=="array" and all(.[]; type=="string" and length>0)) | map(select(contains("-")|not))[-1] | select(type=="string" and length>0)' || return 1
+      echo "$json" | vs_jq -er '.versions | select(type=="array" and all(.[]; type=="string" and length>0)) | map(select(contains("-")|not))[-1] | select(type=="string" and length>0)' || return 1
       ;;
     cargo)
-      url="https://crates.io/api/v1/crates/$(printf '%s' "$pkg" | jq -sRr @uri)"
+      url="https://crates.io/api/v1/crates/$(printf '%s' "$pkg" | vs_jq -sRr @uri)"
       json=$(_registry_fetch_json "$url" -A "version-sentinel (+https://github.com/KSEGIT/Version-Sentinel)") || return 1
-      echo "$json" | jq -er '.crate.max_stable_version | select(type=="string" and length>0)' || return 1
+      echo "$json" | vs_jq -er '.crate.max_stable_version | select(type=="string" and length>0)' || return 1
       ;;
     *) return 1 ;;
   esac

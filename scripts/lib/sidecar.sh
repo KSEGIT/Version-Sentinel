@@ -3,6 +3,8 @@
 # Keyed by (ecosystem, pkg); last-write-wins dedupe.
 
 SCRIPT_DIR_SIDECAR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=json.sh
+source "$SCRIPT_DIR_SIDECAR/json.sh"
 if [[ -z "${_VS_LOCKFILE_LOADED:-}" ]]; then
   source "$SCRIPT_DIR_SIDECAR/lockfile.sh"
   _VS_LOCKFILE_LOADED=1
@@ -24,7 +26,7 @@ sidecar_read() {
     echo '{"entries":[]}'
     return 0
   fi
-  if ! jq -e '.entries' "$path" >/dev/null 2>&1; then
+  if ! vs_jq -e '.entries' "$path" >/dev/null 2>&1; then
     echo "version-sentinel: sidecar corrupt, treating as empty: $path" >&2
     echo '{"entries":[]}'
     return 0
@@ -38,12 +40,12 @@ sidecar_find_fresh() {
   local now_epoch
   now_epoch=$(_iso_to_epoch "$now") || return 1
   local entry
-  entry=$(sidecar_read "$path" | jq -c \
+  entry=$(sidecar_read "$path" | vs_jq -c \
     --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
     '.entries[] | select(.ecosystem==$eco and .pkg==$pkg and .version==$ver)')
   [[ -z "$entry" ]] && return 1
   local checked
-  checked=$(echo "$entry" | jq -r '.checkedAt')
+  checked=$(echo "$entry" | vs_jq -r '.checkedAt')
   local checked_epoch
   checked_epoch=$(_iso_to_epoch "$checked") || return 1
   local delta=$((now_epoch - checked_epoch))
@@ -67,7 +69,7 @@ sidecar_write_entry() {
   vs_lock_acquire "$lockpath" || return 1
   local current updated
   current=$(sidecar_read "$path")
-  updated=$(echo "$current" | jq -c \
+  updated=$(echo "$current" | vs_jq -c \
     --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
     --arg src "$source" --arg at "$checked" --arg project "$project_root" \
     --argjson verification "$verification" \
@@ -101,7 +103,7 @@ sidecar_find_verified() {
   local path="$1" ecosystem="$2" pkg="$3" version="$4" window="$5" root="$6" url="$7"
   [[ "$window" =~ ^[0-9]+$ ]] || return 1
   local entry at checked now_epoch at_epoch source_value
-  entry=$(sidecar_read "$path" | jq -ec --arg eco "$ecosystem" --arg pkg "$pkg" \
+  entry=$(sidecar_read "$path" | vs_jq -ec --arg eco "$ecosystem" --arg pkg "$pkg" \
     --arg ver "$version" --arg root "$root" --arg url "$url" '
     .entries[] | select(.ecosystem==$eco and .pkg==$pkg and .version==$ver
       and .projectRoot==$root and .verification.online==true
@@ -112,12 +114,12 @@ sidecar_find_verified() {
       and (.verification.latest==$ver or (.source|test("^intentional:[[:space:]]*[^[:space:]]"))))') || return 1
   # More than one matching entry is malformed, not a reason to guess.
   [[ $(printf '%s\n' "$entry" | wc -l | tr -d ' ') == 1 ]] || return 1
-  source_value=$(printf '%s' "$entry" | jq -r '.source') || return 1
+  source_value=$(printf '%s' "$entry" | vs_jq -r '.source') || return 1
   if [[ "$source_value" != intentional:* ]]; then
     registry_source_valid "$ecosystem" "$pkg" "$source_value" || return 1
   fi
-  at=$(printf '%s' "$entry" | jq -r '.verification.verifiedAt') || return 1
-  checked=$(printf '%s' "$entry" | jq -r '.checkedAt') || return 1
+  at=$(printf '%s' "$entry" | vs_jq -r '.verification.verifiedAt') || return 1
+  checked=$(printf '%s' "$entry" | vs_jq -r '.checkedAt') || return 1
   [[ "$at" == "$checked" ]] || return 1
   at_epoch=$(_iso_to_epoch "$at") || return 1
   now_epoch=$(_iso_to_epoch "${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}") || return 1
@@ -132,7 +134,7 @@ sidecar_prune() {
   now_epoch=$(_iso_to_epoch "$now") || return 1
   local cutoff=$((now_epoch - max_age_days * 86400))
   local updated
-  updated=$(jq -c --arg cutoff "$cutoff" \
+  updated=$(vs_jq -c --arg cutoff "$cutoff" \
     '.entries = [.entries[] | select((.checkedAt | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) >= ($cutoff | tonumber))]' \
     "$path") || return 1
   local dir tmp

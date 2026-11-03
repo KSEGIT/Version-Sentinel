@@ -35,6 +35,8 @@ while IFS= read -r name; do
     *) echo "BLOCKED: version-sentinel. Unsupported required manifest $name" >&2; failed=1; continue ;;
   esac
   parsed=$(bash "$DIR/audit-state.sh" deps "$mf") || { failed=1; continue; }
+  # Native Python writes CRLF on Windows; delimiters are transport, not versions.
+  parsed="${parsed//$'\r'/}"
   while IFS=$'\t' read -r pkg cur; do
     [[ -z "$pkg" ]] && continue
     if cb_is_open "$VS_CB_STATE" "$eco"; then
@@ -45,7 +47,7 @@ while IFS= read -r name; do
       if [[ "$cur" == __version_sentinel_unpinned__ ]]; then
         cur='(unpinned)'; status=UNPINNED
       elif [[ "$cur" != "$latest" ]]; then
-        intentional=$(sidecar_read "$sidecar_file" | jq -r --arg e "$eco" --arg p "$pkg" --arg v "$cur" '.entries[] | select(.ecosystem==$e and .pkg==$p and .version==$v and (.source|startswith("intentional:"))) | .source' | head -1)
+        intentional=$(sidecar_read "$sidecar_file" | vs_jq -r --arg e "$eco" --arg p "$pkg" --arg v "$cur" '.entries[] | select(.ecosystem==$e and .pkg==$p and .version==$v and (.source|startswith("intentional:"))) | .source' | head -1)
         if [[ -n "$intentional" ]]; then status=intentional-pin; else status=DRIFT; fi
       fi
     else
@@ -54,7 +56,7 @@ while IFS= read -r name; do
     fi
     printf '%-12s %-40s %-15s %-15s %s\n' "$eco" "$pkg" "$cur" "$latest" "$status"
   done <<< "$parsed"
-done <<< "$(printf '%s' "$snapshot" | jq -r '.required[]' | tr -d '\r')"
+done <<< "$(printf '%s' "$snapshot" | vs_jq -r '.required[]' | tr -d '\r')"
 if [[ "$failed" != 0 ]]; then
   echo 'BLOCKED: version-sentinel. Mandatory audit failed due to registry lookup/manifest errors. Resolve the errors and rerun; version drift alone does not fail an audit.' >&2
   exit 2

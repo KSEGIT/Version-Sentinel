@@ -2,6 +2,11 @@
 
 Version Sentinel is a guardrail that prevents stale, hallucinated, or compromised dependency versions from reaching your manifests. Before any dependency is added, bumped, downgraded, or installed, the agent must verify the intended version against its upstream registry and record that check. Checks are stored in `.version-sentinel/checks.json` and expire after a freshness window (default 24h).
 
+
+## Mandatory startup audit and recovery
+
+Before dependency work, complete the online startup audit. Missing or invalid manifests require Daniel's explicit approval before recovery. The recorder now performs a successful online upstream check itself; URL-only, offline, and post-install records do not authorize changes. Older pins still need online verification and a reason. Follow [the enforcement workflow](docs/enforcement.md) for audit, recovery, and interception limits.
+
 ## Required workflow when a dependency change is blocked
 
 If a hook blocks an edit or install (exit 2, `BLOCKED: version-sentinel`), or if you are about to change any dependency on a platform without hooks:
@@ -17,7 +22,7 @@ If a hook blocks an edit or install (exit 2, `BLOCKED: version-sentinel`), or if
    bash scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
    ```
 
-   The source must be an `http(s)://` URL you actually consulted, or `intentional:<reason>` for deliberate pins (e.g. CVE lock, compatibility). Example:
+   The source must be the canonical `https://` registry URL you actually consulted, or `intentional:<reason>` for deliberate pins that also pass online verification (e.g. CVE lock, compatibility). Example:
 
    ```bash
    bash scripts/vs-record.sh npm lodash 4.17.21 https://www.npmjs.com/package/lodash

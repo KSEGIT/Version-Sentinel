@@ -83,13 +83,13 @@ if ! evidence=$(registry_verify_version "$ecosystem" "$pkg" "$version"); then
   echo "version-sentinel: online verification failed for $ecosystem/$pkg@$version (network, invalid response, missing or yanked version); no check recorded" >&2
   exit 1
 fi
-latest=$(printf '%s' "$evidence" | jq -r '.latest')
+latest=$(printf '%s' "$evidence" | vs_jq -r '.latest')
 if [[ "$latest" != "$version" && "$source" != intentional:* ]]; then
   echo "version-sentinel: latest is $latest; version $version needs intentional:<reason> and successful online verification" >&2
   exit 1
 fi
 project_root=$(cd "${VS_PROJECT_ROOT:-$PWD}" && pwd -P) || exit 1
-verified_at=$(printf '%s' "$evidence" | jq -r '.verifiedAt')
+verified_at=$(printf '%s' "$evidence" | vs_jq -r '.verifiedAt')
 
 path=$(sidecar_path "$project_root")
 sidecar_write_entry "$path" "$ecosystem" "$pkg" "$version" "$source" "$verified_at" "$evidence" "$project_root" || exit 1

@@ -6,7 +6,7 @@ Record that a dependency version has been verified. Run after a web search/fetch
 
 **Usage:** `/version-sentinel:vs-record <ecosystem> <pkg> <version> <source>`
 
-**Source** must be an `http(s)://` URL or `intentional:<reason>`.
+**Source** must be an canonical `https://` URL or `intentional:<reason>`.
 
 **Ecosystems (v0.3.0):** npm, pip, cargo, csproj, pyproject
 
@@ -22,3 +22,5 @@ To execute this command, run the following with your Bash tool, passing the user
 If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/plugins info version-sentinel` (the managed copy lives under the Kimi plugins directory) and run the script from there.
 
 Relay the script's output verbatim to the user. If it exits non-zero, report the error and do not retry with fabricated values.
+
+The script performs an online upstream lookup and checks that the exact version exists. An older pin requires a nonempty intentional reason as well as a successful online check. A fabricated URL, stale offline cache, or post-install record cannot pass.

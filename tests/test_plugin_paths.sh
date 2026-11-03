@@ -11,6 +11,8 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 PLUGIN="$VS_TMPDIR/plugin with spaces"
 PROJECT="$VS_TMPDIR/project with spaces"
 mkdir -p "$PLUGIN" "$PROJECT"
+source "$ROOT/tests/registry-fixture.sh"
+registry_fixture_setup
 cp -R "$ROOT/scripts" "$ROOT/commands" "$ROOT/platforms" "$ROOT/agents" "$PLUGIN/" || exit 1
 
 read_command() {
@@ -27,14 +29,14 @@ read_command() {
 }
 
 run_command() {
-  local command="$1" arguments='npm path-fixture 1.2.3 "intentional: path fixture"'
+  local command="$1" arguments='npm path-fixture 1.0.0 "intentional: path fixture"'
   command="${command//\$\{extensionPath\}/$PLUGIN}"
   command="${command//\$ARGUMENTS/$arguments}"
   command="${command//\{\{args\}\}/$arguments}"
   (
     cd "$PROJECT" || exit 1
     export VS_DISABLE=0 CLAUDE_PLUGIN_ROOT="$PLUGIN" KIMI_PLUGIN_ROOT="$PLUGIN"
-    bash -c "$command" path-test npm path-fixture 1.2.3 "intentional: path fixture"
+    bash -c "$command" path-test npm path-fixture 1.0.0 "intentional: path fixture"
   )
 }
 
@@ -59,19 +61,19 @@ for file in commands/vs-record.md commands/vs-record.toml platforms/kimi/command
       assert_file_exists "$checks" "$file creates a recorded check"
       if [[ -f "$checks" ]]; then
         entry=$(jq -c '.entries | map({ecosystem,pkg,version,source})' "$checks" | tr -d '\r')
-        assert_eq '[{"ecosystem":"npm","pkg":"path-fixture","version":"1.2.3","source":"intentional: path fixture"}]' \
+        assert_eq '[{"ecosystem":"npm","pkg":"path-fixture","version":"1.0.0","source":"intentional: path fixture"}]' \
           "$entry" "$file preserves all four arguments including the source with spaces"
       fi
       ;;
     *check-versions*|agents/*)
-      # UNPINNED entries are reported without any registry lookup. This runs
-      # the real audit and its manifest parser without network access.
+      # Even unpinned entries require successful upstream lookup. Only HTTP
+      # is replaced by a fixture; command paths and the audit stay real.
       printf '%s\n' '{"dependencies":{"path-fixture":"*"}}' > "$PROJECT/package.json"
       output=$(run_command "$command" 2>&1)
       status=$?
       assert_exit_code 0 "$status" "$file audits through the plugin path: $output"
       row=$(printf '%s\n' "$output" | awk '$1 == "npm" && $2 == "path-fixture" {print $3, $4, $5}' | tr -d '\r')
-      assert_eq '(unpinned) ? UNPINNED' "$row" "$file reports the workspace dependency without a lookup"
+      assert_eq '(unpinned) 4.17.21 UNPINNED' "$row" "$file reports the workspace dependency after online-fixture lookup"
       ;;
   esac
 done

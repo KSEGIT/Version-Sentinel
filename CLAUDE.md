@@ -39,7 +39,7 @@ docs/                 Documentation
 1. PreToolUse hooks intercept `Edit`/`Write`/`MultiEdit` on manifest files and `Bash` install commands
 2. Hook exits 2 (blocks) if no fresh version check exists in `.version-sentinel/checks.json`
 3. User runs WebSearch + `/vs-record` to record a check, then retries
-4. PostToolUse hook on Bash auto-records successful install commands
+4. PostToolUse compatibility hook does not create verification records. SessionStart runs the mandatory online audit; dependency hooks enforce current project evidence. See docs/enforcement.md.
 
 The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm*)`,
 `Bash(*pip*)`, ...), one per covered manager, so they only spawn for

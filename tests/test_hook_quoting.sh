@@ -11,12 +11,14 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 PLUGIN="$VS_TMPDIR/plugin with spaces"
 PROJECT="$VS_TMPDIR/project with spaces"
 mkdir -p "$PLUGIN" "$PROJECT"
+source "$ROOT/tests/registry-fixture.sh"
+registry_fixture_setup
 cp -R "$ROOT/scripts" "$ROOT/hooks" "$PLUGIN/" || exit 1
 
 manifest_input=$(jq -nc --arg path "$PROJECT/package.json" \
-  '{tool_name:"Write",tool_input:{file_path:$path,content:"{\"dependencies\":{\"path-fixture\":\"1.2.3\"}}"}}')
-install_input='{"tool_name":"Bash","tool_input":{"command":"npm install path-fixture@1.2.3"}}'
-post_input='{"tool_name":"Bash","tool_input":{"command":"npm install path-fixture@1.2.3"},"tool_response":{"exit_code":0}}'
+  '{tool_name:"Write",tool_input:{file_path:$path,content:"{\"dependencies\":{\"path-fixture\":\"1.0.0\"}}"}}')
+install_input='{"tool_name":"Bash","tool_input":{"command":"npm install path-fixture@1.0.0"}}'
+post_input='{"tool_name":"Bash","tool_input":{"command":"npm install path-fixture@1.0.0"},"tool_response":{"exit_code":0}}'
 
 run_hook() {
   local command="$1" input="$2" separator='/'
@@ -37,7 +39,7 @@ assert_record() {
   [[ -f "$PROJECT/.version-sentinel/checks.json" ]] || return
   value=$(jq -c '.entries | map({ecosystem,pkg,version,source})' \
     "$PROJECT/.version-sentinel/checks.json" | tr -d '\r')
-  assert_eq "[{\"ecosystem\":\"npm\",\"pkg\":\"path-fixture\",\"version\":\"1.2.3\",\"source\":\"$source\"}]" \
+  assert_eq "[{\"ecosystem\":\"npm\",\"pkg\":\"path-fixture\",\"version\":\"1.0.0\",\"source\":\"$source\"}]" \
     "$value" "$label preserves package, version and source"
 }
 
@@ -49,13 +51,15 @@ for file in hooks/hooks.json hooks/codex-hooks.json hooks/gemini-hooks.json; do
     [[ -n "$command" ]] || continue
     checked=$((checked + 1))
     rm -rf "$PROJECT/.version-sentinel"
+    printf '{"dependencies":{}}\n' > "$PROJECT/package.json"
     case "$command" in
-      *prereq-check.sh*)
+      *session-start.sh*)
         output=$(run_hook "$command" '{}' 2>&1)
         status=$?
         assert_exit_code 0 "$status" "$file starts the session from a spaced path: $output"
         ;;
       *detect-manifest-edit.sh*|*detect-install-cmd.sh*)
+        (cd "$PROJECT" && bash "$PLUGIN/scripts/check-versions.sh") >/dev/null || exit 1
         case "$command" in
           *detect-manifest-edit.sh*) input="$manifest_input" ;;
           *) input="$install_input" ;;
@@ -67,7 +71,7 @@ for file in hooks/hooks.json hooks/codex-hooks.json hooks/gemini-hooks.json; do
         assert_exit_code 2 "$status" "$file blocks unchecked dependency from a spaced path: $output"
         (
           cd "$PROJECT" || exit 1
-          bash "$PLUGIN/scripts/vs-record.sh" npm path-fixture 1.2.3 "intentional: path fixture"
+          bash "$PLUGIN/scripts/vs-record.sh" npm path-fixture 1.0.0 "intentional: path fixture"
         ) >/dev/null 2>&1
         assert_exit_code 0 "$?" "$file records fixture check"
         assert_record "intentional: path fixture" "$file fixture check"
@@ -79,7 +83,9 @@ for file in hooks/hooks.json hooks/codex-hooks.json hooks/gemini-hooks.json; do
         output=$(run_hook "$command" "$post_input" 2>&1)
         status=$?
         assert_exit_code 0 "$status" "$file post-install hook succeeds from a spaced path: $output"
-        assert_record "auto-recorded: post-install" "$file post-install check"
+        if [[ -f "$PROJECT/.version-sentinel/checks.json" ]]; then
+          _fail "$file post-install hook must never create version authorization"
+        fi
         ;;
       *) _fail "$file: no behavioral case for configured hook: $command" ;;
     esac

@@ -1,3 +1,5 @@
+> Historical platform observations below predate mandatory audit enforcement. Current workflow and limits: [enforcement.md](enforcement.md). Installed cache activation must be tested separately after normal plugin update and trust.
+
 # End-to-End Verification Checklist
 
 Per-platform live e2e status for the multi-agent port. Last live run: **2026-07-26**
@@ -96,7 +98,7 @@ reads `/tmp/vs-kimi-home/config.toml`). The four `[[hooks]]` rules below
 [[hooks]]
 event = "SessionStart"
 matcher = "*"
-command = "bash /path/to/Version-Sentinel/scripts/prereq-check.sh"
+command = "bash /path/to/Version-Sentinel/scripts/session-start.sh"
 timeout = 10
 
 [[hooks]]

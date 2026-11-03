@@ -10,10 +10,14 @@ trap cleanup EXIT
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+source "$SCRIPT_DIR/tests/registry-fixture.sh"
+registry_fixture_setup
 cd "$VS_TMPDIR"
 cat > package.json <<'EOF'
 { "name": "demo", "version": "1.0.0", "dependencies": { "express": "4.19.2" } }
 EOF
+
+bash "$SCRIPT_DIR/scripts/check-versions.sh" >/dev/null || exit 1
 
 # --- 1. Manifest edit adds lodash → should block ---
 input=$(cat <<EOF
