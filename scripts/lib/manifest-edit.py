@@ -50,7 +50,14 @@ def relevant(root, name):
 
 
 def run(args, root, content=None):
-    return subprocess.run(args, cwd=root, input=content, capture_output=True,
+    # Windows CreateProcess can choose System32's WSL launcher for bare
+    # "bash" before searching PATH. Use the exact Git Bash executable found
+    # on PATH, consistent with the shell that runs the plugin's hooks.
+    executable = shutil.which(args[0])
+    if executable is None:
+        raise Blocked("bash is required to inspect manifest edits.")
+    command = [str(Path(executable).resolve()), *args[1:]]
+    return subprocess.run(command, cwd=root, input=content, capture_output=True,
                           text=True, timeout=30, check=False)
 
 

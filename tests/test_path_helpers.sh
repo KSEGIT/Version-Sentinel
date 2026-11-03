@@ -47,6 +47,21 @@ class PathBoundaries(unittest.TestCase):
         finally:
             manifest.SCRIPTS = previous
 
+    def test_bash_launch_uses_the_path_resolved_executable(self):
+        resolved = str(Path.cwd() / 'git with spaces' / 'bash.exe')
+        def invoke(args, **kwargs):
+            self.assertEqual(resolved, args[0])
+            self.assertEqual(['audit-state.sh', 'validate-content', 'package.json'], args[1:])
+            self.assertEqual('{}', kwargs['input'])
+            return subprocess.CompletedProcess(args, 0, '', '')
+        with patch.object(manifest.shutil, 'which', return_value=resolved), patch.object(manifest.subprocess, 'run', invoke):
+            manifest.run(['bash', 'audit-state.sh', 'validate-content', 'package.json'], Path.cwd(), '{}')
+
+    def test_missing_bash_blocks_before_process_launch(self):
+        with patch.object(manifest.shutil, 'which', return_value=None), patch.object(manifest.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')):
+            with self.assertRaises(manifest.Blocked):
+                manifest.run(['bash', 'audit-state.sh'], Path.cwd())
+
     def test_windows_inventory_keys_use_forward_separators(self):
         self.assertEqual('nested/package.json', paths.relative_key(PureWindowsPath('C:/project/nested/package.json'), PureWindowsPath('C:/project')))
 
