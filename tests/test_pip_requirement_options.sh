@@ -31,6 +31,7 @@ for option in \
   printf '%s\n' "$option" 'requests==2.31.0' > requirements.txt
   result=$(bash "$SCRIPTS/audit-state.sh" deps requirements.txt 2>&1); status=$?
   assert_exit_code 0 "$status" "valid pip option: $option"
+  result="${result//$'\r'/}"
   assert_eq $'requests\t2.31.0' "$result" "option cannot remove registry dependency: $option"
 done
 for option in \
