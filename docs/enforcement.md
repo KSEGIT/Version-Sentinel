@@ -54,3 +54,5 @@ Claude Code, Codex, Kimi, Gemini, and Copilot startup definitions invoke `sessio
 `bash tests/run.sh` uses offline registry fixtures. Live registry checks and actual host hook dispatch are separate checks; offline tests alone do not prove installed-plugin activation. Run `bash scripts/check-versions.sh` on relevant application manifests before release.
 
 Nonempty npm/Yarn/pnpm override, resolution, catalogue, and package-extension tables, plus Cargo patch/replace tables, currently block as unsupported dependency selectors. They cannot be treated as metadata. Direct resolver forms such as `cargo install`, package-manager `exec`, and `uv run --with` are rejected rather than authorized from an unrelated audit. Use supported manifest edits with exact online evidence; these commands do not gain support merely by splitting the shell call.
+
+On Windows, Git Bash's `cygpath` must be available to translate MSYS paths carried inside JSON. Native drive and UNC paths remain native; mapper failure blocks rather than guessing a location.

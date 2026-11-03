@@ -10,6 +10,8 @@ from pathlib import Path
 import shlex
 import sys
 
+from path_helpers import resolve_path
+
 
 OPERATIONS = {
     "npm": {"add", "install", "i", "ci", "update", "up", "run", "test", "rebuild", "exec"},
@@ -33,7 +35,7 @@ SEPARATORS = {"&&", "||", ";", "|", "&", "\n"}
 def literal_path(base, raw):
     if not raw or any(c in raw for c in "$`*?{}\n") or raw.startswith("~"):
         raise ValueError("dynamic dependency directory/file; use a literal path in a separate tool call")
-    return (base / raw).resolve()
+    return resolve_path(raw, base)
 
 
 def contexts(base, command):
@@ -59,7 +61,7 @@ def contexts(base, command):
             segment.append(tok)
     if segment:
         segments.append(segment)
-    cwd = Path(base).resolve()
+    cwd = resolve_path(base)
     result = []
     for words in segments:
         if words[0] in {"echo", "printf", "cat", "rg", "grep"}:
@@ -165,7 +167,7 @@ if __name__ == "__main__":
             overrides = [data[k] for k in ("workdir", "dir_path", "cwd") if k in data and data[k] is not None]
             if any(not isinstance(v, str) for v in overrides) or len(set(overrides)) > 1:
                 raise ValueError("malformed or conflicting command directory overrides")
-            print(literal_path(Path(base).resolve(), overrides[0]) if overrides else Path(base).resolve())
+            print(literal_path(resolve_path(base), overrides[0]) if overrides else resolve_path(base))
         else:
             print(json.dumps(contexts(sys.argv[1], sys.argv[2])))
     except (ValueError, OSError, IndexError) as exc:

@@ -99,7 +99,7 @@ result=$(jq -nc '{tool_name:"Write",tool_input:{file_path:"a/b/c/d/package.json"
   | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=2" "an unaudited deep manifest cannot borrow root audit evidence"
 
-ln -s package.json alias.txt
+python3 -c 'import os,pathlib; os.symlink("package.json", "alias.txt"); assert pathlib.Path("alias.txt").is_symlink()' || exit 1
 result=$(jq -nc '{tool_name:"Write",tool_input:{file_path:"alias.txt",content:"{\"dependencies\":{\"unverified\":\"1.0.0\"}}"}}' \
   | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=2" "symlink alias cannot hide a registry manifest"
@@ -122,8 +122,8 @@ assert_contains "$result" "exit=2" "concurrent addition cannot hide another depe
 
 # Missing prerequisites must not turn an edit into permission.
 mkdir no-python
-ln -s "$(command -v bash)" no-python/bash
-result=$(PATH="$VS_TMPDIR/no-python" bash "$SCRIPTS/detect-manifest-edit.sh" <<< '{}' 2>&1; echo "exit=$?")
+test_bash=$(command -v bash)
+result=$(PATH="$VS_TMPDIR/no-python" "$test_bash" "$SCRIPTS/detect-manifest-edit.sh" <<< '{}' 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=2" "missing Python blocks"
 
 finish_test

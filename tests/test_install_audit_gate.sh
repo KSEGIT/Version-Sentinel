@@ -39,10 +39,12 @@ assert_exit_code 2 "$code" 'malformed hook payload fails closed'
 # command cwd cannot be hidden by permissive registry fixtures.
 context=$(python3 "$ROOT/scripts/lib/install-context.py" "$PWD" 'cd ../other && npm ci'); code=$?
 assert_exit_code 0 "$code" 'literal cd context supported'
-assert_contains "$context" "$VS_TMPDIR/other" 'cd selects target project'
+printf '%s' "$context" | python3 -c 'import json, pathlib, sys; assert pathlib.Path(json.load(sys.stdin)[0]["root"]).resolve() == pathlib.Path(sys.argv[1]).resolve()' "$VS_TMPDIR/other"
+assert_exit_code 0 "$?" 'cd selects target project'
 context=$(python3 "$ROOT/scripts/lib/install-context.py" "$PWD" 'npm --prefix ../other install'); code=$?
 assert_exit_code 0 "$code" 'prefix context supported'
-assert_contains "$context" "$VS_TMPDIR/other" 'prefix selects target project'
+printf '%s' "$context" | python3 -c 'import json, pathlib, sys; assert pathlib.Path(json.load(sys.stdin)[0]["root"]).resolve() == pathlib.Path(sys.argv[1]).resolve()' "$VS_TMPDIR/other"
+assert_exit_code 0 "$?" 'prefix selects target project'
 context=$(python3 "$ROOT/scripts/lib/install-context.py" "$PWD" 'pip install -r custom.txt'); code=$?
 assert_exit_code 0 "$code" 'requirements context supported'
 assert_contains "$context" 'custom.txt' 'explicit requirements file must exist'

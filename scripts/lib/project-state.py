@@ -15,6 +15,8 @@ import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
 
+from path_helpers import relative_key
+
 UNPINNED = "__version_sentinel_unpinned__"
 EXCLUDED = {".git", ".worktrees", "node_modules", "target", ".venv", "venv", ".version-sentinel", "__pycache__"}
 LOCKFILES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", "poetry.lock", "uv.lock", "Cargo.lock", "packages.lock.json", "Directory.Packages.props"}
@@ -370,7 +372,7 @@ def usable_path(root, name):
         fail(f"manifest is outside project: {path}")
     if any(c in str(relative) for c in "\n\r\t") or len(relative.parts) > 4 or any(p in EXCLUDED for p in relative.parts):
         fail(f"manifest is outside supported audit scope: {path}")
-    return path, str(relative)
+    return path, relative_key(path, root)
 
 
 def in_scope(relative):
@@ -402,11 +404,11 @@ def inventory(root, previous):
     for name in found:
         lock = Path(name)
         if lock.name in {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"}:
-            required.add(str(lock.parent / "package.json"))
+            required.add((lock.parent / "package.json").as_posix())
         elif lock.name in {"poetry.lock", "uv.lock"}:
-            required.add(str(lock.parent / "pyproject.toml"))
+            required.add((lock.parent / "pyproject.toml").as_posix())
         elif lock.name == "Cargo.lock":
-            required.add(str(lock.parent / "Cargo.toml"))
+            required.add((lock.parent / "Cargo.toml").as_posix())
     # Include files are dependency manifests too, including nonstandard names.
     todo = list(required)
     while todo:

@@ -28,7 +28,8 @@ assert_contains "$out" 'exit=0' 'existing intentional older pin verified'
 out=$(check npm lodash 4.17.20)
 assert_contains "$out" 'exit=0' 'verified older pin authorizes exact version'
 assert_eq true "$(jq -r '.entries[0].verification.online' .version-sentinel/checks.json)" 'online evidence stored'
-assert_eq "$(pwd -P)" "$(jq -r '.entries[0].projectRoot' .version-sentinel/checks.json)" 'record bound to project'
+python3 -c 'import json,pathlib; assert pathlib.Path(json.load(open(".version-sentinel/checks.json"))["entries"][0]["projectRoot"]).resolve() == pathlib.Path.cwd().resolve()'
+assert_exit_code 0 "$?" 'record bound to project'
 
 # Failed online verification must not create or overwrite authorization.
 cp .version-sentinel/checks.json "$VS_TMPDIR/original.json"
