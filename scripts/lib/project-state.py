@@ -107,16 +107,29 @@ def requirements_lines(content):
     return content.replace("\\\r\n", "").replace("\\\n", "").splitlines()
 
 
-def dependencies(path, content):
+def dependencies(path, content, intents=False):
     """Validate supported schema and emit registry package / declared bound pairs."""
     eco = ecosystem(path)
     result = []
+    occurrences = {}
+
+    def emit(package, selected, selector, location):
+        if intents:
+            key = (package, location)
+            position = occurrences.get(key, 0)
+            occurrences[key] = position + 1
+            intent = json.dumps({"location": location, "occurrence": position, "selector": selector}, sort_keys=True, separators=(",", ":"))
+            result.append((package, selected, intent))
+        else:
+            result.append((package, selected))
+
     if eco == "npm":
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
             for name, raw in mapping(data.get(section, {}), section).items():
                 if not isinstance(raw, str) or not name or any(c.isspace() for c in name):
                     fail(f"invalid {section} entry {name}")
+                declaration, selector = name, raw
                 if raw.startswith("npm:"):
                     match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
                     if not match:
@@ -124,7 +137,7 @@ def dependencies(path, content):
                     name, raw = match.group(1), match.group(2) or ""
                 selected = version(raw, npm=True)
                 if selected is not None:
-                    result.append((name, selected))
+                    emit(name, selected, selector, f"{section}.{declaration}")
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
@@ -141,12 +154,13 @@ def dependencies(path, content):
             line = re.sub(r"\s+--hash=[^\s]+", "", line)
             parsed = pep508(line)
             if parsed:
-                result.append(parsed)
+                emit(*parsed, line, "requirements")
     elif eco in {"pyproject", "cargo"}:
         data = tomllib.loads(content)
         if eco == "cargo":
-            def cargo_table(table):
+            def cargo_table(table, location):
                 for name, spec in mapping(table, "Cargo dependencies").items():
+                    declaration = name
                     if isinstance(spec, dict):
                         if "path" in spec or "git" in spec or spec.get("workspace") is True:
                             continue
@@ -160,23 +174,23 @@ def dependencies(path, content):
                         fail("Cargo package name must be a string")
                     selected = version(raw)
                     if selected is not None:
-                        result.append((name, selected))
+                        emit(name, selected, spec, f"{location}.{declaration}")
 
-            def cargo_sections(section):
+            def cargo_sections(section, location):
                 section = mapping(section, "Cargo section")
                 for key in ("dependencies", "dev-dependencies", "build-dependencies"):
-                    cargo_table(section.get(key, {}))
+                    cargo_table(section.get(key, {}), f"{location}.{key}")
 
-            cargo_sections(data)
-            cargo_sections(data.get("workspace", {}))
-            for target in mapping(data.get("target", {}), "Cargo target").values():
-                cargo_sections(target)
+            cargo_sections(data, "cargo")
+            cargo_sections(data.get("workspace", {}), "workspace")
+            for target_name, target in mapping(data.get("target", {}), "Cargo target").items():
+                cargo_sections(target, f"target.{target_name}")
         else:
             build_system = mapping(data.get("build-system", {}), "build-system")
             for spec in strings(build_system.get("requires", []), "build-system.requires"):
                 parsed = pep508(spec)
                 if parsed:
-                    result.append(parsed)
+                    emit(*parsed, spec, "build-system.requires")
             project = mapping(data.get("project", {}), "project")
             dynamic = strings(project.get("dynamic", []), "project.dynamic")
             if {"dependencies", "optional-dependencies"}.intersection(dynamic):
@@ -184,16 +198,16 @@ def dependencies(path, content):
             for spec in strings(project.get("dependencies", []), "project.dependencies"):
                 parsed = pep508(spec)
                 if parsed:
-                    result.append(parsed)
-            for group in mapping(project.get("optional-dependencies", {}), "project.optional-dependencies").values():
+                    emit(*parsed, spec, "project.dependencies")
+            for group_name, group in mapping(project.get("optional-dependencies", {}), "project.optional-dependencies").items():
                 for spec in strings(group, "optional dependency group"):
                     parsed = pep508(spec)
                     if parsed:
-                        result.append(parsed)
+                        emit(*parsed, spec, f"project.optional-dependencies.{group_name}")
             tool = mapping(data.get("tool", {}), "tool")
             poetry = mapping(tool.get("poetry", {}), "tool.poetry")
 
-            def poetry_table(table):
+            def poetry_table(table, location):
                 for name, spec in mapping(table, "Poetry dependencies").items():
                     if name == "python":
                         continue
@@ -207,19 +221,19 @@ def dependencies(path, content):
                         fail(f"unsupported Poetry dependency {name}")
                     selected = version(raw)
                     if selected is not None:
-                        result.append((name, selected))
+                        emit(name, selected, spec, f"{location}.{name}")
 
-            poetry_table(poetry.get("dependencies", {}))
-            poetry_table(poetry.get("dev-dependencies", {}))
-            for group in mapping(poetry.get("group", {}), "Poetry groups").values():
-                poetry_table(mapping(group, "Poetry group").get("dependencies", {}))
+            poetry_table(poetry.get("dependencies", {}), "tool.poetry.dependencies")
+            poetry_table(poetry.get("dev-dependencies", {}), "tool.poetry.dev-dependencies")
+            for group_name, group in mapping(poetry.get("group", {}), "Poetry groups").items():
+                poetry_table(mapping(group, "Poetry group").get("dependencies", {}), f"tool.poetry.group.{group_name}.dependencies")
             uv = mapping(tool.get("uv", {}), "tool.uv")
             for spec in strings(uv.get("dev-dependencies", []), "tool.uv.dev-dependencies"):
                 parsed = pep508(spec)
                 if parsed:
-                    result.append(parsed)
+                    emit(*parsed, spec, "tool.uv.dev-dependencies")
             groups = mapping(data.get("dependency-groups", {}), "dependency-groups")
-            for specs in groups.values():
+            for group_name, specs in groups.items():
                 if not isinstance(specs, list):
                     fail("dependency group must be an array")
                 for spec in specs:
@@ -229,7 +243,7 @@ def dependencies(path, content):
                         continue
                     parsed = pep508(spec)
                     if parsed:
-                        result.append(parsed)
+                        emit(*parsed, spec, f"dependency-groups.{group_name}")
     elif eco == "csproj":
         tree = ET.fromstring(content)
         if tree.tag.split("}")[-1] != "Project":
@@ -249,7 +263,7 @@ def dependencies(path, content):
                 continue
             selected = version(raw)
             if selected is not None:
-                result.append((name, selected))
+                emit(name, selected, ET.tostring(node, encoding="unicode"), "PackageReference")
     else:
         fail(f"unsupported manifest {path}")
     return sorted(set(result))
@@ -423,10 +437,13 @@ def condition(path):
 
 def main():
     command = sys.argv[1]
-    if command in {"validate", "validate-content", "deps", "deps-content", "dependency-fingerprint-content"}:
+    if command in {"validate", "validate-content", "deps", "deps-content", "deps-intents-content", "dependency-fingerprint-content"}:
         path = Path(sys.argv[2])
         content = sys.stdin.read() if command.endswith("content") else path.read_text()
-        parsed = dependencies(path, content)
+        parsed = dependencies(path, content, intents=command == "deps-intents-content")
+        if command == "deps-intents-content":
+            print(json.dumps([{"pkg": pkg, "version": selected, "intent": intent} for pkg, selected, intent in parsed], sort_keys=True))
+            return
         if command == "dependency-fingerprint-content":
             print(dependency_fingerprint(path, content))
         if command.startswith("deps"):
