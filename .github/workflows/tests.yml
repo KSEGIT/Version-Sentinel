@@ -35,6 +35,10 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Check native Python and Git Bash boundary (windows)
+        if: runner.os == 'Windows'
+        run: bash tests/integration/native-hook-boundary.sh
+
       - name: Run tests
         run: bash tests/run.sh
 
