@@ -29,8 +29,13 @@ case "$ecosystem" in
     ;;
 esac
 
-# Validate version shape: reject empty, whitespace-only, or containing spaces.
-if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]]; then
+# Python epochs are part of exact PEP 440 versions (for example 1!2.0).
+# Other ecosystems do not use that syntax. Upstream confirms existence next.
+version_pattern='^[0-9][0-9A-Za-z.+-]*$'
+case "$ecosystem" in
+  pip|pyproject) version_pattern='^([0-9]+!)?[0-9][0-9A-Za-z.+-]*$' ;;
+esac
+if [[ ! "$version" =~ $version_pattern ]]; then
   echo "version-sentinel: empty/invalid version '$version'" >&2
   exit 1
 fi

@@ -5,6 +5,10 @@ registry_fixture_setup() {
   cat > "$VS_TMPDIR/registry-bin/curl" <<'CURL'
 #!/usr/bin/env bash
 [[ "${VS_FIXTURE_NETWORK_FAIL:-0}" == 1 ]] && exit 7
+if [[ -n "${VS_FIXTURE_RESPONSE_FILE:-}" ]]; then
+  cat "$VS_FIXTURE_RESPONSE_FILE"
+  exit $?
+fi
 url="${@: -1}"
 case "$url" in
   https://registry.npmjs.org/*)
