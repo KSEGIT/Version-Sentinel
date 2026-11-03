@@ -45,6 +45,13 @@ def mapping(value, label):
     return value
 
 
+
+def reject_resolver_sections(data, names, label):
+    for name in names:
+        if name in data and mapping(data[name], f"{label}.{name}"):
+            fail(f"Unsupported dependency-selector construct: {label}.{name}. Resolver overrides/catalogues are not fully tracked; dependency work is blocked.")
+
+
 def strings(value, label):
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
         fail(f"{label} must be an array of strings")
@@ -125,6 +132,9 @@ def dependencies(path, content, intents=False):
 
     if eco == "npm":
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
+        reject_resolver_sections(data, ("overrides", "resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
+        pnpm = mapping(data.get("pnpm", {}), "pnpm")
+        reject_resolver_sections(pnpm, ("overrides", "catalog", "catalogs", "packageExtensions"), "pnpm")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
             for name, raw in mapping(data.get(section, {}), section).items():
                 if not isinstance(raw, str) or not name or any(c.isspace() for c in name):
@@ -158,6 +168,7 @@ def dependencies(path, content, intents=False):
     elif eco in {"pyproject", "cargo"}:
         data = tomllib.loads(content)
         if eco == "cargo":
+            reject_resolver_sections(data, ("patch", "replace"), "Cargo")
             def cargo_table(table, location):
                 for name, spec in mapping(table, "Cargo dependencies").items():
                     declaration = name
