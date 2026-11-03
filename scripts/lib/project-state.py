@@ -167,6 +167,11 @@ def dependencies(path, content):
             for target in mapping(data.get("target", {}), "Cargo target").values():
                 cargo_sections(target)
         else:
+            build_system = mapping(data.get("build-system", {}), "build-system")
+            for spec in strings(build_system.get("requires", []), "build-system.requires"):
+                parsed = pep508(spec)
+                if parsed:
+                    result.append(parsed)
             project = mapping(data.get("project", {}), "project")
             dynamic = strings(project.get("dynamic", []), "project.dynamic")
             if {"dependencies", "optional-dependencies"}.intersection(dynamic):
