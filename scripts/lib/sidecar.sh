@@ -54,6 +54,8 @@ sidecar_find_fresh() {
 sidecar_write_entry() {
   local path="$1" ecosystem="$2" pkg="$3" version="$4" source="$5"
   local checked="${6:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local verification="${7:-null}"
+  local project_root="${8:-}"
   local dir
   dir=$(dirname "$path")
   mkdir -p "$dir"
@@ -67,9 +69,11 @@ sidecar_write_entry() {
   current=$(sidecar_read "$path")
   updated=$(echo "$current" | jq -c \
     --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
-    --arg src "$source" --arg at "$checked" \
+    --arg src "$source" --arg at "$checked" --arg project "$project_root" \
+    --argjson verification "$verification" \
     '.entries = ((.entries // []) | map(select(.ecosystem != $eco or .pkg != $pkg))
-      + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}])') \
+      + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}
+         + (if $verification == null then {} else {verification:$verification,projectRoot:$project} end)])') \
     || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
   [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
 
@@ -89,6 +93,35 @@ sidecar_write_entry() {
   fi
   vs_lock_release "$lockpath"
   return "$write_status"
+}
+
+# Strict dependency authorization. Legacy URL-only and post-install records are
+# data, not proof that a successful upstream request preceded the change.
+sidecar_find_verified() {
+  local path="$1" ecosystem="$2" pkg="$3" version="$4" window="$5" root="$6" url="$7"
+  [[ "$window" =~ ^[0-9]+$ ]] || return 1
+  local entry at checked now_epoch at_epoch source_value
+  entry=$(sidecar_read "$path" | jq -ec --arg eco "$ecosystem" --arg pkg "$pkg" \
+    --arg ver "$version" --arg root "$root" --arg url "$url" '
+    .entries[] | select(.ecosystem==$eco and .pkg==$pkg and .version==$ver
+      and .projectRoot==$root and .verification.online==true
+      and .verification.exists==true and .verification.version==$ver
+      and .verification.url==$url and (.verification.latest|type)=="string"
+      and (.verification.latest|length)>0
+      and (.source|startswith("auto-recorded:")|not)
+      and (.verification.latest==$ver or (.source|test("^intentional:[[:space:]]*[^[:space:]]"))))') || return 1
+  # More than one matching entry is malformed, not a reason to guess.
+  [[ $(printf '%s\n' "$entry" | wc -l | tr -d ' ') == 1 ]] || return 1
+  source_value=$(printf '%s' "$entry" | jq -r '.source') || return 1
+  if [[ "$source_value" != intentional:* ]]; then
+    registry_source_valid "$ecosystem" "$pkg" "$source_value" || return 1
+  fi
+  at=$(printf '%s' "$entry" | jq -r '.verification.verifiedAt') || return 1
+  checked=$(printf '%s' "$entry" | jq -r '.checkedAt') || return 1
+  [[ "$at" == "$checked" ]] || return 1
+  at_epoch=$(_iso_to_epoch "$at") || return 1
+  now_epoch=$(_iso_to_epoch "${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}") || return 1
+  [[ "$now_epoch" -ge "$at_epoch" && $((now_epoch-at_epoch)) -le $((window*3600)) ]]
 }
 
 sidecar_prune() {

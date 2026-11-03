@@ -2,12 +2,15 @@
 # Tests enhanced arg validation in scripts/vs-record.sh.
 set -u
 VS_TEST_NAME="vs-record-validation"
-source "$(dirname "$0")/assert.sh"
+TEST_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$TEST_DIR/assert.sh"
+source "$TEST_DIR/registry-fixture.sh"
 
 VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/vs-record.sh"
 
+registry_fixture_setup
 cd "$VS_TMPDIR"
 
 # Unknown ecosystem → exit 1, stderr mentions "unknown ecosystem"
@@ -46,7 +49,7 @@ assert_contains "$err" "exit=1" "npm unscoped slash → exit 1"
 assert_contains "$err" "invalid package name" "npm unscoped slash → stderr mentions invalid package name"
 
 # Valid npm scoped package → accepted (no validation-exit-1)
-out=$(bash "$SCRIPT" npm "@scope/name" 1.0.0 "https://www.npmjs.com/package/@scope/name" 2>&1; echo "exit=$?")
+out=$(bash "$SCRIPT" npm "@scope/name" 1.0.0 "intentional: fixture checks scoped package validation" 2>&1; echo "exit=$?")
 assert_contains "$out" "exit=0" "npm @scope/name accepted"
 assert_contains "$out" "recorded" "npm @scope/name → recorded message"
 
