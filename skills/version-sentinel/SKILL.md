@@ -11,7 +11,7 @@ The `version-sentinel` setup blocks dependency changes until you've verified the
 
 From the project directory, run the bundled `scripts/check-versions.sh` at startup and after manifests or lockfiles change. Hooks require successful current project evidence before dependency work. Registry lookup failure blocks; newer-release drift is reported without upgrading dependencies. File inspection, user questions, audit retries, and version recording remain available.
 
-If a required manifest is missing or invalid, ask Daniel before recreating or repairing that exact file. Do not guess dependencies. Only after actual consent, run `bash <plugin-root>/scripts/recover-manifest.sh approve FILE --user-confirmed REASON`. This records an attestation; it does not obtain approval or create contents. Online-verify proposed dependencies before writing approved contents, then rerun the audit. Do not use the consent flag without approval.
+If a required manifest is missing or invalid, ask Daniel before recreating or repairing that exact file. Do not guess dependencies. Only after actual consent, run `bash <plugin-root>/scripts/recover-manifest.sh approve FILE --user-confirmed 'REASON'`. This records an attestation; it does not obtain approval or create contents. Online-verify proposed dependencies before writing approved contents, then rerun the audit. Do not use the consent flag without approval.
 
 ## When you see a BLOCKED message
 
@@ -20,8 +20,7 @@ If a tool call exits 2 with `BLOCKED: version-sentinel`, you must:
 1. **Resolve the intended dependency.** Identify the ecosystem and package. For
    a public package without a version, treat it as a latest-version request and
    look up the current release. Ask the user only when the dependency is
-   ambiguous or private. For a private registry, ask for its URL instead of
-   guessing a public source.
+   ambiguous or private. Private registries are unsupported by the canonical verifier; explain the limitation and stop dependency work instead of guessing a public source.
 
 2. **Verify the version.** For a latest-version request, look up the current
    release. For a deliberate pin, verify that the requested version exists and
@@ -45,7 +44,7 @@ Local paths, URLs, git sources, and workspace dependencies are outside registry-
 
 ## Intentional non-latest pins
 
-If you genuinely intend to install an older version (CVE mitigation, compat, private registry), record with:
+If you genuinely intend to install an older version (CVE mitigation or compatibility), record with:
 
     bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> "intentional: <brief reason>"
 

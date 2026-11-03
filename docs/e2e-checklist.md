@@ -99,7 +99,7 @@ reads `/tmp/vs-kimi-home/config.toml`). The four `[[hooks]]` rules below
 event = "SessionStart"
 matcher = "*"
 command = "bash /path/to/Version-Sentinel/scripts/session-start.sh"
-timeout = 10
+timeout = 120
 
 [[hooks]]
 event = "PreToolUse"

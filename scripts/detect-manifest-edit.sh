@@ -10,3 +10,10 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 python3 "$DIR/lib/manifest-edit.py"
+status=$?
+if [[ "$status" -ne 0 ]]; then
+  if [[ "$status" -ne 2 ]]; then
+    echo "BLOCKED: version-sentinel. Manifest inspection failed (status $status); repair the hook before dependency edits." >&2
+  fi
+  exit 2
+fi

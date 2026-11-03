@@ -8,7 +8,7 @@ Record that a dependency version has been verified. Run after a web search or re
 
 **Usage:** `/vs-record <ecosystem> <pkg> <version> <source>`
 
-**Source** must be an canonical `https://` URL or `intentional:<reason>`.
+**Source** must be a canonical `https://` URL or `intentional:<reason>`.
 
 **Ecosystems (v0.1):** npm, pip, cargo, csproj, pyproject
 
