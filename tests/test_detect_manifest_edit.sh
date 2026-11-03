@@ -3,13 +3,15 @@ VS_TEST_NAME="detect-manifest-edit"
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 FIXTURES="$TESTS_DIR/fixtures"
 source "$TESTS_DIR/assert.sh"
+source "$TESTS_DIR/registry-fixture.sh"
 
 VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
 
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/detect-manifest-edit.sh"
 
-cd "$VS_TMPDIR"
+cd "$VS_TMPDIR" || exit 1
+registry_fixture_setup
 cat > package.json <<EOF
 {
   "name": "fixture",
@@ -19,6 +21,7 @@ cat > package.json <<EOF
   }
 }
 EOF
+bash "$(dirname "$SCRIPT")/check-versions.sh" >/dev/null 2>&1
 
 substitute() {
   sed "s|{{CWD}}|$VS_TMPDIR|g" "$1"
@@ -50,19 +53,23 @@ result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "BLOCKED" "multiedit-bump: blocked"
 assert_contains "$result" "express" "multiedit-bump: names pkg"
 
-# Case 3b: Edit adds lodash but fresh sidecar exists → allowed
+# Case 3b: A legacy URL-only sidecar must not count as online evidence.
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p .version-sentinel
 printf '{"entries":[{"ecosystem":"npm","pkg":"lodash","version":"4.17.21","source":"https://npmjs.com","checkedAt":"%s"}]}' "$now" \
   > .version-sentinel/checks.json
 input=$(substitute "$FIXTURES/edit_input_add_lodash.json")
 result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
+assert_contains "$result" "exit=2" "legacy source-only sidecar: exit 2"
+bash "$(dirname "$SCRIPT")/vs-record.sh" npm lodash 4.17.21 "https://www.npmjs.com/package/lodash" >/dev/null
+result=$(echo "$input" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "edit-add with fresh sidecar: exit 0"
 
 alias_content='{"dependencies":{"compat":"npm:lodash@4.17.21"}}'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/alias-fresh/package.json" --user-confirmed "test user approved alias manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/alias-fresh/package.json" "$alias_content"; echo "exit=$?")
 assert_contains "$result" "exit=0" "versioned npm manifest alias uses real target sidecar entry"
-rm -rf .version-sentinel
+rm -f .version-sentinel/checks.json
 
 # Case 4: Edit on a non-manifest file → pass silently
 cat > README.md <<EOF
@@ -87,34 +94,40 @@ assert_contains "$result" "exit=0" "VS_DISABLE: exit 0"
 # Unpinned registry entries fail closed through the manifest hook for every
 # supported manifest ecosystem.
 npm_unpinned='{"dependencies":{"tagged":"latest","next-tag":"next","wild":"*","empty":"","local":"file:../local","shared":"workspace:*"}}'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/unpinned/package.json" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/unpinned/package.json" "$npm_unpinned"; echo "exit=$?")
 assert_contains "$result" "Package: tagged (npm)." "npm manifest tag: names package"
 assert_contains "$result" "explicit registry version" "npm manifest tag: explains requirement"
 assert_contains "$result" "exit=2" "npm manifest tag: exit 2"
 
 pip_unpinned=$'requests\n-r base.txt\n-e .\n./local\n'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/unpinned/requirements.txt" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/unpinned/requirements.txt" "$pip_unpinned"; echo "exit=$?")
 assert_contains "$result" "Package: requests (pip)." "requirements manifest: names package"
 assert_contains "$result" "exit=2" "requirements manifest: exit 2"
 
 pyproject_unpinned=$'[project]\ndependencies = ["requests", "local @ file:///tmp/local"]\n[tool.poetry.dependencies]\nflask = "*"\nlocal = { path = "../local" }\n'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/unpinned/pyproject.toml" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/unpinned/pyproject.toml" "$pyproject_unpinned"; echo "exit=$?")
 assert_contains "$result" "Package: requests (pyproject)." "pyproject PEP 621: names package"
 assert_contains "$result" "Package: flask (pyproject)." "pyproject Poetry: names package"
 assert_contains "$result" "exit=2" "pyproject manifest: exit 2"
 
 cargo_unpinned=$'[package]\nname = "demo"\nversion = "0.1.0"\n[dependencies]\nregistry-dep = {}\nlocal = { path = "../local" }\nshared = { workspace = true }\n'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/unpinned/Cargo.toml" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/unpinned/Cargo.toml" "$cargo_unpinned"; echo "exit=$?")
 assert_contains "$result" "Package: registry-dep (cargo)." "cargo manifest: names package"
 assert_contains "$result" "exit=2" "cargo manifest: exit 2"
 
 csproj_unpinned='<Project><ItemGroup><PackageReference Include="Polly" Version="*" /><PackageReference Include="Central.Versioned" /><ProjectReference Include="../Shared/Shared.csproj" /></ItemGroup></Project>'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/unpinned/Demo.csproj" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/unpinned/Demo.csproj" "$csproj_unpinned"; echo "exit=$?")
 assert_contains "$result" "Package: Polly (csproj)." "csproj manifest: names package"
 assert_contains "$result" "exit=2" "csproj manifest: exit 2"
 
 # A manifest edit that adds only non-registry sources stays outside the gate.
 sources_only='{"dependencies":{"local":"file:../local","git":"git+https://example.com/repo.git","shared":"workspace:*"}}'
+bash "$(dirname "$SCRIPT")/recover-manifest.sh" approve "$VS_TMPDIR/sources/package.json" --user-confirmed "test user approved manifest creation" >/dev/null
 result=$(hook_write "$VS_TMPDIR/sources/package.json" "$sources_only"; echo "exit=$?")
 assert_contains "$result" "exit=0" "npm non-registry manifest sources pass"
 
@@ -134,5 +147,5 @@ result=$(hook_write "$VS_TMPDIR/aliases/package.json" "$alias_post"; echo "exit=
 assert_contains "$result" "Package: lodash (npm)." "npm manifest alias: names real target"
 assert_contains "$result" "exit=2" "npm manifest alias: exit 2"
 
-cd "$OLDPWD"
+cd "$OLDPWD" || exit 1
 finish_test
