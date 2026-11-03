@@ -104,6 +104,11 @@ bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
 assert_exit_code 0 "$?" "existing requirements include can be audited"
 bash "$ROOT/scripts/audit-state.sh" covers "$PWD" requirements-base.txt >/dev/null 2>&1
 assert_exit_code 0 "$?" "requirements include belongs to audit"
+printf '%s\n' '-r \' 'requirements-base.txt' > requirements.txt
+bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
+assert_exit_code 0 "$?" "continued requirements include can be audited"
+bash "$ROOT/scripts/audit-state.sh" covers "$PWD" requirements-base.txt >/dev/null 2>&1
+assert_exit_code 0 "$?" "continued requirements include is part of audited inventory"
 # Expired evidence cannot satisfy the gate.
 python3 - <<'EXPIRE'
 import json

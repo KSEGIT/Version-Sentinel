@@ -101,6 +101,12 @@ def pep508(spec):
     return name, version(raw)
 
 
+
+def requirements_lines(content):
+    # Match pip's line-continuation syntax in both extraction and discovery.
+    return content.replace("\\\r\n", "").replace("\\\n", "").splitlines()
+
+
 def dependencies(path, content):
     """Validate supported schema and emit registry package / declared bound pairs."""
     eco = ecosystem(path)
@@ -122,8 +128,7 @@ def dependencies(path, content):
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
-        content = content.replace("\\\r\n", "").replace("\\\n", "")
-        for line in content.splitlines():
+        for line in requirements_lines(content):
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
@@ -281,7 +286,7 @@ def dependency_fingerprint(path, content):
                 "build-system": data.get("build-system", {}).get("requires", []),
             }
     elif eco == "pip":
-        relevant = [line.split("#", 1)[0].strip() for line in content.splitlines() if line.split("#", 1)[0].strip()]
+        relevant = [line.split("#", 1)[0].strip() for line in requirements_lines(content) if line.split("#", 1)[0].strip()]
     else:
         relevant = [ET.tostring(node, encoding="unicode") for node in ET.fromstring(content).iter() if node.tag.split("}")[-1] == "PackageReference"]
     return json.dumps(relevant, sort_keys=True, separators=(",", ":"))
@@ -370,7 +375,7 @@ def inventory(root, previous):
         path = root / name
         if not path.is_file() or ecosystem(path) != "pip":
             continue
-        for line in path.read_text().splitlines():
+        for line in requirements_lines(path.read_text()):
             match = re.match(r"\s*(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))([^\s#]+)", line)
             if match:
                 target, safe = usable_path(root, path.parent / match.group(1))
