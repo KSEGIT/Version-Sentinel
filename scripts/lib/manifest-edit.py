@@ -13,6 +13,8 @@ import shutil
 import subprocess
 import sys
 
+from path_helpers import bash_script_path, resolve_path
+
 SCRIPTS = Path(__file__).resolve().parent.parent
 UNPINNED = "__version_sentinel_unpinned__"
 
@@ -44,7 +46,7 @@ def text(value, label):
 
 def relevant(root, name):
     # Write/Edit can follow a symlink whose basename hides the manifest.
-    return ecosystem(name) or ecosystem((root / Path(name)).resolve())
+    return ecosystem(name) or ecosystem(resolve_path(name, root))
 
 
 def run(args, root, content=None):
@@ -53,12 +55,11 @@ def run(args, root, content=None):
 
 
 def state(action, root, *args, content=None):
-    return run(["bash", str(SCRIPTS / "audit-state.sh"), action, *map(str, args)], root, content)
+    return run(["bash", bash_script_path(SCRIPTS / "audit-state.sh"), action, *map(str, args)], root, content)
 
 
 def target(root, name):
-    path = Path(text(name, "file path"))
-    path = (root / path).resolve()
+    path = resolve_path(text(name, "file path"), root)
     if not path.is_relative_to(root):
         raise Blocked(f"Manifest path is outside audited project {root}: {path}")
     return path
@@ -274,7 +275,7 @@ def inspect(root, proposed):
                 errors.append(f"Package: {pkg} ({eco}). No explicit registry version was provided. "
                               "Record an exact online-verified version and retry.")
                 continue
-            record = run(["bash", str(SCRIPTS / "check-sidecar.sh"), eco, pkg, version], root)
+            record = run(["bash", bash_script_path(SCRIPTS / "check-sidecar.sh"), eco, pkg, version], root)
             if record.returncode:
                 errors.append(record.stderr.strip() or f"No online verification for {pkg}@{version}.")
     if errors:
@@ -294,7 +295,7 @@ def main():
         session = text(session, "session_id")
         if session:
             os.environ["VS_SESSION_ID"] = session
-    root = Path(text(payload.get("cwd", os.getcwd()), "project cwd")).resolve()
+    root = resolve_path(text(payload.get("cwd", os.getcwd()), "project cwd"))
     proposed = operations(root, tool, payload.get("tool_input"))
     if not proposed:
         return
