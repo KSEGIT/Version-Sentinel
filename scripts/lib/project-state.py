@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -116,6 +117,53 @@ def requirements_lines(content):
     return content.replace("\\\r\n", "").replace("\\\n", "").splitlines()
 
 
+def requirements_option_line(line):
+    """Accept complete supported option lines, never an unchecked token suffix."""
+    if not line.startswith("-"):
+        return False
+    values = {
+        "--index-url", "--extra-index-url", "--trusted-host", "--find-links",
+        "--no-binary", "--only-binary", "--use-feature", "--editable",
+        "-i", "-f", "-e",
+    }
+    switches = {
+        "--no-index", "--pre", "--prefer-binary", "--require-hashes",
+        "--no-require-hashes", "--all-releases", "--only-final",
+    }
+    lexer = shlex.shlex(line, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    # Requirements paths can contain Windows separators on every host.
+    lexer.escape = ""
+    tokens = list(lexer)
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+        name, separator, argument = token.partition("=")
+        if token.startswith(("-i", "-f", "-e")) and not token.startswith("--"):
+            name, argument = token[:2], token[2:]
+            separator = bool(argument)
+        if name in switches:
+            if separator:
+                fail(f"unexpected value for requirements option {name}")
+            continue
+        if name not in values:
+            fail(f"unsupported requirements option or trailing dependency: {token}")
+        if not separator:
+            if index >= len(tokens) or tokens[index].startswith("-"):
+                fail(f"missing value for requirements option {name}")
+            argument = tokens[index]
+            index += 1
+        if not argument:
+            fail(f"missing value for requirements option {name}")
+        if name in {"--editable", "-e"} and not (
+            external(argument) or argument in {".", ".."}
+            or re.match(r"^[A-Za-z]:[\\/]", argument) or Path(argument).is_dir()
+        ):
+            fail("unsupported editable dependency; use an explicit local/VCS source")
+    return True
+
 
 def xml_dependency_shape(node):
     """Ignore XML layout while keeping dependency attributes and child values."""
@@ -175,7 +223,7 @@ def dependencies(path, content, intents=False):
                 if not re.fullmatch(r"(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))[^\s]+", line):
                     fail("unsupported requirements include")
                 continue
-            if line.startswith(("-e ", "--editable ", "--index-url ", "--extra-index-url ", "--trusted-host ", "--find-links ", "--no-index", "--pre", "--only-binary ", "--no-binary ")) or external(line):
+            if requirements_option_line(line) or external(line):
                 continue
             line = re.sub(r"\s+--hash=[^\s]+", "", line)
             parsed = pep508(line)
