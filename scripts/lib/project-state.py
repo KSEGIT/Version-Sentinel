@@ -114,6 +114,20 @@ def requirements_lines(content):
     return content.replace("\\\r\n", "").replace("\\\n", "").splitlines()
 
 
+
+def xml_dependency_shape(node):
+    """Ignore XML layout while keeping dependency attributes and child values."""
+    def meaningful(value):
+        return value if value and value.strip() else None
+    return {
+        "tag": node.tag,
+        "attributes": dict(sorted(node.attrib.items())),
+        "text": meaningful(node.text),
+        "tail": meaningful(node.tail),
+        "children": [xml_dependency_shape(child) for child in node],
+    }
+
+
 def dependencies(path, content, intents=False):
     """Validate supported schema and emit registry package / declared bound pairs."""
     eco = ecosystem(path)
@@ -274,7 +288,7 @@ def dependencies(path, content, intents=False):
                 continue
             selected = version(raw)
             if selected is not None:
-                emit(name, selected, ET.tostring(node, encoding="unicode"), "PackageReference")
+                emit(name, selected, xml_dependency_shape(node), "PackageReference")
     else:
         fail(f"unsupported manifest {path}")
     return sorted(set(result))
@@ -313,7 +327,7 @@ def dependency_fingerprint(path, content):
     elif eco == "pip":
         relevant = [line.split("#", 1)[0].strip() for line in requirements_lines(content) if line.split("#", 1)[0].strip()]
     else:
-        relevant = [ET.tostring(node, encoding="unicode") for node in ET.fromstring(content).iter() if node.tag.split("}")[-1] == "PackageReference"]
+        relevant = [xml_dependency_shape(node) for node in ET.fromstring(content).iter() if node.tag.split("}")[-1] == "PackageReference"]
     return json.dumps(relevant, sort_keys=True, separators=(",", ":"))
 
 
