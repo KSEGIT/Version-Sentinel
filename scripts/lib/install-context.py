@@ -6,6 +6,7 @@ directories and shell constructs around a dependency command require separate,
 literal tool calls. Arbitrary programs that write manifests remain out of scope.
 """
 import json
+import re
 from pathlib import Path
 import shlex
 import sys
@@ -38,7 +39,74 @@ def literal_path(base, raw):
     return resolve_path(raw, base)
 
 
+def remove_redirections(command):
+    """Remove literal redirections while keeping fd/word source adjacency.
+
+    Quotes and escaped characters are retained for shlex. Unsupported shell
+    redirection forms remain intact and are rejected for dependency commands.
+    """
+    output = ""
+    i, quote = 0, ""
+    while i < len(command):
+        char = command[i]
+        if char == "\\" and quote != "'" and i + 1 < len(command):
+            if command[i + 1] != "\n":
+                output += command[i:i + 2]
+            i += 2
+            continue
+        if quote:
+            output += char
+            if char == quote:
+                quote = ""
+            i += 1
+            continue
+        if char in "\"'":
+            quote = char
+            output += char
+            i += 1
+            continue
+        if command.startswith("<<", i):
+            # Heredoc bodies are not ordinary shell words.
+            return output + command[i:], True
+        operator = re.match(r"&>>|&>|>>|>\||>&|<>|<&|>|<", command[i:])
+        if not operator:
+            output += char
+            i += 1
+            continue
+        op = operator.group()
+        target_start = i + len(op)
+        while target_start < len(command) and command[target_start] in " \t":
+            target_start += 1
+        end, target_quote = target_start, ""
+        while end < len(command):
+            current = command[end]
+            if current == "\\" and target_quote != "'" and end + 1 < len(command):
+                end += 2
+                continue
+            if target_quote:
+                if current == target_quote:
+                    target_quote = ""
+            elif current in "\"'":
+                target_quote = current
+            elif current in " \t\r\n;&|()<>":
+                break
+            end += 1
+        raw_target = command[target_start:end]
+        if not raw_target or target_quote or "$(" in raw_target or "`" in raw_target:
+            return output + command[i:], True
+        if not op.startswith("&"):
+            # Only an adjacent all-digit word is a descriptor. `2 >log`
+            # keeps the package `2`; `2>log` is purely a redirect.
+            descriptor = re.search(r"(?:^|[\s;&|()])([0-9]+)$", output)
+            if descriptor:
+                output = output[:descriptor.start(1)]
+        output += " "
+        i = end
+    return output, False
+
+
 def contexts(base, command):
+    command, unsupported_redirection = remove_redirections(command)
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -49,6 +117,8 @@ def contexts(base, command):
         or Path(w).name == "yarn") for i, w in enumerate(tokens))
     if not has_operation:
         return []
+    if unsupported_redirection:
+        raise ValueError("unsupported shell redirection around dependency operation; use separate literal tool calls")
     if "cd" in tokens and any(t in {"||", ";", "|", "&"} for t in tokens):
         raise ValueError("directory changes with shell fallback need separate literal tool calls")
     segments, segment = [], []
@@ -81,13 +151,21 @@ def contexts(base, command):
             raise ValueError("directory-changing wrapper needs an explicit literal cd tool call")
         manager = Path(words[manager_index]).name
         rest = words[manager_index + 1:]
+        # Yarn installs by default, including when only install flags/cwd
+        # are supplied. Version/help flags remain inspection operations.
+        yarn_default = manager == "yarn" and (not rest or rest[0].startswith("-"))
         # Read-only manager calls remain available without an audit.
-        if not any(w in OPERATIONS[manager] for w in rest) and not (manager == "yarn" and not rest):
+        if not any(w in OPERATIONS[manager] for w in rest) and not yarn_default:
             if any("$" in w or "`" in w for w in rest):
                 raise ValueError("dynamic package-manager command; use literal arguments")
             continue
         if any(w in {"(", ")", "<<", "<<-", "<<<"} for w in words):
             raise ValueError("unsupported shell construct around dependency operation; use separate tool calls")
+        if any(re.match(r"^[0-9]*[<>]", word) for word in rest):
+            # These survived quote-aware redirect removal, so they are
+            # literal package words. The legacy parser cannot preserve that
+            # distinction; fail closed instead of dropping an argument.
+            raise ValueError("literal redirection-like package arguments cannot be inspected safely")
         root, required, normalized = cwd, [], []
         i = 0
         while i < len(rest):
@@ -114,6 +192,12 @@ def contexts(base, command):
                 continue
             normalized.append(word)
             i += 1
+        if manager == "yarn" and normalized and all(w in {"-v", "--version", "-h", "--help"} for w in normalized):
+            continue
+        if yarn_default and (not normalized or normalized[0].startswith("-")):
+            if any(w in OPERATIONS[manager] for w in normalized):
+                raise ValueError("unsupported Yarn option ordering; put the explicit operation before its options")
+            normalized.insert(0, "install")
         if normalized and normalized[0] not in OPERATIONS[manager]:
             raise ValueError("unsupported package-manager option ordering; put the operation before its options")
         if ((manager == "cargo" and normalized and normalized[0] == "install")
