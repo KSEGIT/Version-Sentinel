@@ -2,6 +2,13 @@
 
 All notable changes to version-sentinel.
 
+## [0.6.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.5.0...version-sentinel-v0.6.0) (2026-11-04)
+
+
+### Features
+
+* require startup audits and online dependency verification ([#40](https://github.com/KSEGIT/Version-Sentinel/issues/40)) ([5a0e549](https://github.com/KSEGIT/Version-Sentinel/commit/5a0e549201df2f2c1654ddaf32a635e206e07591))
+
 ## [0.5.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.4.5...version-sentinel-v0.5.0) (2026-10-24)
 
 
