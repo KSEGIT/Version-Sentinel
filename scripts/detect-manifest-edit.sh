@@ -1,160 +1,19 @@
 #!/usr/bin/env bash
+# All edit shapes share one parser, including Codex patch-only input.
 set -u
-
-DIR="$(dirname "$0")"
+DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=lib/options.sh
 source "$DIR/lib/options.sh"
-# shellcheck source=lib/platform.sh
-source "$DIR/lib/platform.sh"
-
 if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
-
-# shellcheck source=lib/parse-manifest.sh
-source "$DIR/lib/parse-manifest.sh"
-# shellcheck source=lib/sidecar.sh
-source "$DIR/lib/sidecar.sh"
-
-input=$(cat)
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "version-sentinel: jq missing, fail-open" >&2; exit 0
-fi
-if ! echo "$input" | jq -e . >/dev/null 2>&1; then
-  echo "version-sentinel: unparseable tool_input JSON, fail-open" >&2; exit 0
-fi
-
-tool_name=$(echo "$input" | jq -r '.tool_name // empty')
-
-# Codex apply_patch: the patch body is not a reconstructable manifest, so we
-# only handle the cases we can do correctly. Extract the target path from
-# tool_input.file_path, or from "*** Update/Add/Delete File: <path>" headers
-# in the patch text when exactly one distinct path is present. If the payload
-# carries a full new-content field, treat it like a Write; otherwise the
-# post-image cannot be reconstructed — fail-open with a note.
-if [[ "$tool_name" == "apply_patch" ]]; then
-  ap_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
-  if [[ -z "$ap_path" ]]; then
-    ap_patch=$(echo "$input" | jq -r '.tool_input.patch // .tool_input.input // .tool_input.command // empty')
-    ap_path=$(printf '%s\n' "$ap_patch" | tr -d '\r' \
-      | sed -nE 's/^\*\*\* (Update|Add|Delete) File:[[:space:]]*//p' \
-      | sed -e 's/[[:space:]]*$//' | sort -u)
-    # Only usable when exactly one distinct target path was found.
-    if [[ $(printf '%s\n' "$ap_path" | grep -c .) -ne 1 ]]; then
-      ap_path=""
-    fi
-  fi
-  if [[ -z "$ap_path" || -z "$(ecosystem_for_path "$ap_path")" ]]; then
-    exit 0
-  fi
-  ap_content=$(echo "$input" | jq -r '
-    (.tool_input.content // "" | select(. != ""))
-    // (.tool_input.new_content // "" | select(. != ""))
-    // empty
-  ')
-  if [[ -z "$ap_content" ]]; then
-    echo "version-sentinel: apply_patch targets manifest $ap_path but post-content cannot be reconstructed; fail-open" >&2
-    exit 0
-  fi
-  # Rewrite the payload into Write shape so the normal path handles it.
-  input=$(echo "$input" | jq --arg fp "$ap_path" --arg c "$ap_content" \
-    '.tool_name = "Write" | .tool_input = {"file_path": $fp, "content": $c}')
-  tool_name="Write"
-fi
-
-tool_name=$(normalize_tool_name "$tool_name")
-# Claude/Copilot/Gemini send tool_input.file_path; Kimi's Edit/Write send tool_input.path.
-file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')
-[[ -z "$file_path" ]] && exit 0
-
-eco=$(ecosystem_for_path "$file_path")
-[[ -z "$eco" ]] && exit 0
-
-pre_content=""
-[[ -f "$file_path" ]] && pre_content=$(cat "$file_path")
-post_content="$pre_content"
-
-# py_replace_once <old> <new> <content-on-stdin> — replaces first occurrence only.
-# Uses python3 for bash-3.2 compatibility (macOS default).
-py_replace_once() {
-  python3 -c 'import sys; p=sys.stdin.read(); sys.stdout.write(p.replace(sys.argv[1], sys.argv[2], 1))' "$1" "$2"
-}
-
-case "$tool_name" in
-  Edit)
-    old=$(echo "$input" | jq -r '.tool_input.old_string // empty' | tr -d '\r')
-    new=$(echo "$input" | jq -r '.tool_input.new_string // empty' | tr -d '\r')
-    replace_all=$(echo "$input" | jq -r '.tool_input.replace_all // false')
-    if [[ "$replace_all" == "true" ]]; then
-      post_content=$(awk -v o="$old" -v n="$new" 'BEGIN{RS=""} { gsub(o, n); print }' <<< "$pre_content")
-    else
-      post_content=$(printf '%s' "$pre_content" | py_replace_once "$old" "$new")
-    fi
-    ;;
-  Write)
-    post_content=$(echo "$input" | jq -r '.tool_input.content // empty' | tr -d '\r')
-    ;;
-  MultiEdit)
-    post_content="$pre_content"
-    edits_tsv=$(echo "$input" | jq -r '.tool_input.edits[]? | [.old_string, .new_string] | @tsv')
-    while IFS=$'\t' read -r o n; do
-      [[ -z "$o" ]] && continue
-      o=$(printf '%s' "$o" | tr -d '\r')
-      n=$(printf '%s' "$n" | tr -d '\r')
-      post_content=$(printf '%s' "$post_content" | py_replace_once "$o" "$n")
-    done <<< "$edits_tsv"
-    ;;
-  *) exit 0 ;;
-esac
-
-# Parse via temp dirs with files named after the real manifest so ecosystem_for_path dispatches correctly
-manifest_name=$(basename "$file_path")
-tmp_dir_pre=$(mktemp -d)
-tmp_dir_post=$(mktemp -d)
-tmp_pre="$tmp_dir_pre/$manifest_name"
-tmp_post="$tmp_dir_post/$manifest_name"
-trap 'rm -rf "$tmp_dir_pre" "$tmp_dir_post"' EXIT
-
-printf '%s' "$pre_content" > "$tmp_pre"
-printf '%s' "$post_content" > "$tmp_post"
-
-pre_deps=$(parse_manifest_by_path "$tmp_pre" 2>/dev/null)
-post_deps=$(parse_manifest_by_path "$tmp_post" 2>/dev/null)
-
-changes=$(diff_manifest_sets "$pre_deps" "$post_deps")
-[[ -z "$changes" ]] && exit 0
-
-unpinned_manifest_message() {
-  local eco="$1" pkg="$2"
-  cat <<EOF
-BLOCKED: version-sentinel.
-Package: $pkg ($eco).
-No explicit registry version was provided. Floating tags, wildcards, and omitted versions cannot be recorded as an exact version check.
-
-REQUIRED before retry:
-1. Look up the current version of "$pkg" on the $eco registry.
-2. Record that exact version and the source URL with /vs-record.
-3. Set "$pkg" to that explicit registry version in the manifest and retry the edit.
-EOF
-}
-
-block=0
-block_msgs=""
-while IFS=$'\t' read -r kind pkg ver; do
-  [[ -z "$pkg" ]] && continue
-  if [[ "$ver" == "$VS_UNPINNED_VERSION" ]]; then
-    block=1
-    block_msgs+=$(unpinned_manifest_message "$eco" "$pkg")$'\n---\n'
-    continue
-  fi
-  if ! bash "$DIR/check-sidecar.sh" "$eco" "$pkg" "$ver" 2>/tmp/_vs_err_$$; then
-    block=1
-    block_msgs+=$(cat /tmp/_vs_err_$$)$'\n---\n'
-  fi
-done <<< "$changes"
-rm -f /tmp/_vs_err_$$
-
-if [[ "$block" -eq 1 ]]; then
-  echo "$block_msgs" >&2
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "BLOCKED: version-sentinel. python3 is required to inspect manifest edits." >&2
   exit 2
 fi
-exit 0
+python3 "$DIR/lib/manifest-edit.py"
+status=$?
+if [[ "$status" -ne 0 ]]; then
+  if [[ "$status" -ne 2 ]]; then
+    echo "BLOCKED: version-sentinel. Manifest inspection failed (status $status); repair the hook before dependency edits." >&2
+  fi
+  exit 2
+fi

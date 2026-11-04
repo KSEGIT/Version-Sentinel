@@ -17,3 +17,5 @@ To execute this command, run the following with your Bash tool:
 If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/plugins info version-sentinel` (the managed copy lives under the Kimi plugins directory) and run the script from there.
 
 Relay the script's output verbatim to the user.
+
+Missing or invalid required manifests require user-confirmed recovery before recreation. Do not silently recreate them. See the repository enforcement workflow in docs/enforcement.md.

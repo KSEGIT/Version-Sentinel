@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 VS_TEST_NAME="vs-record"
-source "$(dirname "$0")/assert.sh"
+TEST_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$TEST_DIR/assert.sh"
+source "$TEST_DIR/registry-fixture.sh"
 
 VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/vs-record.sh"
 
+registry_fixture_setup
 cd "$VS_TMPDIR"
 
 # Valid URL → writes entry
@@ -21,7 +24,7 @@ out=$(bash "$SCRIPT" npm lodash 4.17.21 "intentional: CVE lock" 2>&1; echo "exit
 assert_contains "$out" "exit=0" "intentional: accepted"
 
 # Dedupe: same pkg new version overwrites
-out=$(bash "$SCRIPT" npm lodash 5.0.0 "https://www.npmjs.com/package/lodash" 2>&1; echo "exit=$?")
+out=$(bash "$SCRIPT" npm lodash 5.0.0 "intentional: fixture verifies an existing non-latest version" 2>&1; echo "exit=$?")
 count=$(jq '.entries | length' .version-sentinel/checks.json)
 assert_eq "1" "$count" "dedupe: still 1 entry"
 ver=$(jq -r '.entries[0].version' .version-sentinel/checks.json)

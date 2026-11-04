@@ -57,3 +57,7 @@ no-op (useful for throwaway sessions).
 
 Recorded checks live in `<workspace>/.version-sentinel/checks.json`
 (auto-gitignored on first write).
+
+## Mandatory startup audit and recovery
+
+Before dependency work, complete the online startup audit. Missing or invalid manifests require Daniel's explicit approval before recovery. The recorder now performs a successful online upstream check itself; URL-only, offline, and post-install records do not authorize changes. Older pins still need online verification and a reason. Follow [the enforcement workflow](docs/enforcement.md) for audit, recovery, and interception limits.

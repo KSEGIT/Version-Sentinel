@@ -17,3 +17,6 @@ if [[ -z "${VS_WINDOW_HOURS:-}" ]]; then
     export VS_WINDOW_HOURS
   fi
 fi
+
+# shellcheck source=json.sh
+source "${BASH_SOURCE[0]%/*}/json.sh"

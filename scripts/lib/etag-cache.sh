@@ -46,7 +46,7 @@ curl_with_etag() {
   shift 2
   # Bypass ETag when disabled (e.g., tests with curl stubs)
   if [[ "${VS_ETAG_DISABLE:-0}" == "1" ]]; then
-    curl -fsSL "$@" "$url"
+    curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 "$@" "$url"
     return $?
   fi
 
@@ -56,7 +56,7 @@ curl_with_etag() {
   body_file=$(mktemp)
   trap 'rm -f "$headers_file" "$body_file"' RETURN
 
-  local curl_args=(-sSL -D "$headers_file" -o "$body_file" "$@")
+  local curl_args=(-sSL --proto '=https' --connect-timeout 10 --max-time 30 -D "$headers_file" -o "$body_file" "$@")
   if [[ -n "$etag" ]]; then
     curl_args+=(-H "If-None-Match: $etag")
   fi
@@ -64,6 +64,7 @@ curl_with_etag() {
 
   local http_code
   http_code=$(curl -w '%{http_code}' "${curl_args[@]}" 2>/dev/null) || {
+    [[ "${VS_REQUIRE_ONLINE:-0}" == "1" ]] && return 1
     # Network failure: serve stale cache rather than blocking the caller entirely.
     # This is intentional — resilience over freshness on transient outages.
     local cached
@@ -89,6 +90,7 @@ curl_with_etag() {
 
   if [[ "$http_code" != "200" ]]; then
     echo "version-sentinel: HTTP $http_code from $url" >&2
+    [[ "${VS_REQUIRE_ONLINE:-0}" == "1" ]] && return 1
     local cached
     cached=$(etag_get_body "$base" "$url")
     if [[ -n "$cached" ]]; then

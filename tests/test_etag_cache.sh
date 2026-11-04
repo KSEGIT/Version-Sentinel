@@ -93,6 +93,10 @@ assert_eq '{"result":"fresh"}' "$body" "304: cached body returned on Not Modifie
 STUB_MODE=fail body=$(curl_with_etag "$CURL_TMPDIR" "https://example.com/api" 2>/dev/null)
 assert_eq '{"result":"fresh"}' "$body" "fail: falls back to cached body on network error"
 
+# Cached data cannot serve as evidence of a successful online check.
+STUB_MODE=fail VS_REQUIRE_ONLINE=1 curl_with_etag "$CURL_TMPDIR" "https://example.com/api" >/dev/null 2>&1
+assert_eq "1" "$?" "strict online mode rejects stale cache on network error"
+
 # Test: network failure with no cache → exit 1
 CURL_NOCACHE_DIR="$(mktemp -d)"
 STUB_MODE=fail curl_with_etag "$CURL_NOCACHE_DIR" "https://example.com/api" >/dev/null 2>&1

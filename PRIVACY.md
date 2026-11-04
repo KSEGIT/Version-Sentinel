@@ -59,3 +59,7 @@ effective date.
 
 For privacy questions, open an issue at
 <https://github.com/KSEGIT/Version-Sentinel/issues>.
+
+Startup audit state stores the canonical project path, manifest and lockfile names and hashes, audit time, and session ID when supplied. Recovery state stores the approved path, missing/invalid condition, caller-provided consent reason, and expiry time. Online check records store upstream URL, intended/latest versions, verification time, and project path. These stay in the local .version-sentinel directory. Registry requests send package names to the canonical public registries; do not put sensitive information in consent reasons.
+
+If the project directory is not writable, package check records use `${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/version-sentinel}/checks.json`. Audit and recovery evidence still require writable project state; that fallback cannot satisfy a missing project audit. To remove fallback records, delete that checks.json in the plugin data directory (or the directory when no longer needed).

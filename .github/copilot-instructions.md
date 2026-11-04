@@ -11,7 +11,7 @@ This workspace uses version-sentinel: dependency edits and install commands are 
    - csproj → nuget.org
 2. Record the check by running in the terminal:
    `bash scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url>`
-   The source must be an `http(s)://` URL you actually saw, or `intentional: <reason>` for deliberate pins.
+   The source must be the canonical `https://` registry URL you actually saw, or `intentional: <reason>` for deliberate pins.
 3. Retry with the exact version you recorded. If the blocked input omitted the version or used a floating tag such as `latest`, rewrite it first. For example, use `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
 
 Local paths, URLs, git sources, and workspace dependencies are outside registry-version checks. A NuGet `PackageReference` without `Version` may use Central Package Management, so the manifest gate ignores that form.
@@ -27,3 +27,7 @@ Run `bash scripts/check-versions.sh` before tagging a release. It scans `package
 ## Escape hatch
 
 Set `VS_DISABLE=1` in the environment to disable blocking for a session (throwaway work only, with the user's awareness).
+
+## Mandatory startup audit and recovery
+
+Before dependency work, complete the online startup audit. Missing or invalid manifests require Daniel's explicit approval before recovery. The recorder now performs a successful online upstream check itself; URL-only, offline, and post-install records do not authorize changes. Older pins still need online verification and a reason. Follow [the enforcement workflow](../docs/enforcement.md) for audit, recovery, and interception limits.

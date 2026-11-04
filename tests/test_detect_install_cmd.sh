@@ -7,7 +7,15 @@ VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/detect-install-cmd.sh"
 
+source "$(dirname "$SCRIPT")/../tests/registry-fixture.sh"
+registry_fixture_setup
 cd "$VS_TMPDIR"
+printf '{"dependencies":{}}\n' > package.json
+printf '' > requirements.txt
+printf '[project]\nname="test"\nversion="1.0.0"\n' > pyproject.toml
+printf '[package]\nname="test"\nversion="1.0.0"\n' > Cargo.toml
+printf '<Project/>\n' > Demo.csproj
+bash "$(dirname "$SCRIPT")/check-versions.sh" >/dev/null || exit 1
 
 # Case 1: npm install X@Y with no sidecar → block
 result=$(cat "$FIXTURES/bash_npm_install.json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
@@ -133,7 +141,6 @@ done
 
 # Case 4d: install inputs that are not registry package names still pass.
 for command in \
-  "pip install -r requirements.txt" \
   "pip install -e ." \
   "pip install ./local-package" \
   "pip install https://example.com/pkg.whl" \
@@ -154,16 +161,10 @@ for command in \
 done
 
 # Case 5: fresh sidecar → pass
-mkdir -p .version-sentinel
-now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-cat > .version-sentinel/checks.json <<EOF
-{"entries":[
-  {"ecosystem":"npm","pkg":"lodash","version":"4.17.21","source":"https://x","checkedAt":"$now"},
-  {"ecosystem":"pip","pkg":"requests","version":"2.31.0","source":"https://x","checkedAt":"$now"},
-  {"ecosystem":"pip","pkg":"flask","version":"3.0.0","source":"https://x","checkedAt":"$now"},
-  {"ecosystem":"cargo","pkg":"serde","version":"1.0.196","source":"https://x","checkedAt":"$now"}
-]}
-EOF
+bash "$(dirname "$SCRIPT")/vs-record.sh" npm lodash 4.17.21 https://www.npmjs.com/package/lodash >/dev/null || exit 1
+bash "$(dirname "$SCRIPT")/vs-record.sh" pip requests 2.31.0 https://pypi.org/project/requests/ >/dev/null || exit 1
+bash "$(dirname "$SCRIPT")/vs-record.sh" pip flask 3.0.0 https://pypi.org/project/flask/ >/dev/null || exit 1
+bash "$(dirname "$SCRIPT")/vs-record.sh" cargo serde 1.0.196 https://crates.io/crates/serde >/dev/null || exit 1
 result=$(cat "$FIXTURES/bash_npm_install.json" | bash "$SCRIPT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "fresh sidecar: pass"
 

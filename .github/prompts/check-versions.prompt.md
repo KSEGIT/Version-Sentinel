@@ -11,4 +11,6 @@ Relay the full output to the user, then interpret it briefly:
 - **intentional-pin** rows: deliberate pins with a recorded reason — no action needed unless the pin is stale.
 - **lookup-failed** rows: registry fetch failed; suggest re-running once, then checking the registry URL manually.
 
-This audit reports drift without blocking anything.
+Version drift alone is advisory. A missing, failed, expired, or outdated audit blocks dependency work.
+
+Missing or invalid required manifests require user-confirmed recovery before recreation. Do not silently recreate them. See the repository enforcement workflow in docs/enforcement.md.

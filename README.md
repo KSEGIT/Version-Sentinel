@@ -99,6 +99,8 @@ For marketplace listings and submission status per platform (what's ready, what 
 
 ## How it works
 
+SessionStart performs a mandatory online dependency audit. Missing or invalid manifests block dependency work until the user confirms recovery. Audit and online version evidence are enforced separately. See [enforcement and recovery](docs/enforcement.md) for commands, scan scope, and limits.
+
 1. Claude tries to add/bump a dep (`Edit package.json`, `npm install X@Y`, ...)
 2. PreToolUse hook fires, exits 2 with stderr:
    ```
@@ -115,18 +117,18 @@ For marketplace listings and submission status per platform (what's ready, what 
 - `/vs-record <ecosystem> <pkg> <version> <source>` — record a version check
 - `/check-versions` — audit manifests against upstream registries
 
-## Escape hatches
+## Older pins and offline failures
 
 | Case | How |
 |------|-----|
 | Deliberate old-version pin | `/vs-record npm pkg 1.0.0 "intentional: CVE fix deferred"` |
 | Throwaway session | `export VS_DISABLE=1` |
-| Private/forked package | Add `ecosystem:pkg` to `.version-sentinel/ignore` |
-| No WebSearch (non-US) | Use WebFetch URL or `intentional: no-websearch-region` |
+| Private registry | Not supported by the canonical upstream verifier |
+| Registry offline | Wait for a successful online check; an intentional reason does not bypass it |
 
 ## Sidecar file
 
-State: `<project-root>/.version-sentinel/checks.json`. Auto-gitignored on first write.
+State: `<project-root>/.version-sentinel/checks.json` and `audit.json`. Auto-gitignored on first write. The recorder fetches canonical upstream metadata and checks version existence before recording; old pins require an explicit reason too. Post-install hooks cannot grant verification.
 
 ## Uninstall
 
@@ -141,13 +143,13 @@ State: `<project-root>/.version-sentinel/checks.json`. Auto-gitignored on first 
 Claude Code only — relies on the PreToolUse hook API exposed by the CLI.
 
 **Does it slow Claude down?**
-First touch of a package: adds one `WebSearch` + one `/vs-record` call (~5–10s). Subsequent edits to the same pin hit the cached sidecar — zero overhead.
+Startup audits contact upstream registries. Package recording makes a separate online check. Fresh checks can be reused for the same project/package/version during the configured freshness window; file changes still require another audit.
 
 **Can I use this for private / internal registries?**
-Yes — add the `ecosystem:pkg` entry to `.version-sentinel/ignore`, or record with a justification string.
+The current verifier supports the public canonical registries only. A justification does not bypass online verification.
 
 **Why not just run `npm audit` / `pip-audit`?**
-Those are post-hoc. `version-sentinel` refuses the write in the first place, so the vulnerable version never enters the repo.
+Those are post-hoc. `version-sentinel` refuses the write in the first place, until version evidence is present. This is not a vulnerability scanner or a complete sandbox for arbitrary file writes.
 
 **Does it support Go modules, Gradle, Maven, composer, gems?**
 Not in v0.1. See `docs/roadmap.md`.
