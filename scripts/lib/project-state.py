@@ -16,7 +16,7 @@ import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
 
-from path_helpers import relative_key
+from path_helpers import relative_key, resolve_path
 
 UNPINNED = "__version_sentinel_unpinned__"
 EXCLUDED = {".git", ".worktrees", "node_modules", "target", ".venv", "venv", ".version-sentinel", "__pycache__"}
@@ -410,6 +410,40 @@ def write_json(path, data):
             os.unlink(temporary)
 
 
+def invalidate_state(root, previous, session=""):
+    previous.update(status="pending", root=str(root))
+    if session:
+        previous["session"] = session
+    write_json(state_path(root), previous)
+
+
+def startup_invalidate(fallback):
+    """Resolve startup JSON and revoke target evidence without jq or curl."""
+    root = resolve_path(fallback).resolve(strict=True)
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw, object_pairs_hook=unique_object) if raw else {}
+        mapping(payload, "startup payload")
+        cwd = payload.get("cwd")
+        session = payload.get("session_id")
+        cwd = "" if cwd is None else cwd
+        session = "" if session is None else session
+        if not isinstance(cwd, str) or not isinstance(session, str):
+            fail("startup cwd and session_id must be strings")
+    except (ValueError, TypeError):
+        # No valid payload root is available; revoke the fallback evidence.
+        invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
+        fail("Invalid startup payload; mandatory audit was not completed.")
+    if cwd:
+        if any(character in cwd for character in "\r\n"):
+            fail("Unsupported line break in startup project directory.")
+        root = resolve_path(cwd, root).resolve(strict=True)
+    if any(character in str(root) for character in "\r\n"):
+        fail("Unsupported line break in startup project directory.")
+    invalidate_state(root, read_json(state_path(root), {}), session)
+    print(json.dumps({"cwd": root.as_posix(), "session_id": session}))
+
+
 def usable_path(root, name):
     path = Path(name)
     path = path if path.is_absolute() else root / path
@@ -512,6 +546,9 @@ def condition(path):
 
 def main():
     command = sys.argv[1]
+    if command == "startup-invalidate":
+        startup_invalidate(sys.argv[2])
+        return
     if command in {"validate", "validate-content", "deps", "deps-content", "deps-intents-content", "dependency-fingerprint-content"}:
         path = Path(sys.argv[2])
         content = sys.stdin.read() if command.endswith("content") else path.read_text()
@@ -550,12 +587,9 @@ def main():
                 fail(f"Ask Daniel before recreating/repairing {relative}; no current user-confirmed recovery approval")
         return
     if command == "invalidate":
-        previous.update(status="pending", root=str(root))
-        if os.environ.get("VS_SESSION_ID"):
-            previous["session"] = os.environ["VS_SESSION_ID"]
-        write_json(path, previous)
+        invalidate_state(root, previous, os.environ.get("VS_SESSION_ID", ""))
         return
-    if command == "begin":
+    if command in {"begin", "begin-if-present"}:
         # Revoke old successful evidence before file validation or network access.
         pending = dict(previous)
         pending.update(status="pending", generation=secrets.token_hex(16), root=str(root))
@@ -563,7 +597,8 @@ def main():
         snapshot = inventory(root, previous)
         pending.update(snapshot)
         write_json(path, pending)
-        ensure_manifests(root, snapshot)
+        if command == "begin" or snapshot["required"] or snapshot["files"]:
+            ensure_manifests(root, snapshot)
         snapshot["generation"] = pending["generation"]
         print(json.dumps(snapshot, sort_keys=True))
         return
