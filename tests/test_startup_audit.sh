@@ -22,11 +22,12 @@ cd "$VS_AUDIT_TMP/project"
 result=$(bash "$ROOT/scripts/check-versions.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" "zero manifests cannot produce completed audit"
 assert_contains "$result" "Ask" "missing-manifest asks for user consent"
-result=$(printf '{}' | bash "$ROOT/scripts/session-start.sh" 2>"$VS_AUDIT_TMP/startup.err"); status=$?
-assert_exit_code 0 "$status" "missing-manifest startup is advisory"
-context=$(printf '%s' "$result" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
-assert_contains "$context" "Required dependency manifest is missing" "startup preserves missing-manifest diagnostic"
-assert_contains "$context" "Ask Daniel" "startup preserves recovery consent guidance"
+for mode in '' --gemini --copilot; do
+  result=$(AUDIT_FIXTURE_FAIL=1 bash "$ROOT/scripts/session-start.sh" "$mode" <<< '{}' 2>"$VS_AUDIT_TMP/startup.err"); status=$?
+  assert_exit_code 0 "$status" "empty startup needs no audit ($mode)"
+  assert_eq '' "$result" "empty startup has no false warning or success ($mode)"
+  assert_eq '' "$(cat "$VS_AUDIT_TMP/startup.err")" "empty startup has no diagnostic ($mode)"
+done
 
 printf '%s\n' '{"dependencies":{"lodash":"4.17.20"}}' > package.json
 result=$(bash "$ROOT/scripts/audit-state.sh" gate "$PWD" 2>&1); status=$?
