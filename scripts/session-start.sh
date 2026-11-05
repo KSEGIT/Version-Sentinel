@@ -24,14 +24,27 @@ if [[ -n "$input" ]]; then
   if [[ -n "$root" ]]; then cd "$root" || exit 2; fi
 fi
 bash "$DIR/audit-state.sh" invalidate "$PWD" || exit 2
-if [[ "${1:-}" == --gemini ]]; then
-  # Gemini permits JSON only on stdout; its lifecycle event is advisory.
-  audit_output=$(bash "$DIR/check-versions.sh")
-  audit_status=$?
+audit_output=$(bash "$DIR/check-versions.sh" 2>&1)
+audit_status=$?
+if [[ "$audit_status" -eq 2 && "$audit_output" == *'BLOCKED: version-sentinel.'* ]]; then
+  # A reported audit block is context, not a lifecycle hook crash. The audit
+  # already revoked prior evidence; PreToolUse still blocks dependency work.
+  warning='Version Sentinel startup audit failed; dependency work remains blocked. File inspection and questions remain available.'
+  printf -v retry 'Resolve the reported errors, then rerun from %q: bash %q' "$PWD" "$DIR/check-versions.sh"
   printf '%s\n' "$audit_output" >&2
-  if [[ "$audit_status" -eq 0 ]]; then
-    printf '%s' "$audit_output" | vs_jq -Rs '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
-  fi
+  printf '%s\n\n%s\n%s\n' "$audit_output" "$warning" "$retry" |
+    vs_jq -Rs --arg warning "$warning" '{systemMessage:$warning,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+  exit "$?"
+fi
+if [[ "$audit_status" -ne 0 ]]; then
+  # Setup errors and unexpected audit crashes remain failures, with diagnostics.
+  printf '%s\n' "$audit_output" >&2
   exit "$audit_status"
 fi
-exec bash "$DIR/check-versions.sh"
+if [[ "${1:-}" == --gemini ]]; then
+  # Gemini permits JSON only on stdout, including for a blocked audit above.
+  printf '%s\n' "$audit_output" >&2
+  printf '%s' "$audit_output" | vs_jq -Rs '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+else
+  printf '%s\n' "$audit_output"
+fi

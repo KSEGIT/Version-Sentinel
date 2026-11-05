@@ -27,6 +27,8 @@ Discovery covers four directory levels. It excludes generated/vendor/state direc
 
 A project with no supported manifest cannot complete an audit. In a repository with deliberately invalid test fixtures, the root audit may fail. Audit the actual application directory rather than treating those failures as success.
 
+A reported audit failure at session start returns advisory hook status 0. Startup displays a warning and supplies the full audit diagnostic and retry command as session context. Dependency work remains blocked because the failed audit revokes earlier evidence. This status allows file inspection and questions; it does not mean the audit passed. A direct `check-versions.sh` failure and dependency gates still return status 2. Invalid startup payloads, missing prerequisites, and unexpected audit crashes remain hook failures. Gemini startup returns JSON context for both successful and blocked audits.
+
 ## Missing or invalid manifests
 
 Stop dependency work and ask Daniel whether to create or repair the specific manifest. Inspect the repository and agree on contents first. Do not guess dependencies or recreate a deleted file silently. After the user confirms, record that consent from the project directory:
@@ -47,7 +49,7 @@ Shell handling recognizes literal package-manager commands, common wrappers, lit
 
 This is an agent hook guardrail, not an operating-system sandbox. It cannot intercept arbitrary shell/Python writes, generated commands, every package-manager alias or script, or manual edits outside hooked tools. Local evidence and consent files are not tamper-proof against a process with write access. Local/git/workspace sources and NuGet Central Package Management remain outside direct registry-version verification. Audit reports compare declared versions/bounds; they do not resolve every range, transitive lockfile version, workspace catalogue, platform marker, or vulnerability.
 
-Claude Code, Codex, Kimi, Gemini, and Copilot startup definitions invoke `session-start.sh`; dependency hooks enforce completion even if startup exits or times out. A host without hooks requires the same steps manually. Host-specific tool dispatch still needs verification on that host. Updating source does not reload an already trusted installed plugin. Review the PR, update the installed plugin through its normal installation path, approve the changed hooks when prompted, and start a new session. Do not modify installed cache files to simulate activation.
+Claude Code, Codex, Kimi, Gemini, and Copilot startup definitions invoke `session-start.sh`; dependency hooks enforce completion even if startup exits or times out. A host without hooks requires the same steps manually. Host-specific tool dispatch still needs verification on that host. Updating source does not reload an already trusted installed plugin or change an existing session's startup warning. Review the PR, update the installed plugin through its normal installation path, approve the changed hooks when prompted, and start a new session. Do not modify installed cache files to simulate activation.
 
 ## Routine and live checks
 

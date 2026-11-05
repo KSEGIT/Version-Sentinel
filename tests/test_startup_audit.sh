@@ -22,6 +22,11 @@ cd "$VS_AUDIT_TMP/project"
 result=$(bash "$ROOT/scripts/check-versions.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" "zero manifests cannot produce completed audit"
 assert_contains "$result" "Ask" "missing-manifest asks for user consent"
+result=$(printf '{}' | bash "$ROOT/scripts/session-start.sh" 2>"$VS_AUDIT_TMP/startup.err"); status=$?
+assert_exit_code 0 "$status" "missing-manifest startup is advisory"
+context=$(printf '%s' "$result" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
+assert_contains "$context" "Required dependency manifest is missing" "startup preserves missing-manifest diagnostic"
+assert_contains "$context" "Ask Daniel" "startup preserves recovery consent guidance"
 
 printf '%s\n' '{"dependencies":{"lodash":"4.17.20"}}' > package.json
 result=$(bash "$ROOT/scripts/audit-state.sh" gate "$PWD" 2>&1); status=$?
@@ -74,6 +79,7 @@ assert_exit_code 0 "$?" "audit succeeds after recovery"
 printf '%s\n' '{"dependencies":{"lodash":"4.17.21"}}' > package.json
 result=$(cd "$ROOT" && jq -nc --arg cwd "$VS_AUDIT_TMP/project" '{cwd:$cwd,session_id:"session-one"}' | bash scripts/session-start.sh 2>&1); status=$?
 assert_exit_code 0 "$status" "startup resolves plugin script path before changing project cwd"
+assert_contains "$result" 'version-sentinel: mandatory online dependency audit completed; no dependency versions changed.' "successful default startup keeps text output"
 VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 0 "$?" "startup evidence matches current session"
 VS_SESSION_ID=session-two bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
@@ -82,6 +88,50 @@ assert_exit_code 2 "$?" "another session cannot reuse startup evidence"
 bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
 VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 0 "$?" "manual audit retry retains startup session identity"
+
+# An expected audit block becomes visible startup context without opening gates.
+AUDIT_FIXTURE_FAIL=1 bash "$ROOT/scripts/session-start.sh" <<< '{}' >"$VS_AUDIT_TMP/blocked.json" 2>"$VS_AUDIT_TMP/startup.err"; status=$?
+assert_exit_code 0 "$status" "registry-failed startup is advisory"
+result=$(cat "$VS_AUDIT_TMP/blocked.json")
+printf '%s' "$result" | jq -e '.systemMessage | contains("dependency work remains blocked")' >/dev/null 2>&1
+assert_exit_code 0 "$?" "blocked startup displays a user-visible warning"
+context=$(printf '%s' "$result" | jq -r '.hookSpecificOutput | select(.hookEventName == "SessionStart") | .additionalContext' 2>/dev/null)
+assert_contains "$context" "lookup-failed" "startup preserves failed registry table"
+assert_contains "$context" 'BLOCKED: version-sentinel. Mandatory audit failed due to registry lookup/manifest errors. Resolve the errors and rerun; version drift alone does not fail an audit.' "startup preserves exact failed audit diagnostic"
+assert_contains "$context" "dependency work remains blocked" "startup does not claim successful audit"
+assert_contains "$context" "$ROOT/scripts/check-versions.sh" "startup gives runnable audit path"
+bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
+assert_exit_code 2 "$?" "advisory startup revokes previous successful evidence"
+result=$(jq -nc --arg cwd "$PWD" '{cwd:$cwd,tool_name:"Bash",tool_input:{command:"npm install"}}' |
+  bash "$ROOT/scripts/detect-install-cmd.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" "bare install stays blocked after advisory startup"
+assert_contains "$result" 'Startup dependency audit is missing, failed, expired, or project files changed' "bare install requires successful audit"
+result=$(jq -nc --arg cwd "$PWD" '{cwd:$cwd,tool_name:"Write",tool_input:{file_path:"package.json",content:"{\"dependencies\":{\"lodash\":\"4.17.20\"}}"}}' |
+  bash "$ROOT/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" "dependency edit stays blocked after advisory startup"
+assert_contains "$result" 'Startup dependency audit is missing, failed, expired, or project files changed' "dependency edit requires successful audit"
+
+# Deliberately unsupported fixture includes still fail the direct audit.
+printf '%s\n' '-r other.txt' > requirements.txt
+result=$(bash "$ROOT/scripts/check-versions.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" "unsupported requirements include still fails direct audit"
+assert_contains "$result" "unsupported requirements include name: other.txt" "direct audit explains unsupported include"
+result=$(bash "$ROOT/scripts/session-start.sh" <<< '{}' 2>"$VS_AUDIT_TMP/startup.err"); status=$?
+assert_exit_code 0 "$status" "unsupported include startup is advisory"
+context=$(printf '%s' "$result" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
+assert_contains "$context" 'BLOCKED: version-sentinel. unsupported requirements include name: other.txt; use requirements*.txt or constraints*.txt' "startup preserves exact unsupported include diagnostic"
+rm requirements.txt
+
+# Unexpected audit failures retain their exit status and diagnostic.
+cp -R "$ROOT/scripts" "$VS_AUDIT_TMP/crash-scripts"
+for crash_status in 2 17; do
+  printf 'echo "unexpected audit crash" >&2\nexit %s\n' "$crash_status" > "$VS_AUDIT_TMP/crash-scripts/check-versions.sh"
+  for mode in '' --gemini; do
+    result=$(bash "$VS_AUDIT_TMP/crash-scripts/session-start.sh" "$mode" <<< '{}' 2>&1); status=$?
+    assert_exit_code "$crash_status" "$status" "unexpected audit crash $crash_status remains a failure ($mode)"
+    assert_contains "$result" "unexpected audit crash" "unexpected audit failure remains visible ($mode)"
+  done
+done
 printf '%s\n' 'invalid json' | bash "$ROOT/scripts/session-start.sh" >/dev/null 2>&1
 assert_exit_code 2 "$?" "invalid startup payload blocks audit"
 bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
