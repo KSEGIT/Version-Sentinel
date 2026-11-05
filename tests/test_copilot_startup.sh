@@ -16,6 +16,8 @@ output=$(printf '%s' "$input" | bash -c "$command" 2>"$VS_TMPDIR/startup.err"); 
 assert_exit_code 0 "$status" "configured Copilot startup completes audit"
 printf '%s' "$output" | jq -e 'type == "object" and (.additionalContext | type == "string" and contains("audit completed"))' >/dev/null 2>&1
 assert_exit_code 0 "$?" "Copilot success returns JSON with top-level context"
+printf '%s' "$output" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart" and .hookSpecificOutput.additionalContext == .additionalContext' >/dev/null 2>&1
+assert_exit_code 0 "$?" "VS Code Local success receives the same context as Copilot"
 VS_SESSION_ID=copilot-session bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 0 "$?" "Copilot success creates enforced session evidence"
 
@@ -24,6 +26,10 @@ output=$(printf '%s' "$input" | bash -c "$command" 2>"$VS_TMPDIR/startup.err"); 
 assert_exit_code 0 "$status" "configured Copilot blocked audit is advisory"
 printf '%s' "$output" | jq -e 'type == "object" and (.additionalContext | type == "string" and contains("dependency work remains blocked") and (contains("audit completed") | not))' >/dev/null 2>&1
 assert_exit_code 0 "$?" "Copilot blocked audit returns JSON with top-level failure context"
+printf '%s' "$output" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart" and .hookSpecificOutput.additionalContext == .additionalContext' >/dev/null 2>&1
+assert_exit_code 0 "$?" "VS Code Local blocked audit receives the same context as Copilot"
+printf '%s' "$output" | jq -e '.systemMessage | contains("dependency work remains blocked")' >/dev/null 2>&1
+assert_exit_code 0 "$?" "VS Code Local blocked audit displays a user-visible warning"
 context=$(printf '%s' "$output" | jq -r '.additionalContext' 2>/dev/null)
 assert_contains "$context" 'BLOCKED: version-sentinel. unsupported requirements include name: other.txt; use requirements*.txt or constraints*.txt' "Copilot preserves full audit diagnostic"
 assert_contains "$context" "Resolve the reported errors, then rerun from" "Copilot includes retry guidance"

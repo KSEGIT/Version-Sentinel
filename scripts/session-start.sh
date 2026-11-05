@@ -34,7 +34,7 @@ if [[ "$audit_status" -eq 2 && "$audit_output" == *'BLOCKED: version-sentinel.'*
   printf '%s\n' "$audit_output" >&2
   printf '%s\n\n%s\n%s\n' "$audit_output" "$warning" "$retry" |
     if [[ "${1:-}" == --copilot ]]; then
-      vs_jq -Rs '{additionalContext:.}'
+      vs_jq -Rs --arg warning "$warning" '{systemMessage:$warning,additionalContext:.,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
     else
       vs_jq -Rs --arg warning "$warning" '{systemMessage:$warning,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
     fi
@@ -51,7 +51,7 @@ if [[ "${1:-}" == --gemini ]]; then
   printf '%s' "$audit_output" | vs_jq -Rs '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
 elif [[ "${1:-}" == --copilot ]]; then
   printf '%s\n' "$audit_output" >&2
-  printf '%s' "$audit_output" | vs_jq -Rs '{additionalContext:.}'
+  printf '%s' "$audit_output" | vs_jq -Rs '{additionalContext:.,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
 else
   printf '%s\n' "$audit_output"
 fi
