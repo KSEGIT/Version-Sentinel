@@ -33,7 +33,11 @@ if [[ "$audit_status" -eq 2 && "$audit_output" == *'BLOCKED: version-sentinel.'*
   printf -v retry 'Resolve the reported errors, then rerun from %q: bash %q' "$PWD" "$DIR/check-versions.sh"
   printf '%s\n' "$audit_output" >&2
   printf '%s\n\n%s\n%s\n' "$audit_output" "$warning" "$retry" |
-    vs_jq -Rs --arg warning "$warning" '{systemMessage:$warning,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+    if [[ "${1:-}" == --copilot ]]; then
+      vs_jq -Rs '{additionalContext:.}'
+    else
+      vs_jq -Rs --arg warning "$warning" '{systemMessage:$warning,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+    fi
   exit "$?"
 fi
 if [[ "$audit_status" -ne 0 ]]; then
@@ -45,6 +49,9 @@ if [[ "${1:-}" == --gemini ]]; then
   # Gemini permits JSON only on stdout, including for a blocked audit above.
   printf '%s\n' "$audit_output" >&2
   printf '%s' "$audit_output" | vs_jq -Rs '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:.}}'
+elif [[ "${1:-}" == --copilot ]]; then
+  printf '%s\n' "$audit_output" >&2
+  printf '%s' "$audit_output" | vs_jq -Rs '{additionalContext:.}'
 else
   printf '%s\n' "$audit_output"
 fi

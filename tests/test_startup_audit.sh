@@ -126,7 +126,7 @@ rm requirements.txt
 cp -R "$ROOT/scripts" "$VS_AUDIT_TMP/crash-scripts"
 for crash_status in 2 17; do
   printf 'echo "unexpected audit crash" >&2\nexit %s\n' "$crash_status" > "$VS_AUDIT_TMP/crash-scripts/check-versions.sh"
-  for mode in '' --gemini; do
+  for mode in '' --gemini --copilot; do
     result=$(bash "$VS_AUDIT_TMP/crash-scripts/session-start.sh" "$mode" <<< '{}' 2>&1); status=$?
     assert_exit_code "$crash_status" "$status" "unexpected audit crash $crash_status remains a failure ($mode)"
     assert_contains "$result" "unexpected audit crash" "unexpected audit failure remains visible ($mode)"

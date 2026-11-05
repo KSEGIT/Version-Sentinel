@@ -29,6 +29,8 @@ A project with no supported manifest cannot complete an audit. In a repository w
 
 A reported audit failure at session start returns advisory hook status 0. Startup displays a warning and supplies the full audit diagnostic and retry command as session context. Dependency work remains blocked because the failed audit revokes earlier evidence. This status allows file inspection and questions; it does not mean the audit passed. A direct `check-versions.sh` failure and dependency gates still return status 2. Invalid startup payloads, missing prerequisites, and unexpected audit crashes remain hook failures. Gemini startup returns JSON context for both successful and blocked audits.
 
+The Copilot repository hook passes `--copilot` to `session-start.sh`. This mode returns JSON with top-level `additionalContext` for successful and blocked audits, as required by [Copilot's SessionStart output contract](https://docs.github.com/en/copilot/reference/hooks-reference#sessionstart--sessionstart). Blocked context includes the full audit diagnostic, warning, and retry command. The default Claude/Codex output and Gemini JSON format are unchanged.
+
 ## Missing or invalid manifests
 
 Stop dependency work and ask Daniel whether to create or repair the specific manifest. Inspect the repository and agree on contents first. Do not guess dependencies or recreate a deleted file silently. After the user confirms, record that consent from the project directory:
