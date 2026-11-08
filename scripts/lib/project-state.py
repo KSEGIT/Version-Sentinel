@@ -420,8 +420,11 @@ def invalidate_state(root, previous, session=""):
 def startup_invalidate(fallback):
     """Resolve startup JSON and revoke target evidence without jq or curl."""
     root = resolve_path(fallback).resolve(strict=True)
-    raw = sys.stdin.read()
     try:
+        # Hook JSON is UTF-8 even when native Windows pipes use an ANSI code page.
+        if hasattr(sys.stdin, "reconfigure"):
+            sys.stdin.reconfigure(encoding="utf-8")
+        raw = sys.stdin.read()
         payload = json.loads(raw, object_pairs_hook=unique_object) if raw else {}
         mapping(payload, "startup payload")
         cwd = payload.get("cwd")

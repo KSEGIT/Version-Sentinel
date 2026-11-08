@@ -102,11 +102,14 @@ if [[ "$(python3 -c 'import os; print(os.name)')" != nt ]]; then
   mkdir "$VS_TMPDIR/linebreak"$'\n'
 fi
 printf '{}' > "$VS_TMPDIR/café project/package.json"
-input=$(jq -nc --arg cwd "$VS_TMPDIR/café project" '{cwd:$cwd,session_id:"unicode-session"}')
-output=$(bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
-assert_exit_code 0 "$status" 'startup preserves Unicode and spaces in payload cwd'
-VS_SESSION_ID=unicode-session bash "$ROOT/scripts/audit-state.sh" gate "$VS_TMPDIR/café project" >/dev/null 2>&1
-assert_exit_code 0 "$?" 'Unicode target receives its own session evidence'
+for startup_encoding in utf-8 cp1252; do
+  # Native Windows Python uses the ANSI code page for pipes; hook JSON is UTF-8.
+  input=$(jq -nc --arg cwd "$VS_TMPDIR/café project" --arg session "unicode-$startup_encoding" '{cwd:$cwd,session_id:$session}')
+  output=$(PYTHONIOENCODING="$startup_encoding" bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
+  assert_exit_code 0 "$status" "startup preserves Unicode and spaces in payload cwd ($startup_encoding): $(cat "$VS_TMPDIR/startup.err")"
+  VS_SESSION_ID="unicode-$startup_encoding" bash "$ROOT/scripts/audit-state.sh" gate "$VS_TMPDIR/café project" >/dev/null 2>&1
+  assert_exit_code 0 "$?" "Unicode target receives its own session evidence ($startup_encoding)"
+done
 input=$(jq -nc --arg cwd "$VS_TMPDIR/linebreak"$'\n' '{cwd:$cwd}')
 output=$(bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>&1); status=$?
 assert_exit_code 2 "$status" 'line break cwd fails before ambiguous shell transport'
