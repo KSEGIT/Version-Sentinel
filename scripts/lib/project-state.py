@@ -106,6 +106,11 @@ def pep508(spec):
         if not raw[1:].strip():
             fail(f"missing direct reference for {name}")
         return None
+    # PEP 508 permits one optional pair around an otherwise identical list.
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = raw[1:-1].strip()
+        if not raw:
+            fail(f"unrecognized Python version selector for {name}")
     if raw and not re.fullmatch(r"(?:===|==|~=|>=|<=|>|<|!=|\^|~)\s*[A-Za-z0-9][A-Za-z0-9.*+_!-]*(?:\s*,\s*(?:===|==|~=|>=|<=|>|<|!=)\s*[A-Za-z0-9][A-Za-z0-9.*+_!-]*)*", raw):
         fail(f"unrecognized Python version selector for {name}")
     return name, version(raw)
