@@ -410,7 +410,7 @@ def write_json(path, data):
             os.unlink(temporary)
 
 
-def usable_path(root, name):
+def usable_path(root, name, *, allow_deep=False):
     path = Path(name)
     path = path if path.is_absolute() else root / path
     path = path.resolve()
@@ -418,7 +418,7 @@ def usable_path(root, name):
         relative = path.relative_to(root)
     except ValueError:
         fail(f"manifest is outside project: {path}")
-    if any(c in str(relative) for c in "\n\r\t") or len(relative.parts) > 4 or any(p in EXCLUDED for p in relative.parts):
+    if any(c in str(relative) for c in "\n\r\t") or (not allow_deep and len(relative.parts) > 4) or any(p in EXCLUDED for p in relative.parts):
         fail(f"manifest is outside supported audit scope: {path}")
     return path, relative_key(path, root)
 
@@ -439,7 +439,8 @@ def inventory(root, previous):
                 found.add(safe)
     required = {name for name in found if ecosystem(name)}
     for name in previous.get("required", []):
-        _, safe = usable_path(root, name)
+        # Previously audited includes remain required even after deletion.
+        _, safe = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
         required.add(safe)
     tracked = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--"], capture_output=True) if shutil.which("git") else None
     if tracked is not None and tracked.returncode == 0:
@@ -467,8 +468,9 @@ def inventory(root, previous):
         for line in requirements_lines(path.read_text()):
             match = re.match(r"\s*(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))([^\s#]+)", line)
             if match:
-                target, safe = usable_path(root, path.parent / match.group(1))
-                if not ecosystem(target):
+                # Discovery stays bounded; explicit inputs extend its closure.
+                target, safe = usable_path(root, path.parent / match.group(1), allow_deep=True)
+                if ecosystem(target) != "pip":
                     fail(f"unsupported requirements include name: {safe}; use requirements*.txt or constraints*.txt")
                 if safe not in required:
                     required.add(safe)
@@ -529,7 +531,9 @@ def main():
     path = state_path(root)
     previous = read_json(path, {})
     if command in {"recovery-allowed", "approve"}:
-        target, relative = usable_path(root, sys.argv[3])
+        target, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")
+        if not in_scope(Path(relative)) and relative not in inventory(root, previous)["required"]:
+            fail(f"manifest is not a required requirements include: {relative}")
         if not ecosystem(target):
             fail("recovery target is not a supported dependency manifest")
         current = condition(target)
@@ -585,7 +589,7 @@ def main():
         if previous.get("status") != "complete" or not 0 <= age <= window or any(previous.get(key) != snapshot[key] for key in snapshot) or (session and previous.get("session") != session):
             fail("Startup dependency audit is missing, failed, expired, or project files changed. Run bash scripts/check-versions.sh in this project before dependency work. Reading files and requesting recovery consent remain allowed.")
         if command == "covers":
-            _, relative = usable_path(root, sys.argv[3])
+            _, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")
             if relative not in snapshot["files"] or snapshot["files"][relative] is None:
                 fail(f"Manifest {relative} was not included in the successful audit; use a supported manifest inside this project and rerun check-versions.sh")
     else:
