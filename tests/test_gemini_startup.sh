@@ -16,6 +16,13 @@ for source in startup resume clear; do
   VS_SESSION_ID="$source" bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
   assert_exit_code 0 "$?" "Gemini $source creates enforced session evidence"
 done
+printf '%s\n' '-r other.txt' > requirements.txt
+output=$(bash "$ROOT/scripts/session-start.sh" --gemini <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
+assert_exit_code 0 "$status" "Gemini blocked audit is advisory"
+printf '%s' "$output" | jq -e 'type == "object" and .hookSpecificOutput.hookEventName == "SessionStart" and (.hookSpecificOutput.additionalContext | contains("unsupported requirements include name: other.txt") and contains("dependency work remains blocked") and contains("check-versions.sh") and (contains("audit completed") | not))' >/dev/null 2>&1
+assert_exit_code 0 "$?" "Gemini blocked audit returns valid failure context JSON only"
+bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
+assert_exit_code 2 "$?" "Gemini advisory failure revokes successful evidence"
 # The published Gemini schema uses milliseconds, not seconds.
 timeout=$(jq '.hooks.SessionStart[0].hooks[0].timeout' "$ROOT/hooks/gemini-hooks.json")
 if [[ "$timeout" -lt 60000 ]]; then _fail 'Gemini startup timeout must allow a real online audit (milliseconds)'; fi
