@@ -78,8 +78,8 @@ VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/
 assert_exit_code 0 "$?" "startup evidence matches current session"
 VS_SESSION_ID=session-two bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 2 "$?" "another session cannot reuse startup evidence"
-# A manual retry preserves the current session identity recorded by startup.
-bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
+# Without a host identity, a manual retry preserves the recorded startup session.
+CODEX_THREAD_ID= bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
 VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 0 "$?" "manual audit retry retains startup session identity"
 printf '%s\n' 'invalid json' | bash "$ROOT/scripts/session-start.sh" >/dev/null 2>&1
