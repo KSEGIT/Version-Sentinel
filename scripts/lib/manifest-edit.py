@@ -247,7 +247,12 @@ def inspect(root, proposed):
     errors = []
     checked_audit = None
     for path, before, after in proposed:
-        valid_before = before is not None and state("validate-content", root, path, content=before).returncode == 0
+        before_validation = state("validate-content", root, path, content=before) if before is not None else None
+        valid_before = before_validation is not None and before_validation.returncode == 0
+        if before_validation is not None and "Unsupported dependency-selector" in before_validation.stderr:
+            errors.append(f"Cannot fully audit existing manifest {path}: {before_validation.stderr.strip()}. "
+                          "Preserve the manifest and add verified parser support before retrying.")
+            continue
         recovery = False
         if not valid_before:
             recovery = state("recovery-allowed", root, root, path).returncode == 0

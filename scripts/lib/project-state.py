@@ -196,7 +196,7 @@ def dependencies(path, content, intents=False):
 
     if eco == "npm":
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
-        reject_resolver_sections(data, ("overrides", "resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
+        reject_resolver_sections(data, ("resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
         pnpm = mapping(data.get("pnpm", {}), "pnpm")
         reject_resolver_sections(pnpm, ("overrides", "catalog", "catalogs", "packageExtensions"), "pnpm")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
@@ -212,6 +212,32 @@ def dependencies(path, content, intents=False):
                 selected = version(raw, npm=True)
                 if selected is not None:
                     emit(name, selected, selector, f"{section}.{declaration}")
+        # Interpret only shapes whose full selector intent we can retain. Other
+        # npm override forms stay blocked instead of being silently ignored.
+        for name, raw in mapping(data.get("overrides", {}), "npm.overrides").items():
+            if not re.fullmatch(r"(?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*", name) or not isinstance(raw, str):
+                fail(f"Unsupported dependency-selector construct: npm.overrides.{name}. Only flat package-name keys with string values are tracked; nested/version-qualified overrides remain blocked.")
+            selector = {"override": raw}
+            if raw.startswith("$"):
+                reference = raw[1:]
+                for section in ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies"):
+                    resolved = data.get(section, {}).get(reference)
+                    if resolved:
+                        selector.update(reference=reference, source=section, resolved=resolved)
+                        raw = resolved
+                        break
+                else:
+                    fail(f"Unsupported dependency-selector reference: npm.overrides.{name} cannot resolve {raw} to a direct dependency.")
+            if raw.startswith("npm:"):
+                match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
+                if not match:
+                    fail(f"unsupported npm alias {raw}")
+                package, raw = match.group(1), match.group(2) or ""
+            else:
+                package = name
+            selected = version(raw, npm=True)
+            if selected is not None:
+                emit(package, selected, selector, f"overrides.{name}")
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
@@ -351,7 +377,7 @@ def dependency_fingerprint(path, content):
     eco = ecosystem(path)
     if eco == "npm":
         data = json.loads(content)
-        relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies") if key in data}
+        relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides") if key in data}
     elif eco in {"cargo", "pyproject"}:
         data = tomllib.loads(content)
         if eco == "cargo":
@@ -495,6 +521,8 @@ def ensure_manifests(root, snapshot):
         try:
             dependencies(path, path.read_text())
         except (ValueError, ET.ParseError) as error:
+            if str(error).startswith("Unsupported dependency-selector"):
+                fail(f"Cannot fully audit {name}: {error}. This is a parser limitation; preserve the manifest and add verified parser support before retrying.")
             fail(f"Required manifest is invalid: {name}: {error}. Ask Daniel before repairing/recreating it; use recover-manifest.sh approve FILE --user-confirmed REASON after consent.")
 
 
