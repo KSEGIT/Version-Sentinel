@@ -95,6 +95,8 @@ installed copy. Set the environment explicitly when invoking that checkout or
 when using a host that does not export these options. The source and scope are
 documented in Claude's [manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
 and [configuration CLI reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+Projects without npm manifests or lockfiles skip this Claude settings lookup;
+the existing evidence gate still checks for removed project files.
 
 The startup audit and explicit `bash scripts/check-versions.sh` run both enabled
 providers before creating successful audit evidence. Supported structured npm

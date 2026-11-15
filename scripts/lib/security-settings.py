@@ -103,14 +103,24 @@ def apply_saved_settings(plugin_root=None):
 
 def main():
     try:
-        apply_saved_settings()
+        engine = runpy.run_path(str(Path(__file__).with_name('security.py')),
+                                run_name='security_settings_engine')
+        arguments = sys.argv[1:]
+        relevant = True
+        if len(arguments) == 2 and arguments[0] in {'audit', 'gate'}:
+            root = engine['resolve_path'](arguments[1]).resolve(strict=True)
+            current = engine['snapshot'](root, {})
+            relevant = any(Path(name).name in engine['TRACKED'] - {'.npmrc'}
+                           for name in current['files'])
+        if relevant:
+            apply_saved_settings()
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         print(f'BLOCKED: version-sentinel. Security unknown/incomplete: {error}', file=sys.stderr)
         return 2
-    engine = Path(__file__).with_name('security.py')
-    sys.argv[0] = str(engine)
-    runpy.run_path(str(engine), run_name='__main__')
+    return engine['run'](arguments)
 
 
 if __name__ == '__main__':
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', newline='\n')
     sys.exit(main())

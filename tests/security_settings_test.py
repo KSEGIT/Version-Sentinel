@@ -131,19 +131,33 @@ class SavedSettingsTests(unittest.TestCase):
             self.assertEqual(os.environ['VS_SECURITY_OSV'], 'true')
             self.assertEqual(os.environ['VS_SECURITY_NPM_AUDIT'], 'true')
 
-    def wrapper_fixture(self, fail=False):
+    def wrapper_fixture(self, fail=False, npm=True, real_engine=False):
         plugin = self.root / 'plugin with spaces'
         shutil.copytree(LIB.parent, plugin / 'scripts')
         marker = self.root / 'engine-ran'
-        (plugin / 'scripts/lib/security.py').write_text(
-            'import os\nfrom pathlib import Path\n'
-            'Path(os.environ["VS_SETTINGS_FIXTURE_MARKER"]).write_text("ran")\n'
-            'print(os.environ.get("VS_SECURITY_OSV", "unset"))\n')
+        if npm:
+            (self.root / 'package.json').write_text('{}')
+        if not real_engine:
+            (plugin / 'scripts/lib/security.py').write_text(
+                'import os\nfrom pathlib import Path\n'
+                'TRACKED={"package.json"}\n'
+                'def resolve_path(value): return Path(value)\n'
+                'def snapshot(root, config):\n'
+                ' return {"files":{"package.json":"fixture"} if (root/"package.json").is_file() else {}}\n'
+                'def run(args):\n'
+                ' Path(os.environ["VS_SETTINGS_FIXTURE_MARKER"]).write_text("ran")\n'
+                ' print(os.environ.get("VS_SECURITY_OSV", "unset"))\n'
+                ' return 0\n'
+                'if __name__ == "__main__":\n'
+                ' import sys\n'
+                ' sys.exit(run(sys.argv[1:]))\n')
         binary = self.root / 'fixture-bin'
         binary.mkdir()
         fixture = binary / 'fixture.py'
         fixture.write_text(
-            'import json, os, sys\n'
+            'import json, os, sys\nfrom pathlib import Path\n'
+            'with Path(os.environ["VS_SETTINGS_FIXTURE_CALLS"]).open("a") as log:\n'
+            ' log.write(json.dumps(sys.argv[1:])+"\\n")\n'
             'if sys.argv[1:] == ["plugin", "list", "--json"]:\n'
             ' print(json.dumps([{"id":"version-sentinel@fixture",'
             '"installPath":os.environ["VS_SETTINGS_FIXTURE_ROOT"]}]))\n'
@@ -170,10 +184,12 @@ class SavedSettingsTests(unittest.TestCase):
         environment.update(PATH=str(binary) + os.pathsep + os.environ.get('PATH', ''),
                            VS_SETTINGS_FIXTURE_ROOT=str(plugin),
                            VS_SETTINGS_FIXTURE_MARKER=str(marker),
+                           VS_SETTINGS_FIXTURE_CALLS=str(self.root / 'cli-calls'),
                            VS_SETTINGS_FIXTURE_FAIL='1' if fail else '0')
         bash = str(Path(shutil.which('bash')).resolve())
-        result = subprocess.run([bash, (plugin / 'scripts/security-check.sh').as_posix(),
-                                 'audit', str(self.root)], env=environment,
+        self.wrapper_command = [bash, (plugin / 'scripts/security-check.sh').as_posix(), 'audit', str(self.root)]
+        self.wrapper_environment = environment
+        result = subprocess.run(self.wrapper_command, env=environment,
                                 capture_output=True, text=True, timeout=30, check=False)
         return result, marker
 
@@ -189,6 +205,34 @@ class SavedSettingsTests(unittest.TestCase):
         self.assertIn('unknown/incomplete', result.stderr)
         self.assertNotIn('private unrelated option text', result.stderr)
         self.assertFalse(marker.exists())
+
+    def test_no_npm_audit_and_gate_skip_failing_claude_lookup(self):
+        (self.root / 'requirements.txt').write_text('# Python-only fixture\n')
+        result, _ = self.wrapper_fixture(fail=True, npm=False, real_engine=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.root / 'cli-calls').exists())
+        command = list(self.wrapper_command)
+        command[-2] = 'gate'
+        gate = subprocess.run(command, env=self.wrapper_environment, capture_output=True,
+                              text=True, timeout=30, check=False)
+        self.assertEqual(gate.returncode, 0, gate.stderr)
+        self.assertFalse((self.root / 'cli-calls').exists())
+
+    def test_deleted_npm_state_still_fails_engine_gate_without_cli_lookup(self):
+        result, _ = self.wrapper_fixture(fail=True, npm=False, real_engine=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state_path = self.root / '.version-sentinel/security.json'
+        state = json.loads(state_path.read_text())
+        state['status'] = 'complete'
+        state['files'] = {'package.json': 'previous manifest hash'}
+        state_path.write_text(json.dumps(state))
+        command = list(self.wrapper_command)
+        command[-2] = 'gate'
+        gate = subprocess.run(command, env=self.wrapper_environment, capture_output=True,
+                              text=True, timeout=30, check=False)
+        self.assertEqual(gate.returncode, 2, gate.stderr)
+        self.assertIn('project/settings changed', gate.stderr)
+        self.assertFalse((self.root / 'cli-calls').exists())
 
 
 if __name__ == '__main__':
