@@ -90,8 +90,15 @@ Before supported named dependency additions or version changes, OSV checks the
 proposed exact npm package version. npm audit checks the currently resolved tree;
 it does not predict a future resolver result. The tree is checked again after a
 change. An intentional-version-pin reason never waives an advisory or an enabled
-provider failure. No hook runs `npm audit fix`, changes a package version, or
-installs a package to repair a finding.
+provider failure. Direct lockfile writes also require successful current startup
+and security evidence before the proposed lock versions are checked. A missing
+or unsupported current npm lock is incomplete and cannot gain a clean result
+through a lockfile write. For an explicit migration or initial lock bootstrap,
+configure provider settings deliberately, complete the current audit, write the
+reviewed lock, then enable both providers and rerun the audit. The hook never
+automatically exempts lockfile repair from the current audit. No hook runs
+`npm audit fix`, changes a package version, or installs a package to repair a
+finding.
 
 Supported resolved-tree input is `package-lock.json` version 2 or 3, discovered
 within the same four-level project scope. Both direct and transitive resolved

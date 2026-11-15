@@ -51,6 +51,44 @@ assert_exit_code 2 "$status" 'direct lock write blocks failed proposal scan'
 assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'lock proposal preserves advisory diagnostics'
 assert_contains "$(cat "$SECURITY_CALLS")" "proposed-lock $VS_TEST_CANONICAL_ROOT" 'lock post-image reaches security engine'
 
+# A proposed lock check cannot replace mandatory current project evidence.
+lock_payload='{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}'
+mv .version-sentinel/audit.json "$VS_TMPDIR/current-audit.json"
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" 'direct lock write blocks missing current startup audit'
+cp "$VS_TMPDIR/current-audit.json" .version-sentinel/audit.json
+python3 - <<'PYTIME'
+import json
+from pathlib import Path
+path = Path('.version-sentinel/audit.json')
+data = json.loads(path.read_text())
+data['checkedAt'] = 1
+path.write_text(json.dumps(data))
+PYTIME
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" 'direct lock write blocks stale startup audit'
+cp "$VS_TMPDIR/current-audit.json" .version-sentinel/audit.json
+result=$(printf '%s\n' "$lock_payload" | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" 'direct lock write blocks failed current security gate'
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 0 "$status" 'current audit and clean proposed lock allow direct write'
+# Network proposal checks receive the full hook budget without waiting in tests.
+python3 - "$VS_TMPDIR/scripts/lib" <<'PYTIMEOUT'
+import importlib.util
+from pathlib import Path
+import subprocess
+import sys
+from unittest.mock import patch
+sys.path.insert(0, sys.argv[1])
+spec = importlib.util.spec_from_file_location('manifest_edit', Path(sys.argv[1]) / 'manifest-edit.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+with patch.object(module.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as mocked:
+    module.run(['bash', 'security-check.sh', 'proposed', '.', 'lodash', '4.17.21'], Path.cwd())
+    assert mocked.call_args.kwargs['timeout'] == 180, mocked.call_args
+PYTIMEOUT
+assert_exit_code 0 "$?" 'proposal subprocess uses 180 second hook budget'
+
 # Post hooks must skip unrelated tools, scan changed npm state, and never record.
 : > "$SECURITY_CALLS"
 printf '%s\n' '{"tool_name":"Read","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"

@@ -60,7 +60,7 @@ def run(args, root, content=None):
         raise Blocked("bash is required to inspect manifest edits.")
     command = [str(Path(executable).resolve()), *args[1:]]
     return subprocess.run(command, cwd=root, input=content, capture_output=True,
-                          text=True, timeout=30, check=False)
+                          text=True, timeout=180, check=False)
 
 
 def state(action, root, *args, content=None):
@@ -257,6 +257,11 @@ def inspect(root, proposed):
     for path, before, after in proposed:
         if path.name in NPM_LOCKFILES:
             if before == after:
+                continue
+            if checked_audit is None:
+                checked_audit = state("gate", root, root)
+            if checked_audit.returncode:
+                errors.append(diagnostics(checked_audit) or "Complete the mandatory current audit before npm lockfile changes.")
                 continue
             result = run(["bash", bash_script_path(SCRIPTS / "security-check.sh"),
                           "proposed-lock", str(root), str(path)], root, after)
