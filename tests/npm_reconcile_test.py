@@ -1,10 +1,12 @@
 """Guarded lock reconciliation uses exact pre-approved project transitions."""
 import contextlib
+import hashlib
 import importlib
 import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -22,6 +24,49 @@ def module(name, path):
     result = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(result)
     return result
+
+
+def staged_fixture_summary(expected, staged):
+    """Describe fixture differences without exposing arbitrary saved values."""
+    public_fields = {'name', 'version', 'dependencies', 'devDependencies',
+                     'optionalDependencies', 'peerDependencies', 'scripts', 'private'}
+
+    def hashed(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+
+    def parsed(raw):
+        try:
+            value = json.loads(raw)
+            return value if isinstance(value, dict) else {}
+        except (ValueError, UnicodeError):
+            return {}
+
+    before, after = parsed(expected), parsed(staged)
+    changes = {}
+    for key in sorted(before.keys() | after.keys()):
+        left, right = before.get(key), after.get(key)
+        if key in before and key in after and type(left) is type(right) and hashed(left) == hashed(right):
+            continue
+        label = key if key in public_fields else 'other-field-sha256:' + hashed(key)
+        changes[label] = {
+            'expected_type': type(left).__name__ if key in before else 'absent',
+            'staged_type': type(right).__name__ if key in after else 'absent',
+            'expected_sha256': hashed(left) if key in before else None,
+            'staged_sha256': hashed(right) if key in after else None,
+        }
+        if key in {'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'}:
+            for prefix, value in (('expected', left), ('staged', right)):
+                if isinstance(value, dict):
+                    changes[label][prefix + '_packages'] = [
+                        name if name == 'lodash' else 'package-sha256:' + hashed(name)
+                        for name in sorted(value)
+                    ]
+    return json.dumps({'changed_fields': changes,
+                       'expected_bytes': len(expected), 'staged_bytes': len(staged),
+                       'expected_sha256': hashlib.sha256(expected).hexdigest(),
+                       'staged_sha256': hashlib.sha256(staged).hexdigest(),
+                       'expected_bom': expected.startswith(b'\xef\xbb\xbf'),
+                       'staged_bom': staged.startswith(b'\xef\xbb\xbf')}, sort_keys=True)
 
 
 class ReconciliationTests(unittest.TestCase):
@@ -235,15 +280,35 @@ class ReconciliationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('npm'), 'npm is required for the real scriptless resolver smoke')
     def test_real_scriptless_lock_regeneration_after_approved_removal(self):
+        version = subprocess.run([shutil.which('npm'), '--version'], capture_output=True,
+                                 text=True, timeout=30, check=False)
+        safe_version = version.stdout.strip()
+        if version.returncode or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', safe_version):
+            safe_version = 'unavailable'
+        print(f'reconciliation fixture: npm={safe_version} platform={sys.platform}', file=sys.stderr)
         for newline in ('\n', '\r\n'):
             with self.subTest(newline=repr(newline)):
                 self.manifest.write_bytes(self.before.encode())
                 self.lockpath.write_bytes(self.lock.encode())
                 self.after = json.dumps({'name': 'fixture', 'dependencies': {}}, indent=2).replace('\n', newline) + newline
                 self.approved_change()
+                expected = self.manifest.read_bytes()
+                original_content = self.rec.manifest_content
+                expected_content = original_content(expected)
+
+                def diagnostic_content(raw):
+                    try:
+                        result = original_content(raw)
+                    except (ValueError, UnicodeError):
+                        print('reconciliation fixture staged mismatch: ' + staged_fixture_summary(expected, raw), file=sys.stderr)
+                        raise
+                    if result != expected_content:
+                        print('reconciliation fixture staged mismatch: ' + staged_fixture_summary(expected, raw), file=sys.stderr)
+                    return result
+
                 # Removing the sole dependency needs no registry resolution.
                 # Force offline mode to prohibit accidental registry requests.
-                with patch.dict(os.environ, {'npm_config_offline': 'true'}), contextlib.redirect_stdout(io.StringIO()):
+                with patch.dict(os.environ, {'npm_config_offline': 'true'}), patch.object(self.rec, 'manifest_content', side_effect=diagnostic_content), contextlib.redirect_stdout(io.StringIO()):
                     self.rec.regenerate(self.root, self.manifest)
                 self.assertEqual(self.manifest.read_bytes(), self.after.encode())
                 self.assertEqual(json.loads(self.lockpath.read_text())['packages'][''].get('dependencies', {}), {})
