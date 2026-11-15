@@ -440,6 +440,105 @@ class SecurityEngineTests(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn('GHSA-fixture-1234', out)
 
+    def test_metadata_high_cannot_disappear_into_low_entries_with_osv_disabled(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_OSV'] = 'false'
+        response = self.clean_npm()
+        data = json.loads(response.stdout)
+        data['metadata']['vulnerabilities'].update(high=1, total=1)
+        data['vulnerabilities'] = {'direct': {
+            'name': 'direct', 'severity': 'low', 'nodes': ['node_modules/direct'],
+            'via': [{'source': 1234, 'severity': 'low',
+                     'url': 'https://github.com/advisories/GHSA-fixture-1234', 'range': '*'}],
+            'range': '*', 'fixAvailable': False}}
+        response.stdout = json.dumps(data)
+        self.providers(module, npm=response)
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        evidence = json.loads((self.root / '.version-sentinel/security.json').read_text())
+        self.assertEqual(evidence['status'], 'incomplete')
+        self.assertIn('GHSA-fixture-1234', out)
+        self.assertEqual(self.command(module, 'gate', str(self.root))[0], 2)
+
+    def test_source_high_cannot_contradict_low_aggregate_severity(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_OSV'] = 'false'
+        response = self.clean_npm()
+        data = json.loads(response.stdout)
+        data['metadata']['vulnerabilities'].update(low=1, total=1)
+        data['vulnerabilities'] = {'direct': {
+            'name': 'direct', 'severity': 'low', 'nodes': ['node_modules/direct'],
+            'via': [{'source': 1234, 'severity': 'high',
+                     'url': 'https://github.com/advisories/GHSA-fixture-1234', 'range': '*'}],
+            'range': '*', 'fixAvailable': False}}
+        response.stdout = json.dumps(data)
+        self.providers(module, npm=response)
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        evidence = json.loads((self.root / '.version-sentinel/security.json').read_text())
+        self.assertEqual(evidence['status'], 'incomplete')
+        self.assertIn('GHSA-fixture-1234', out)
+
+    def test_immutable_scan_inputs_survive_project_a_to_b_to_a_race(self):
+        self.project()
+        module = self.engine()
+        original = {name: (self.root / name).read_bytes()
+                    for name in ('package.json', 'package-lock.json')}
+        alternate_manifest = json.loads(original['package.json'])
+        alternate_manifest['dependencies']['direct'] = '2.0.0'
+        alternate_lock = json.loads(original['package-lock.json'])
+        alternate_lock['packages']['']['dependencies']['direct'] = '2.0.0'
+        alternate_lock['packages']['node_modules/direct'].update(
+            version='2.0.0', resolved='https://registry.npmjs.org/direct/-/direct-2.0.0.tgz')
+        queried, npm_inputs = [], []
+        def request(url, body=None):
+            queried.extend((query['package']['name'], query['version']) for query in body['queries'])
+            return {'results': [{} for _ in body['queries']]}
+        self.providers(module, request)
+        parse = module.locked_packages
+        def mutate_before_parse(*args, **kwargs):
+            (self.root / 'package.json').write_text(json.dumps(alternate_manifest))
+            (self.root / 'package-lock.json').write_text(json.dumps(alternate_lock))
+            return parse(*args, **kwargs)
+        def run_npm(args, **kwargs):
+            directory = Path(kwargs['cwd'])
+            npm_inputs.append((directory, {name: (directory / name).read_bytes() for name in original}))
+            for name, content in original.items():
+                (self.root / name).write_bytes(content)
+            return self.clean_npm()
+        module.subprocess.run.side_effect = run_npm
+        with patch.object(module, 'locked_packages', side_effect=mutate_before_parse):
+            code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 0, out)
+        self.assertIn(('direct', '1.0.0'), queried)
+        self.assertNotIn(('direct', '2.0.0'), queried)
+        self.assertEqual(npm_inputs[0][1], original)
+        self.assertNotEqual(npm_inputs[0][0], self.root)
+        evidence = json.loads((self.root / '.version-sentinel/security.json').read_text())
+        self.assertEqual(evidence['files']['package-lock.json'],
+                         module.hashlib.sha256(original['package-lock.json']).hexdigest())
+        self.assertEqual(self.command(module, 'gate', str(self.root))[0], 0)
+
+    def test_captured_npm_config_and_inputs_are_checked_for_mutation(self):
+        self.project()
+        module = self.engine()
+        original_config = b'registry=https://registry.npmjs.org/\n'
+        (self.root / '.npmrc').write_bytes(original_config)
+        self.providers(module)
+        def run_npm(args, **kwargs):
+            directory = Path(kwargs['cwd'])
+            self.assertEqual((directory / '.npmrc').read_bytes(), original_config)
+            self.assertEqual(args[args.index('--prefix') + 1], str(directory))
+            (directory / 'package-lock.json').write_text('{}')
+            return self.clean_npm()
+        module.subprocess.run.side_effect = run_npm
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        self.assertIn('changed', out)
+        self.assertEqual(self.command(module, 'gate', str(self.root))[0], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

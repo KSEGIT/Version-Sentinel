@@ -91,7 +91,7 @@ def now():
     return dt.datetime.strptime(raw, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=dt.timezone.utc).timestamp() if raw else dt.datetime.now(dt.timezone.utc).timestamp()
 
 
-def snapshot(root, config):
+def snapshot(root, config, contents=None):
     files = {}
     for directory, dirs, names in os.walk(root, followlinks=False):
         relative = Path(directory).relative_to(root)
@@ -102,7 +102,10 @@ def snapshot(root, config):
                 path = root / rel
                 if path.is_symlink() or not path.is_file():
                     raise ValueError(f'incomplete security coverage: unsupported symlink/file {rel}')
-                files[rel.as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+                content = path.read_bytes()
+                files[rel.as_posix()] = hashlib.sha256(content).hexdigest()
+                if contents is not None:
+                    contents[rel.as_posix()] = content
     return {'root': str(root), 'files': dict(sorted(files.items())), 'settings': config}
 
 
@@ -338,7 +341,8 @@ def _npm_findings(directory, packages, results):
     if npmrc.exists() and re.search(r'^\s*(?:workspace|workspaces)\s*=', npmrc.read_text(encoding='utf-8'), re.M | re.I):
         raise ValueError('incomplete npm-audit coverage: .npmrc workspace filters unsupported')
     args = [executable, 'audit', '--json', '--package-lock-only', '--ignore-scripts', '--audit-level=low',
-            '--include=prod', '--include=dev', '--include=optional', '--include=peer', '--workspaces=false']
+            '--include=prod', '--include=dev', '--include=optional', '--include=peer', '--workspaces=false',
+            '--prefix', str(directory)]
     response = subprocess.run(args, cwd=directory, capture_output=True, text=True, encoding='utf-8', timeout=90, check=False)
     if response.returncode not in (0, 1):
         raise ValueError(f'incomplete npm-audit coverage: npm exited {response.returncode}')
@@ -388,6 +392,22 @@ def _npm_findings(directory, packages, results):
                 results.append(selected)
         if not via:
             raise ValueError('incomplete npm-audit coverage: advisory has no source')
+    # npm's metadata counts one vulnerability entry at its aggregate severity,
+    # not one advisory source. Validate after parsing to retain all known IDs
+    # if the provider's own severity summaries contradict each other.
+    actual = {level: 0 for level in ('info', 'low', 'moderate', 'high', 'critical')}
+    for item in vulnerabilities.values():
+        level = severity(item.get('severity'))
+        if level not in actual:
+            raise ValueError('incomplete npm-audit coverage: missing aggregate severity')
+        actual[level] += 1
+        for source in item['via']:
+            if isinstance(source, dict):
+                source_level = severity(source.get('severity'))
+                if source_level != 'unknown' and SEVERITIES[source_level] > SEVERITIES[level]:
+                    raise ValueError('incomplete npm-audit coverage: advisory source severity exceeds aggregate severity')
+    if any(actual[level] != counts[level] for level in actual) or len(vulnerabilities) != counts['total']:
+        raise ValueError(f'incomplete npm-audit coverage: metadata severity counts {counts} contradict vulnerability entries')
 
 
 def deduplicate(findings):
@@ -429,8 +449,21 @@ def audit(root, config):
     # Revoke prior evidence before parsing files or starting any provider.
     generation = secrets.token_hex(16)
     write_state(root, {'root': str(root), 'status': 'pending', 'generation': generation})
-    before = snapshot(root, config)
-    manifests = [root / name for name in before['files'] if Path(name).name == 'package.json']
+    # Hash and capture each input from the same read. Both providers must see
+    # these bytes even if the live project changes A -> B -> A during a scan.
+    inputs = {}
+    before = snapshot(root, config, inputs)
+    with tempfile.TemporaryDirectory(prefix='vs-security-scan-') as temporary:
+        scan_root = Path(temporary)
+        for name, content in inputs.items():
+            destination = scan_root / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+        return audit_captured(root, scan_root, config, before, generation)
+
+
+def audit_captured(root, scan_root, config, before, generation):
+    manifests = [scan_root / name for name in before['files'] if Path(name).name == 'package.json']
     locks = [name for name in before['files'] if Path(name).name in TRACKED - {'package.json', '.npmrc'}]
     if not manifests and not locks:
         write_state(root, dict(before, generation=generation, checkedAt=now(), status='not-applicable'))
@@ -444,13 +477,13 @@ def audit(root, config):
         projects = []
         for manifest in manifests:
             try:
-                selected = locked_packages(root, manifest)
+                selected = locked_packages(scan_root, manifest)
                 packages.extend(selected)
                 projects.append((manifest.parent, selected))
             except (ValueError, OSError) as error:
                 evidence['errors'].append(str(error))
         for lock in locks:
-            if not (root / lock).parent.joinpath('package.json').is_file():
+            if not (scan_root / lock).parent.joinpath('package.json').is_file():
                 evidence['errors'].append(f'incomplete security coverage: lockfile without manifest: {lock}')
         # A failure in one provider does not prevent reports from the other.
         for provider in providers:
@@ -472,7 +505,8 @@ def audit(root, config):
         evidence['status'] = 'incomplete' if evidence['errors'] else 'blocked' if blocked(evidence['findings']) else 'complete'
     after = snapshot(root, config)
     current = parse_json(state_path(root).read_text(encoding='utf-8'))
-    if before != after or current.get('generation') != generation:
+    frozen_after = snapshot(scan_root, config)
+    if before != after or frozen_after['files'] != before['files'] or current.get('generation') != generation:
         raise ValueError('incomplete security evidence: project changed or another audit ran during scan')
     write_state(root, evidence)
     report(evidence)
