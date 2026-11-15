@@ -59,9 +59,12 @@ if [[ -n "$parent" && "$tree" == "$(git rev-parse "$parent^{tree}")" ]]; then
   exit 0
 fi
 
-parents=()
-[[ -z "$parent" ]] || parents=(-p "$parent")
-commit=$(printf 'build: Claude directory package from %s\n' "$source_commit" | git commit-tree "$tree" "${parents[@]}")
+# Bash 3.2 treats an empty array as unset under nounset.
+if [[ -n "$parent" ]]; then
+  commit=$(printf 'build: Claude directory package from %s\n' "$source_commit" | git commit-tree "$tree" -p "$parent")
+else
+  commit=$(printf 'build: Claude directory package from %s\n' "$source_commit" | git commit-tree "$tree")
+fi
 # Deliberately omit --force: a concurrent publisher must fail instead of
 # discarding a version another process has just published.
 if ! git push --quiet "$remote" "$commit:$branch" 2>"$temporary/git-error"; then

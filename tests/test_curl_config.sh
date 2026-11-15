@@ -9,6 +9,7 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 
 python3 - "$ROOT" "$VS_TMPDIR" <<'PY'
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -17,6 +18,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 root, temporary = map(Path, sys.argv[1:])
 requests = []
+# Native Windows CreateProcess can select System32's WSL launcher for a bare
+# "bash". Resolve the Git Bash executable on PATH, as the production hooks do.
+bash = shutil.which("bash")
+assert bash is not None, "bash is required for the real curl fixture"
+bash = str(Path(bash).resolve())
 
 
 class Registry(BaseHTTPRequestHandler):
@@ -55,13 +61,16 @@ try:
     for bypass in ("0", "1"):
         environment["VS_ETAG_DISABLE"] = bypass
         result = subprocess.run(
-            ["bash", "-c", command, "curl-config-test", root.as_posix(),
+            [bash, "-c", command, "curl-config-test", root.as_posix(),
              (temporary / f"cache-{bypass}").as_posix(), url],
             env=environment, capture_output=True, text=True, timeout=10,
         )
         label = "uncached" if bypass == "1" else "cached"
         if result.returncode or result.stdout.strip() != '{"version":"1.0.0"}':
-            failures.append(f"{label}: request failed: {result.stderr}")
+            failures.append(
+                f"{label}: bash={bash!r}, returncode={result.returncode}, "
+                f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+            )
             continue
         headers = {key.lower(): value for key, value in requests[-1].items()}
         if "authorization" in headers or "x-ambient-credential" in headers:

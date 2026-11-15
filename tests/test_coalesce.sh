@@ -9,7 +9,15 @@ VS_COALESCE_TTL=10
 source "$(dirname "$0")/../scripts/lib/coalesce.sh"
 
 VS_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$VS_TMPDIR"' EXIT
+pid1='' pid2=''
+cleanup() {
+  local pid
+  for pid in "$pid1" "$pid2"; do
+    [[ -z "$pid" ]] || kill "$pid" 2>/dev/null || :
+  done
+  rm -rf "$VS_TMPDIR"
+}
+trap cleanup EXIT
 
 # --- first acquire succeeds ---
 coalesce_acquire "$VS_TMPDIR" "npm" "lodash" "4.17.21"
@@ -36,54 +44,64 @@ wait_for_file() {
 
 race_lock="$VS_TMPDIR/.vs_coal_npm_lodash_4.17.21.lock"
 race_marker="$VS_TMPDIR/.vs_coal_npm_lodash_4.17.21"
-acquire_contender() (
-  # Keep the real mkdir, but pause its winner before held is published. The
-  # parent releases it only after the other worker has attempted the same lock.
+acquire_worker() (
+  # Give the two workers explicit roles. Only the owner may pause after its
+  # successful mkdir, and only the contender may signal a failed mkdir.
+  role="$1"
   mkdir() {
     if [[ "$1" != "$race_lock" ]]; then
       command mkdir "$@"
       return $?
     fi
-    if command mkdir "$@"; then
-      : > "$VS_TMPDIR/owner-ready"
-      wait_for_file "$VS_TMPDIR/publish-owner"
-      return $?
+    if command mkdir "$@" 2>> "$VS_TMPDIR/$role.log"; then
+      if [[ "$role" == owner ]]; then
+        : > "$VS_TMPDIR/owner-ready"
+        # The parent owns the release and the bounded wait. A second timer
+        # here could expire first, retry mkdir, and impersonate a contender.
+        while [[ ! -f "$VS_TMPDIR/publish-owner" ]]; do sleep 0.01; done
+      fi
+      return 0
     fi
-    : > "$VS_TMPDIR/contender-ready"
+    if [[ "$role" == contender ]]; then
+      : > "$VS_TMPDIR/contender-ready"
+    fi
     return 1
   }
-
-  : > "$VS_TMPDIR/worker-$1-ready"
-  wait_for_file "$VS_TMPDIR/start-race" || exit 1
   coalesce_acquire "$VS_TMPDIR" "npm" "lodash" "4.17.21"
 )
 
-acquire_contender 1 &
+wait_for_worker() {
+  if ! wait_for_file "$VS_TMPDIR/$1-ready"; then
+    # mkdir runs with stderr redirected by the real lock API. Keep the
+    # fixture's stage errors available when a worker fails to signal.
+    local log
+    for log in "$VS_TMPDIR/owner.log" "$VS_TMPDIR/contender.log"; do
+      [[ ! -f "$log" ]] || cat "$log" >&2
+    done
+    exit 1
+  fi
+}
+
+acquire_worker owner &
 pid1=$!
-acquire_contender 2 &
+wait_for_worker owner
+acquire_worker contender &
 pid2=$!
-wait_for_file "$VS_TMPDIR/worker-1-ready"
-assert_eq "0" "$?" "first concurrent worker is ready"
-wait_for_file "$VS_TMPDIR/worker-2-ready"
-assert_eq "0" "$?" "second concurrent worker is ready"
-: > "$VS_TMPDIR/start-race"
-wait_for_file "$VS_TMPDIR/owner-ready"
-assert_eq "0" "$?" "one concurrent worker creates the lock"
-wait_for_file "$VS_TMPDIR/contender-ready"
-assert_eq "0" "$?" "the other worker contends before owner publication"
+wait_for_worker contender
+result=0; [[ -f "$race_lock/held" ]] && result=1
+assert_eq "0" "$result" "contender reaches the lock before owner metadata is written"
 result=0; [[ -f "$race_marker" ]] && result=1
 assert_eq "0" "$result" "marker is not written before the lock owner proceeds"
 : > "$VS_TMPDIR/publish-owner"
 # Wait and capture exit codes
 wait "$pid1"
 exit1=$?
+pid1=''
 wait "$pid2"
 exit2=$?
-# Report both worker statuses if the expected {0, 1} result is missing.
-case "$exit1:$exit2" in
-  0:1|1:0) ;;
-  *) _fail "concurrent acquire: expected exit codes 0 and 1, got $exit1 and $exit2" ;;
-esac
+pid2=''
+assert_eq "0" "$exit1" "paused owner acquires successfully"
+assert_eq "1" "$exit2" "contender rejects the fresh in-flight marker"
 assert_file_exists "$race_marker" "concurrent winner leaves its in-flight marker"
 coalesce_acquire "$VS_TMPDIR" "npm" "lodash" "4.17.21"
 assert_eq "1" "$?" "concurrent winner's fresh marker rejects another acquire"

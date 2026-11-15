@@ -56,6 +56,7 @@ commands/vs-record.md
 commands/check-versions.md
 agents/version-reviewer.agent.md
 skills/version-sentinel/SKILL.md
+skills/audit-dependencies/SKILL.md
 LICENSE
 PRIVACY.md
 docs/enforcement.md

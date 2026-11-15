@@ -45,7 +45,7 @@ before_head=$(git -C "$SOURCE" rev-parse HEAD)
 before_main=$(git --git-dir="$REMOTE" rev-parse refs/heads/main)
 
 publish() {
-  (cd "$SOURCE" && bash "$ROOT/tools/publish-claude-plugin.sh" "$BUNDLE")
+  (cd "$SOURCE" && "$BASH" "$ROOT/tools/publish-claude-plugin.sh" "$BUNDLE")
 }
 
 output=$(publish 2>&1)

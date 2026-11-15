@@ -33,7 +33,8 @@ commands = {p.relative_to(root) for p in (root / 'commands').glob('*.md')}
 agents = {p.relative_to(root) for p in (root / 'agents').glob('*.md')}
 expected = runtime | commands | agents | {Path(p) for p in (
     '.claude-plugin/plugin.json', 'hooks/hooks.json',
-    'skills/version-sentinel/SKILL.md', 'LICENSE', 'PRIVACY.md',
+    'skills/version-sentinel/SKILL.md', 'skills/audit-dependencies/SKILL.md',
+    'LICENSE', 'PRIVACY.md',
     'docs/enforcement.md', 'README.md')}
 actual = {p.relative_to(bundle) for p in bundle.rglob('*') if p.is_file()}
 assert actual == expected, f'bundle contents differ: extra={actual - expected}, missing={expected - actual}'
@@ -49,7 +50,8 @@ manifest = json.loads((bundle / '.claude-plugin/plugin.json').read_text())
 for field in ('commands', 'agents'):
     for path in manifest[field]:
         assert (bundle / path).is_file(), f'{field}: {path}'
-assert (bundle / manifest['skills'] / 'version-sentinel/SKILL.md').is_file()
+for skill in ('version-sentinel', 'audit-dependencies'):
+    assert (bundle / manifest['skills'] / skill / 'SKILL.md').is_file(), skill
 hooks = json.loads((bundle / 'hooks/hooks.json').read_text())['hooks']
 for groups in hooks.values():
     for group in groups:
@@ -96,5 +98,13 @@ output=$(cd "$PROJECT" && printf '{"cwd":"%s","session_id":"bundle-fixture"}\n' 
 status=$?
 assert_exit_code 0 "$status" "shipped startup hook executes: $output"
 assert_file_exists "$PROJECT/.version-sentinel/audit.json" "shipped startup hook creates audit evidence"
+
+# The package must also supply the recovery skill that a failed audit names.
+output=$(cd "$PROJECT" && printf '{"cwd":"%s","session_id":"bundle-failure"}\n' "$PROJECT" | VS_FIXTURE_NETWORK_FAIL=1 bash -c "$hook_command" 2>"$VS_TMPDIR/startup.err")
+status=$?
+assert_exit_code 0 "$status" "shipped failed audit returns advisory context: $(cat "$VS_TMPDIR/startup.err")"
+message=$(printf '%s' "$output" | jq -r '.systemMessage')
+assert_contains "$message" 'audit-dependencies skill' "shipped failed audit names the recovery skill"
+assert_file_exists "$PLUGIN/skills/audit-dependencies/SKILL.md" "named recovery skill is installed with the package"
 
 finish_test
