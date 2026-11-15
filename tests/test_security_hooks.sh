@@ -11,7 +11,17 @@ mkdir -p "$VS_TMPDIR/project"
 export SECURITY_CALLS="$VS_TMPDIR/calls" SECURITY_FAIL_ACTION=''
 cat > "$VS_TMPDIR/scripts/security-check.sh" <<'MOCK'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$SECURITY_CALLS"
+action="$1"
+root="$2"
+if command -v cygpath >/dev/null 2>&1; then
+  root=$(cygpath -u -a -- "$root") || exit 2
+  root="${root%$'\r'}"
+fi
+printf '%s %s' "$1" "$root" >> "$SECURITY_CALLS"
+shift 2
+for argument in "$@"; do printf ' %s' "$argument" >> "$SECURITY_CALLS"; done
+printf '\n' >> "$SECURITY_CALLS"
+set -- "$action" "$@"
 if [[ "$1" == "${SECURITY_FAIL_ACTION:-}" ]]; then
   echo 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture affected <2.0.0 fixed 2.0.0 provider osv'
   echo 'BLOCKED: version-sentinel. security unknown/incomplete' >&2
@@ -111,6 +121,12 @@ assert_exit_code 0 "$?" 'current security evidence skips redundant audit'
 result=$(printf '%s\n' '{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'patch triggers a replacement security scan'
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" 'patch lock header is relevant'
+for carrier in patch input command; do
+  : > "$SECURITY_CALLS"
+  result=$(jq -nc --arg key "$carrier" --arg patch $'*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch' '{tool_name:"apply_patch",tool_input:{($key):$patch}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
+  assert_exit_code 0 "$status" "accepted $carrier patch carrier reaches post scan"
+  assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" "$carrier patch carrier scans changed tree"
+done
 mkdir -p child
 : > "$SECURITY_CALLS"
 printf '%s\n' '{"tool_name":"exec_command","tool_input":{"command":"npm install lodash@4.17.21","workdir":"child"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"

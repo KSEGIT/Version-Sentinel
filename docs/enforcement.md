@@ -165,3 +165,38 @@ proposed package. OSV's public API needs no API key. Those services apply their
 own privacy policies; see [PRIVACY.md](../PRIVACY.md). Official interfaces:
 [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit/),
 [OSV batch API](https://google.github.io/osv.dev/post-v1-querybatch/).
+
+### Reconcile a lock after an approved npm manifest change
+
+A structured dependency edit is checked against the current audit before the
+manifest changes. When that edit changes an existing npm project, Version
+Sentinel can record one exact pending transition in
+`.version-sentinel/reconcile.json`. This record is not a clean audit and does
+not permit a general install. It binds the canonical project, the exact approved
+manifest bytes, the unchanged prior lock and other audited dependency files,
+provider settings, session when supplied, and freshness window.
+
+After writing the approved manifest, explicitly run the installed helper:
+
+```bash
+bash /path/to/version-sentinel/scripts/reconcile-npm-lock.sh "$PWD" package.json
+```
+
+Edit and reconcile one npm project at a time. Multi-project dependency edits
+must use separate tool calls with a completed reconciliation between them.
+For a nested project, give its `package.json` path relative to the audited root.
+The helper resolves only a temporary copy with fixed `npm install
+--package-lock-only --ignore-scripts` options. It does not run package scripts,
+install `node_modules`, accept caller-supplied npm flags, run `npm audit fix`, or
+start automatically after an edit. OSV checks the generated lock before the
+helper replaces the real lock. Both enabled providers then scan the new tree
+through the full version audit before successful evidence is restored. A
+provider failure leaves dependency work blocked, with findings visible.
+
+A supported structured write of the exact matching lock post-image can also
+use this transition. Its root declarations must match the approved manifest,
+and its proposed exact versions still pass the enabled OSV check. Run
+`check-versions.sh` afterward to restore the full version audit. Unrelated file,
+manifest, lock, settings, session or time changes invalidate the transition.
+Missing initial locks still require the documented bootstrap policy; this path
+only reconciles an existing lock after a freshly audited, approved edit.

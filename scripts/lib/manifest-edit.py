@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 from path_helpers import bash_script_path, resolve_path
+import npm_reconcile
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 UNPINNED = "__version_sentinel_unpinned__"
@@ -254,6 +255,7 @@ def diagnostics(result):
 def inspect(root, proposed):
     errors = []
     checked_audit = None
+    eligible_reconciliation = []
     for path, before, after in proposed:
         if path.name in NPM_LOCKFILES:
             if before == after:
@@ -261,8 +263,11 @@ def inspect(root, proposed):
             if checked_audit is None:
                 checked_audit = state("gate", root, root)
             if checked_audit.returncode:
-                errors.append(diagnostics(checked_audit) or "Complete the mandatory current audit before npm lockfile changes.")
-                continue
+                try:
+                    npm_reconcile.match_lock(root, path, after)
+                except (ValueError, OSError, KeyError, TypeError) as error:
+                    errors.append((diagnostics(checked_audit) or "Complete the mandatory current audit before npm lockfile changes.") + "\n" + str(error))
+                    continue
             result = run(["bash", bash_script_path(SCRIPTS / "security-check.sh"),
                           "proposed-lock", str(root), str(path)], root, after)
             if result.returncode:
@@ -299,6 +304,8 @@ def inspect(root, proposed):
                 covered = state("covers", root, root, path)
                 if covered.returncode:
                     errors.append(covered.stderr.strip() or f"Manifest was not audited: {path}")
+        if ecosystem(path) == "npm" and valid_before and not recovery and checked_audit is not None and checked_audit.returncode == 0:
+            eligible_reconciliation.append((path, before, after))
         # Keep each raw declaration's intent, so a selector-only edit still
         # needs verification when its parsed intended version is unchanged.
         changed = {(pkg, version) for pkg, version, _ in post_intents - pre_intents}
@@ -313,6 +320,7 @@ def inspect(root, proposed):
                 errors.append(diagnostics(record) or f"No online verification for {pkg}@{version}.")
     if errors:
         raise Blocked("\n---\n".join(dict.fromkeys(errors)))
+    npm_reconcile.authorize(root, proposed, eligible_reconciliation)
 
 
 def main():

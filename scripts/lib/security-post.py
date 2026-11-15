@@ -20,7 +20,7 @@ EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "apply_patch", "editFiles", "createF
 def npm_paths(value, root):
     if isinstance(value, dict):
         return any(npm_paths(v, root) for k, v in value.items()
-                   if k in {"file_path", "path", "target_file", "filePath", "patch", "input", "edits", "files", "changes"})
+                   if k in {"file_path", "path", "target_file", "filePath", "patch", "input", "command", "edits", "files", "changes"})
     if isinstance(value, list):
         return any(npm_paths(v, root) for v in value)
     if isinstance(value, str):
