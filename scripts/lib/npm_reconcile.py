@@ -68,10 +68,11 @@ def authorize(root, proposed, eligible):
             or any(evidence.get('providers', {}).get(p) != 'complete' for p in ('npm-audit', 'osv') if current_config[p])):
         raise ValueError('Current audited npm baseline changed while approving lock reconciliation; rerun the audit')
     locks = {}
+    written_paths = {path for path, _, _ in proposed}
     for manifest, _, _ in eligible:
         lock = manifest.parent / 'package-lock.json'
         relative = lock.relative_to(root).as_posix()
-        if relative in secured['files'] and lock.is_file() and not lock.is_symlink():
+        if lock not in written_paths and relative in secured['files'] and lock.is_file() and not lock.is_symlink():
             locks[relative] = manifest.relative_to(root).as_posix()
     if not locks:
         return
@@ -177,7 +178,11 @@ def regenerate(root, manifest):
             if os.path.exists(temporary):
                 os.unlink(temporary)
     record_path(root).unlink(missing_ok=True)
-    command([bash, bash_script_path(SCRIPTS / 'check-versions.sh')], cwd=root)
+    completed = command([bash, bash_script_path(SCRIPTS / 'check-versions.sh')], cwd=root)
+    if completed.stdout.strip():
+        print(completed.stdout.strip())
+    if completed.stderr.strip():
+        print(completed.stderr.strip(), file=sys.stderr)
     print('version-sentinel: approved npm lock reconciled; full audit completed.')
 
 

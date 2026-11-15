@@ -135,6 +135,12 @@ class ReconciliationTests(unittest.TestCase):
         self.assertTrue(any('check-versions.sh' in str(arg) for args in calls for arg in args))
         self.assertFalse(any('fix' == arg for args in calls for arg in args))
 
+    def test_atomic_manifest_and_lock_edit_does_not_leave_reconciliation_authority(self):
+        self.audited()
+        changes = [(self.manifest, self.before, self.after), (self.lockpath, self.lock, self.new_lock)]
+        self.rec.authorize(self.root, changes, [changes[0]])
+        self.assertFalse(self.rec.record_path(self.root).exists())
+
     def test_multiple_npm_projects_require_separate_approved_transitions(self):
         self.audited()
         child = self.root / 'child'
