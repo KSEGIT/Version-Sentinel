@@ -124,6 +124,10 @@ def main():
         relevant = True
         if len(arguments) == 2 and arguments[0] in {'audit', 'gate'}:
             root = engine['resolve_path'](arguments[1]).resolve(strict=True)
+            if arguments[0] == 'audit':
+                # A requested rescan revokes old success even when inventory or
+                # host option lookup fails before the provider engine starts.
+                engine['write_state'](root, {'root': str(root), 'status': 'pending'})
             current = engine['snapshot'](root, {})
             relevant = any(Path(name).name in engine['TRACKED'] - {'.npmrc'}
                            for name in current['files'])

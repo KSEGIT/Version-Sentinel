@@ -1,5 +1,6 @@
 """Saved provider settings cross the hook/standalone CLI boundary safely."""
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -168,9 +169,13 @@ class SavedSettingsTests(unittest.TestCase):
             (self.root / 'package.json').write_text('{}')
         if not real_engine:
             (plugin / 'scripts/lib/security.py').write_text(
-                'import os\nfrom pathlib import Path\n'
+                'import json, os\nfrom pathlib import Path\n'
                 'TRACKED={"package.json"}\n'
                 'def resolve_path(value): return Path(value)\n'
+                'def write_state(root, value):\n'
+                ' path = root/".version-sentinel/security.json"\n'
+                ' path.parent.mkdir(exist_ok=True)\n'
+                ' path.write_text(json.dumps(value))\n'
                 'def snapshot(root, config):\n'
                 ' return {"files":{"package.json":"fixture"} if (root/"package.json").is_file() else {}}\n'
                 'def run(args):\n'
@@ -207,6 +212,7 @@ class SavedSettingsTests(unittest.TestCase):
             launcher.chmod(0o755)
         environment = dict(os.environ)
         for key in ('VS_SECURITY_OSV', 'VS_SECURITY_NPM_AUDIT', 'VS_DISABLE',
+                    'VS_WINDOW_HOURS', 'VS_NOW_OVERRIDE', 'CLAUDE_PLUGIN_OPTION_WINDOW_HOURS',
                     'CLAUDE_PLUGIN_OPTION_SECURITY_OSV', 'CLAUDE_PLUGIN_OPTION_SECURITY_NPM_AUDIT',
                     'CLAUDE_PLUGIN_OPTION_DISABLE'):
             environment.pop(key, None)
@@ -262,6 +268,62 @@ class SavedSettingsTests(unittest.TestCase):
         self.assertEqual(gate.returncode, 2, gate.stderr)
         self.assertIn('project/settings changed', gate.stderr)
         self.assertFalse((self.root / 'cli-calls').exists())
+
+    def test_failed_audit_settings_lookup_revokes_evidence_but_gate_does_not(self):
+        self.wrapper_fixture(fail=True, real_engine=True)
+        library = Path(self.wrapper_command[1]).parent / 'lib'
+        spec = importlib.util.spec_from_file_location('fixture_security', library / 'security.py')
+        engine = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, str(library))
+        try:
+            spec.loader.exec_module(engine)
+        finally:
+            sys.path.pop(0)
+        explicit = dict(self.wrapper_environment, VS_SECURITY_OSV='false',
+                        VS_SECURITY_NPM_AUDIT='true', VS_WINDOW_HOURS='24')
+        with patch.dict(os.environ, {'VS_SECURITY_OSV': 'false',
+                                    'VS_SECURITY_NPM_AUDIT': 'true', 'VS_WINDOW_HOURS': '24'}, clear=True):
+            state = engine.snapshot(self.root, engine.settings())
+            state.update(status='complete', checkedAt=engine.now(), generation='fixture')
+            engine.write_state(self.root, state)
+        state_path = self.root / '.version-sentinel/security.json'
+        original = state_path.read_bytes()
+        gate_command = list(self.wrapper_command)
+        gate_command[-2] = 'gate'
+        before = subprocess.run(gate_command, env=explicit, capture_output=True,
+                                text=True, timeout=30, check=False)
+        self.assertEqual(before.returncode, 0, before.stderr)
+        self.assertEqual(state_path.read_bytes(), original)
+        saved = dict(self.wrapper_environment, VS_SETTINGS_FIXTURE_FAIL='0')
+        saved_gate = subprocess.run(gate_command, env=saved, capture_output=True,
+                                    text=True, timeout=30, check=False)
+        self.assertEqual(saved_gate.returncode, 0, saved_gate.stderr)
+        self.assertEqual(state_path.read_bytes(), original)
+        failed_gate = subprocess.run(gate_command, env=self.wrapper_environment, capture_output=True,
+                                     text=True, timeout=30, check=False)
+        self.assertEqual(failed_gate.returncode, 2, failed_gate.stderr)
+        self.assertEqual(state_path.read_bytes(), original)
+        failed_audit = subprocess.run(self.wrapper_command, env=self.wrapper_environment,
+                                      capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(failed_audit.returncode, 2, failed_audit.stderr)
+        self.assertEqual(json.loads(state_path.read_text())['status'], 'pending')
+        after = subprocess.run(gate_command, env=explicit, capture_output=True,
+                               text=True, timeout=30, check=False)
+        self.assertEqual(after.returncode, 2, after.stderr)
+
+    def test_audit_revokes_before_inventory_failure(self):
+        module = load_resolver()
+        events = []
+        def broken_snapshot(root, config):
+            events.append('snapshot')
+            raise ValueError('fixture inventory failure')
+        engine = {'resolve_path': Path, 'snapshot': broken_snapshot,
+                  'write_state': lambda root, state: events.append(('write', state['status'], state['root']))}
+        with patch.object(module.runpy, 'run_path', return_value=engine), \
+                patch.object(module.sys, 'argv', ['helper', 'audit', str(self.root)]), \
+                patch.object(module.sys, 'stderr', io.StringIO()):
+            self.assertEqual(module.main(), 2)
+        self.assertEqual(events, [('write', 'pending', str(self.root)), 'snapshot'])
 
 
 if __name__ == '__main__':
