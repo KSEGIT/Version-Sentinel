@@ -319,6 +319,32 @@ class SecurityEngineTests(unittest.TestCase):
         self.providers(module, npm=report)
         self.assertEqual(self.command(module, 'audit', str(self.root))[0], 2)
 
+    def test_proposed_lock_checks_exact_transitive_versions_before_write(self):
+        self.project()
+        module = self.engine()
+        def request(url, body=None):
+            if body is None:
+                return self.advisory()
+            return {'results': [{'vulns': [{'id': 'GHSA-fixture-1234'}]} if q['package']['name'] == 'transitive' else {} for q in body['queries']]}
+        self.providers(module, request)
+        content = (self.root / 'package-lock.json').read_text()
+        with patch.object(sys, 'stdin', io.StringIO(content)):
+            code, out = self.command(module, 'proposed-lock', str(self.root), str(self.root / 'package-lock.json'))
+        self.assertEqual(code, 2, out)
+        self.assertIn('GHSA-fixture-1234', out)
+        self.assertFalse((self.root / '.version-sentinel/security.json').exists())
+
+    def test_proposed_lock_accepts_clean_and_rejects_malformed_json(self):
+        self.project()
+        module = self.engine()
+        self.providers(module)
+        content = (self.root / 'package-lock.json').read_text()
+        with patch.object(sys, 'stdin', io.StringIO(content)):
+            self.assertEqual(self.command(module, 'proposed-lock', str(self.root), 'package-lock.json')[0], 0)
+        with patch.object(sys, 'stdin', io.StringIO('{')):
+            self.assertEqual(self.command(module, 'proposed-lock', str(self.root), 'package-lock.json')[0], 2)
+        self.assertFalse((self.root / '.version-sentinel/security.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

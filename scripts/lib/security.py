@@ -124,23 +124,25 @@ def registry_selector(value):
     return isinstance(value, str) and not value.startswith(('file:', 'link:', 'workspace:', 'npm:', 'git', 'github:', 'http:', 'https:', './', '../', '/'))
 
 
-def locked_packages(root, manifest):
+def locked_packages(root, manifest, proposed=None):
     """Return every registry node; unsupported provenance never disappears."""
     directory = manifest.parent
-    data = object_value(parse_json(manifest.read_text(encoding='utf-8')), str(manifest))
-    if data.get('workspaces'):
-        raise ValueError(f'incomplete security coverage: workspaces unsupported in {manifest}')
-    for other in ('npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'):
-        if (directory / other).exists():
-            raise ValueError(f'incomplete security coverage: unsupported lockfile {directory / other}; only package-lock.json v2/v3 supported')
     path = directory / 'package-lock.json'
-    if not path.is_file():
+    if proposed is None and not path.is_file():
         raise ValueError(f'incomplete security coverage: missing package-lock.json for {manifest}')
-    lock = object_value(parse_json(path.read_text(encoding='utf-8')), str(path))
+    lock = object_value(parse_json(path.read_text(encoding='utf-8') if proposed is None else proposed), str(path))
     if type(lock.get('lockfileVersion')) is not int or lock['lockfileVersion'] not in (2, 3):
         raise ValueError(f'incomplete security coverage: {path} requires package-lock v2/v3')
     nodes = object_value(lock.get('packages'), 'lock packages')
     lock_root = object_value(nodes.get(''), 'lock root package')
+    # A proposed lock may accompany a manifest change in the same tool call.
+    # Check its own declared graph now; audit compares both files after writing.
+    data = object_value(parse_json(manifest.read_text(encoding='utf-8')), str(manifest)) if proposed is None else lock_root
+    if data.get('workspaces') or lock_root.get('workspaces'):
+        raise ValueError(f'incomplete security coverage: workspaces unsupported in {manifest}')
+    for other in ('npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'bun.lockb'):
+        if (directory / other).exists():
+            raise ValueError(f'incomplete security coverage: unsupported lockfile {directory / other}; only package-lock.json v2/v3 supported')
     for kind in ('dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'):
         declared = object_value(data.get(kind, {}), f'manifest {kind}')
         recorded = object_value(lock_root.get(kind, {}), f'lock {kind}')
@@ -451,8 +453,8 @@ def gate(root, config):
 
 def run(args):
     try:
-        if len(args) < 2 or args[0] not in {'audit', 'gate', 'proposed'}:
-            raise ValueError('Usage: security-check.sh audit|gate ROOT; security-check.sh proposed ROOT PACKAGE VERSION')
+        if len(args) < 2 or args[0] not in {'audit', 'gate', 'proposed', 'proposed-lock'}:
+            raise ValueError('Usage: security-check.sh audit|gate ROOT; security-check.sh proposed ROOT PACKAGE VERSION; security-check.sh proposed-lock ROOT LOCKPATH < JSON')
         command, raw_root = args[:2]
         root = resolve_path(raw_root).resolve(strict=True)
         config = settings()
@@ -460,6 +462,19 @@ def run(args):
             return audit(root, config)
         if command == 'gate' and len(args) == 2:
             return gate(root, config)
+        if command == 'proposed-lock' and len(args) == 3:
+            path = resolve_path(args[2], root)
+            relative = path.relative_to(root)
+            if path.name != 'package-lock.json' or len(relative.parts) > 4 or EXCLUDED.intersection(relative.parts):
+                raise ValueError('incomplete proposed lock coverage: only in-project package-lock.json v2/v3 supported')
+            if not config['osv']:
+                print('security osv: disabled; proposed-lock security coverage disabled. npm-audit covers only the currently resolved tree.')
+                return 0
+            selected = locked_packages(root, path.parent / 'package.json', proposed=sys.stdin.read())
+            found = deduplicate(osv_findings(selected))
+            status = 'blocked' if blocked(found) else 'complete'
+            report({'status': status, 'providers': {'osv': 'complete', 'npm-audit': 'resolved-tree only; not a proposed-lock check'}, 'findings': found})
+            return 2 if status == 'blocked' else 0
         if command != 'proposed' or len(args) != 4:
             raise ValueError('Invalid security check arguments')
         package, version = args[2:]
