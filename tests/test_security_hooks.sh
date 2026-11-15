@@ -70,6 +70,14 @@ mkdir -p child
 : > "$SECURITY_CALLS"
 printf '%s\n' '{"tool_name":"exec_command","tool_input":{"command":"npm install lodash@4.17.21","workdir":"child"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT/child" 'post command uses actual workdir'
+# Raw shell writes and heredocs also inspect the actual project snapshot.
+: > "$SECURITY_CALLS"
+printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"printf data > package-lock.json"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"
+assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" 'raw shell mutation uses actual project snapshot'
+: > "$SECURITY_CALLS"
+printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"cat > out <<EOF\nnpm install lodash@4.17.21\nEOF"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"
+assert_exit_code 0 "$?" 'unsupported command parsing still checks unchanged snapshot without false install failure'
+assert_contains "$(cat "$SECURITY_CALLS")" "gate $VS_TEST_CANONICAL_ROOT" 'heredoc fallback checks actual project'
 # Make both gate and audit fail to show provider errors are not swallowed.
 sed 's/if \[\[ "$1" == "${SECURITY_FAIL_ACTION:-}" \]\]; then/if [[ "$1" == gate || "$1" == audit ]]; then/' "$VS_TMPDIR/scripts/security-check.sh" > "$VS_TMPDIR/failing-security"
 cp "$VS_TMPDIR/failing-security" "$VS_TMPDIR/scripts/security-check.sh"

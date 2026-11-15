@@ -59,7 +59,18 @@ def main():
         spec = importlib.util.spec_from_file_location("install_context", SCRIPTS / "lib/install-context.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        for context in module.contexts(str(root), command):
+        # Shell programs can write locks without naming a package manager.
+        # Inspect the current root snapshot after every shell tool; a current
+        # snapshot (or a project without npm files) performs no network request.
+        roots.add(root)
+        try:
+            contexts = module.contexts(str(root), command)
+        except ValueError:
+            # PreToolUse rejects unsupported dependency commands. After a tool
+            # has run we inspect actual files instead of interpreting shell
+            # syntax or treating a heredoc's package text as an installation.
+            contexts = []
+        for context in contexts:
             if any(Path(p).name == "package.json" for p in context["required"]):
                 roots.add(resolve_path(context["root"]))
     elif npm_paths(data, root):
