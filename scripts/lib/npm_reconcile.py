@@ -156,16 +156,20 @@ def regenerate(root, manifest):
             (staging / name).write_bytes(raw)
         # No caller-supplied flags, package names, scripts, audit fix or install
         # into node_modules. Only the staged lock can change.
-        command([npm, 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund',
+        staged = command([npm, 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund',
                  '--include=prod', '--include=dev', '--include=optional', '--include=peer',
                  '--workspaces=false', '--global=false', '--prefix', str(staging)], cwd=staging)
+        sys.stdout.write(staged.stdout)
+        sys.stderr.write(staged.stderr)
         if (staging / 'package.json').read_bytes() != inputs['package.json']:
             raise ValueError('npm changed the approved staged manifest; lock not written')
         generated = (staging / 'package-lock.json').read_bytes()
         content = generated.decode('utf-8')
         match_lock(root, lock, content)
-        command([bash, bash_script_path(SCRIPTS / 'security-check.sh'), 'proposed-lock', str(root), str(lock)],
-                cwd=root, input=content)
+        proposed = command([bash, bash_script_path(SCRIPTS / 'security-check.sh'), 'proposed-lock', str(root), str(lock)],
+                           cwd=root, input=content)
+        sys.stdout.write(proposed.stdout)
+        sys.stderr.write(proposed.stderr)
         # Revalidate all project/settings/time inputs after registry work. Both
         # providers will scan this exact post-image again before clean evidence.
         permit(root, lock)

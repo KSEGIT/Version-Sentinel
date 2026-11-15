@@ -128,9 +128,19 @@ class ReconciliationTests(unittest.TestCase):
             elif 'proposed-lock' in args:
                 self.assertEqual(self.lockpath.read_text(), self.lock)
                 self.assertEqual(kwargs['input'], self.new_lock)
-            return subprocess.CompletedProcess(args, 0, '', '')
-        with patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'):
+            if 'install' in args:
+                return subprocess.CompletedProcess(args, 0, 'npm staged output\n', 'npm staged note\n')
+            if 'proposed-lock' in args:
+                return subprocess.CompletedProcess(args, 0, 'GHSA-stage-low LOW https://osv.dev/vulnerability/GHSA-stage-low affected <2 fixed 2 provider osv\n', 'GHSA-stage-moderate MODERATE https://osv.dev/vulnerability/GHSA-stage-moderate affected <3 fixed 3 provider npm-audit\n')
+            return subprocess.CompletedProcess(args, 0, 'full audit output once\n', '')
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             self.rec.regenerate(self.root, self.manifest)
+        self.assertIn('npm staged output', stdout.getvalue())
+        self.assertIn('npm staged note', stderr.getvalue())
+        self.assertIn('GHSA-stage-low LOW https://osv.dev/vulnerability/GHSA-stage-low affected <2 fixed 2 provider osv', stdout.getvalue())
+        self.assertIn('GHSA-stage-moderate MODERATE https://osv.dev/vulnerability/GHSA-stage-moderate affected <3 fixed 3 provider npm-audit', stderr.getvalue())
+        self.assertEqual(stdout.getvalue().count('full audit output once'), 1)
         self.assertEqual(self.lockpath.read_text(), self.new_lock)
         self.assertTrue(any('check-versions.sh' in str(arg) for args in calls for arg in args))
         self.assertFalse(any('fix' == arg for args in calls for arg in args))

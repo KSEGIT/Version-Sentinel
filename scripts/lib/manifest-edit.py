@@ -272,6 +272,9 @@ def inspect(root, proposed):
                           "proposed-lock", str(root), str(path)], root, after)
             if result.returncode:
                 errors.append(diagnostics(result) or f"Cannot verify proposed npm lockfile: {path}")
+            else:
+                sys.stdout.write(result.stdout)
+                sys.stderr.write(result.stderr)
             continue
         before_validation = state("validate-content", root, path, content=before) if before is not None else None
         valid_before = before_validation is not None and before_validation.returncode == 0
@@ -318,6 +321,9 @@ def inspect(root, proposed):
             record = run(["bash", bash_script_path(SCRIPTS / "check-sidecar.sh"), eco, pkg, version], root)
             if record.returncode:
                 errors.append(diagnostics(record) or f"No online verification for {pkg}@{version}.")
+            else:
+                sys.stdout.write(record.stdout)
+                sys.stderr.write(record.stderr)
     if errors:
         raise Blocked("\n---\n".join(dict.fromkeys(errors)))
     npm_reconcile.authorize(root, proposed, eligible_reconciliation)

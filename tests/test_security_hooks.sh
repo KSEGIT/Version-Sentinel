@@ -27,6 +27,10 @@ if [[ "$1" == "${SECURITY_FAIL_ACTION:-}" ]]; then
   echo 'BLOCKED: version-sentinel. security unknown/incomplete' >&2
   exit 2
 fi
+if [[ "$action" == "${SECURITY_WARN_ACTION:-}" ]]; then
+  echo 'GHSA-fixture-low LOW https://osv.dev/vulnerability/GHSA-fixture-low affected <2.0.0 fixed 2.0.0 provider osv'
+  echo 'GHSA-fixture-moderate MODERATE https://osv.dev/vulnerability/GHSA-fixture-moderate affected <3.0.0 fixed 3.0.0 provider npm-audit' >&2
+fi
 MOCK
 source "$TEST_DIR/registry-fixture.sh"
 registry_fixture_setup
@@ -53,6 +57,16 @@ assert_contains "$(cat "$SECURITY_CALLS" 2>/dev/null)" "proposed $VS_TEST_CANONI
 result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"4.17.20\"}}"}}' | SECURITY_FAIL_ACTION=proposed bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'manifest proposal blocks advisory finding'
 assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'manifest proposal preserves advisory diagnostics'
+
+# Allowed proposals must also retain their nonblocking provider diagnostics.
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"^4.17.21\"}}"}}' | SECURITY_WARN_ACTION=proposed bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 0 "$status" 'nonblocking manifest advisories permit an otherwise verified candidate'
+assert_contains "$result" 'GHSA-fixture-low LOW https://osv.dev/vulnerability/GHSA-fixture-low affected <2.0.0 fixed 2.0.0 provider osv' 'allowed manifest retains complete stdout advisory'
+assert_contains "$result" 'GHSA-fixture-moderate MODERATE https://osv.dev/vulnerability/GHSA-fixture-moderate affected <3.0.0 fixed 3.0.0 provider npm-audit' 'allowed manifest retains complete stderr advisory'
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_WARN_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 0 "$status" 'nonblocking lock advisories permit an otherwise verified proposal'
+assert_contains "$result" 'GHSA-fixture-low LOW https://osv.dev/vulnerability/GHSA-fixture-low affected <2.0.0 fixed 2.0.0 provider osv' 'allowed lock retains complete stdout advisory'
+assert_contains "$result" 'GHSA-fixture-moderate MODERATE https://osv.dev/vulnerability/GHSA-fixture-moderate affected <3.0.0 fixed 3.0.0 provider npm-audit' 'allowed lock retains complete stderr advisory'
 
 # Lockfiles are relevant before direct writes, including patch post-images.
 : > "$SECURITY_CALLS"
