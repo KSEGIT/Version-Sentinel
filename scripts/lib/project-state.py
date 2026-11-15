@@ -479,9 +479,7 @@ def startup_invalidate(fallback):
 
 
 def usable_path(root, name, *, allow_deep=False):
-    path = Path(name)
-    path = path if path.is_absolute() else root / path
-    path = path.resolve()
+    path = resolve_path(os.fspath(name), root)
     try:
         relative = path.relative_to(root)
     except ValueError:
@@ -588,7 +586,7 @@ def main():
         startup_invalidate(sys.argv[2])
         return
     if command in {"validate", "validate-content", "deps", "deps-content", "deps-intents-content", "dependency-fingerprint-content"}:
-        path = Path(sys.argv[2])
+        path = resolve_path(sys.argv[2])
         content = sys.stdin.read() if command.endswith("content") else path.read_text()
         parsed = dependencies(path, content, intents=command == "deps-intents-content")
         if command == "deps-intents-content":
@@ -600,7 +598,7 @@ def main():
             for package, selected in parsed:
                 print(f"{package}\t{selected}")
         return
-    root = Path(sys.argv[2]).resolve(strict=True)
+    root = resolve_path(sys.argv[2]).resolve(strict=True)
     path = state_path(root)
     previous = read_json(path, {})
     if command in {"recovery-allowed", "approve"}:

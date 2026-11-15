@@ -9,6 +9,8 @@ bash <plugin-root>/scripts/check-versions.sh
 bash <plugin-root>/scripts/vs-record.sh npm lodash 4.17.21 https://www.npmjs.com/package/lodash
 ```
 
+After a startup audit warning, use the `audit-dependencies` skill or the existing `/check-versions` command. The skill resolves the script from its own plugin installation and runs it from the affected project, so an older script in the project cannot replace it. The visible warning includes a shell-quoted `cd PROJECT && bash INSTALLED_SCRIPT` retry command. Run that command to see the full diagnostic, resolve the reported cause, and retry; dependency work stays blocked until an audit succeeds.
+
 The recorder makes its own HTTPS upstream request. It checks that the intended version exists and compares it with the latest release. A URL supplied by an agent is not evidence. For an older version, provide an explicit reason:
 
 ```bash

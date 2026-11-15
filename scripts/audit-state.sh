@@ -18,4 +18,18 @@ if [[ "${1:-}" == gate || "${1:-}" == covers ]]; then
     fi
   done
 fi
-exec python3 "$DIR/lib/project-state.py" "$@"
+# MSYS can leave /tmp paths containing apostrophes unconverted in native argv.
+# Map the Python entrypoint explicitly; the Python helper maps data paths.
+python_entrypoint="$DIR/lib/project-state.py"
+if command -v cygpath >/dev/null 2>&1; then
+  if ! python_entrypoint=$(cygpath -C UTF8 -a -m -- "$python_entrypoint"); then
+    echo 'BLOCKED: version-sentinel. Cannot map the audit helper path for native Python.' >&2
+    exit 2
+  fi
+  python_entrypoint="${python_entrypoint%$'\r'}"
+  if [[ -z "$python_entrypoint" || "$python_entrypoint" == *$'\n'* || "$python_entrypoint" == *$'\r'* ]]; then
+    echo 'BLOCKED: version-sentinel. Invalid mapped audit helper path for native Python.' >&2
+    exit 2
+  fi
+fi
+exec python3 "$python_entrypoint" "$@"
