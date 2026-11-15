@@ -539,6 +539,40 @@ class SecurityEngineTests(unittest.TestCase):
         self.assertIn('changed', out)
         self.assertEqual(self.command(module, 'gate', str(self.root))[0], 2)
 
+    def test_final_rejection_preserves_findings_without_clobbering_newer_audit(self):
+        for change in ('captured', 'live', 'generation'):
+            with self.subTest(change=change):
+                self.project()
+                module = self.engine()
+                def request(url, body=None):
+                    if body is None:
+                        return self.advisory()
+                    return {'results': [{'vulns': [{'id': 'GHSA-fixture-1234'}]}
+                                        if q['package']['name'] == 'transitive' else {}
+                                        for q in body['queries']]}
+                self.providers(module, request)
+                newer = {'generation': 'newer-audit', 'status': 'pending', 'marker': 'preserve'}
+                def run_npm(args, **kwargs):
+                    if change == 'generation':
+                        (self.root / '.version-sentinel/security.json').write_text(json.dumps(newer))
+                    else:
+                        directory = Path(kwargs['cwd']) if change == 'captured' else self.root
+                        (directory / 'package-lock.json').write_text('{}')
+                    return self.clean_npm()
+                module.subprocess.run.side_effect = run_npm
+                code, out = self.command(module, 'audit', str(self.root))
+                self.assertEqual(code, 2, out)
+                self.assertIn('GHSA-fixture-1234', out)
+                self.assertIn('high', out)
+                self.assertIn('incomplete', out)
+                saved = json.loads((self.root / '.version-sentinel/security.json').read_text())
+                if change == 'generation':
+                    self.assertEqual(saved, newer)
+                else:
+                    self.assertEqual(saved['status'], 'incomplete')
+                    self.assertIn('GHSA-fixture-1234', saved['findings'][0]['ids'])
+                self.assertEqual(self.command(module, 'gate', str(self.root))[0], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

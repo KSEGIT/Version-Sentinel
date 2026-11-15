@@ -503,12 +503,32 @@ def audit_captured(root, scan_root, config, before, generation):
                 evidence['errors'].append(f'{provider}: {error}')
         evidence['findings'] = deduplicate(evidence['findings'])
         evidence['status'] = 'incomplete' if evidence['errors'] else 'blocked' if blocked(evidence['findings']) else 'complete'
-    after = snapshot(root, config)
-    current = parse_json(state_path(root).read_text(encoding='utf-8'))
-    frozen_after = snapshot(scan_root, config)
-    if before != after or frozen_after['files'] != before['files'] or current.get('generation') != generation:
-        raise ValueError('incomplete security evidence: project changed or another audit ran during scan')
-    write_state(root, evidence)
+    # Evidence validation may fail after useful advisories were retrieved.
+    # Keep those findings visible and, when this generation still owns state,
+    # persist them as incomplete instead of losing them in a pending record.
+    try:
+        after = snapshot(root, config)
+        frozen_after = snapshot(scan_root, config)
+        if before != after or frozen_after['files'] != before['files']:
+            evidence['errors'].append('incomplete security evidence: project or captured inputs changed during scan')
+    except (ValueError, OSError) as error:
+        evidence['errors'].append(f'incomplete security evidence: cannot verify scan inputs: {error}')
+    try:
+        current = object_value(parse_json(state_path(root).read_text(encoding='utf-8')), 'security state')
+    except (ValueError, OSError) as error:
+        current = {}
+        evidence['errors'].append(f'incomplete security evidence: cannot verify audit generation: {error}')
+    owns_state = current.get('generation') == generation
+    if not owns_state:
+        evidence['errors'].append('incomplete security evidence: another audit ran during scan; its state was preserved')
+    if evidence['errors']:
+        evidence['status'] = 'incomplete'
+    if owns_state:
+        try:
+            write_state(root, evidence)
+        except OSError as error:
+            evidence['status'] = 'incomplete'
+            evidence['errors'].append(f'incomplete security evidence: cannot save audit findings: {error}')
     report(evidence)
     return 0 if evidence['status'] in {'complete', 'disabled'} else 2
 
