@@ -87,6 +87,11 @@ It does not read host settings or credential files directly. An ambiguous,
 unsupported or failed lookup blocks as unknown before any advisory request.
 Explicit shell values and hook option values still take priority. This also
 applies to the lock reconciliation command.
+When already reading saved provider options, the resolver also uses saved
+`window_hours` if neither window environment variable is present. It validates
+the same 1–168 hour range as the engine and starts no CLI lookup for the window
+alone. Standalone scripts with explicit provider values can set
+`VS_WINDOW_HOURS` explicitly to keep the same freshness policy.
 
 With no Claude CLI or no matching installed plugin, a checkout or standalone CI
 script uses explicit `VS_SECURITY_*` values, otherwise both providers default

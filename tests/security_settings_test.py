@@ -114,6 +114,35 @@ class SavedSettingsTests(unittest.TestCase):
                                           'unconfigured': ['security_osv', 'security_npm_audit']})
         self.assertEqual(module.saved_overrides(self.root, {}), {})
 
+    def test_saved_window_is_honored_during_provider_lookup(self):
+        module = self.resolver(configured={
+            'inputs': {'security_osv': 'false', 'security_npm_audit': 'false', 'window_hours': '8'},
+            'configured': ['security_osv', 'security_npm_audit', 'window_hours']})
+        result = module.saved_overrides(self.root, {})
+        self.assertEqual(result['VS_SECURITY_OSV'], 'false')
+        self.assertEqual(result['VS_SECURITY_NPM_AUDIT'], 'false')
+        self.assertIn('VS_WINDOW_HOURS', result)
+        self.assertEqual(float(result['VS_WINDOW_HOURS']), 8)
+
+    def test_explicit_window_wins_and_window_alone_does_not_trigger_lookup(self):
+        for key in ('VS_WINDOW_HOURS', 'CLAUDE_PLUGIN_OPTION_WINDOW_HOURS'):
+            module = self.resolver(configured={'inputs': {'security_osv': 'false', 'window_hours': 'bad'},
+                                              'configured': ['security_osv', 'window_hours']})
+            result = module.saved_overrides(self.root, {key: '48'})
+            self.assertNotIn('VS_WINDOW_HOURS', result)
+        module = self.resolver()
+        self.assertEqual(module.saved_overrides(self.root, {'VS_SECURITY_OSV': 'true',
+                                                           'VS_SECURITY_NPM_AUDIT': 'false'}), {})
+        self.process.assert_not_called()
+
+    def test_invalid_saved_window_blocks_without_exposing_value(self):
+        for value in ('private invalid text', 'nan', 'inf', '0', '169', True):
+            module = self.resolver(configured={'inputs': {'security_osv': 'false', 'window_hours': value},
+                                              'configured': ['security_osv', 'window_hours']})
+            with self.assertRaisesRegex(ValueError, 'freshness window') as raised:
+                module.saved_overrides(self.root, {})
+            self.assertNotIn(str(value), str(raised.exception))
+
     def test_invalid_boolean_or_missing_configured_input_blocks(self):
         for value in ('secret text', [], 0):
             module = self.resolver(configured={'inputs': {'security_osv': value},

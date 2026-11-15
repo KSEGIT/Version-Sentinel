@@ -6,6 +6,7 @@ the documented CLI to read the exact installed plugin's configuration instead
 of reading host settings or credential files directly.
 """
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -93,11 +94,25 @@ def saved_overrides(plugin_root=None, environment=None):
         if not isinstance(value, str) or value.lower() not in {'true', 'false', '1', '0'}:
             raise ValueError('Cannot resolve saved Claude security settings: invalid provider boolean')
         overrides['VS_' + key] = value.lower()
+    # The same provider lookup can recover the saved freshness window so its
+    # evidence policy agrees with hooks. Never launch the CLI for this alone.
+    if 'VS_WINDOW_HOURS' not in environment and 'CLAUDE_PLUGIN_OPTION_WINDOW_HOURS' not in environment:
+        if 'window_hours' in result['inputs']:
+            value = result['inputs']['window_hours']
+            try:
+                window = float(value) if not isinstance(value, bool) else math.nan
+            except (ValueError, TypeError, OverflowError):
+                window = math.nan
+            if not math.isfinite(window) or not 1 <= window <= 168:
+                raise ValueError('Cannot resolve saved Claude security settings: invalid freshness window')
+            overrides['VS_WINDOW_HOURS'] = str(window)
+        elif 'window_hours' in configured:
+            raise ValueError('Cannot resolve saved Claude security settings: saved freshness window unavailable')
     return overrides
 
 
 def apply_saved_settings(plugin_root=None):
-    """Fill only absent provider values; callers can then use security.settings()."""
+    """Fill absent policy values; callers can then use security.settings()."""
     os.environ.update(saved_overrides(plugin_root))
 
 
