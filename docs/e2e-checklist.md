@@ -44,9 +44,10 @@ Verified live on 2026-07-26:
 - ✅ `marketplace add` + `plugin install` succeed; `plugin details` shows
   `Hooks (3) SessionStart, PreToolUse, PostToolUse`, slash commands
   `version-sentinel:vs-record` / `version-sentinel:check-versions` load in-session.
-  (Since the `if` gate landed, `plugin details` reports **18** hook handlers
+  (Since the `if` gate landed, `plugin details` reports **19** hook handlers
   rather than 4 — one `Bash(*<manager>*)` handler per covered manager on each of
-  PreToolUse and PostToolUse. Still three hook *events*. Expected, not a bug.)
+  PreToolUse and PostToolUse, plus a structured-edit post handler that scans
+  changed npm manifests and lockfiles. Still three hook *events*.)
 - ✅ **Critical finding (fixed):** Claude Code *rejected* the combined
   `hooks/hooks.json` containing Gemini keys — `plugin list` showed
   `✘ failed to load / Hook load failed: invalid_key ... path: ["hooks","BeforeTool"]`
@@ -85,7 +86,7 @@ Kimi has no headless plugin install. Two layers to verify:
 
 Then verify in the TUI: plugin listed as enabled; hooks from
 `kimi.plugin.json` registered (SessionStart, PreToolUse Edit|Write|MultiEdit,
-PreToolUse Bash, PostToolUse Bash); ask the agent to add a dependency and
+PreToolUse Bash, PostToolUse Bash|Edit|Write|MultiEdit|apply_patch); ask the agent to add a dependency and
 confirm the block message appears.
 
 **B. Hook contract (headless-equivalent) — verified live 2026-07-26:**
