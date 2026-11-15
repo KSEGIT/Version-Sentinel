@@ -78,6 +78,24 @@ Invalid values block rather than silently disabling a provider. For example,
 `VS_SECURITY_OSV=0` disables only OSV; npm audit remains enabled. Disabled coverage
 is reported explicitly and must not be described as a clean advisory scan.
 
+Claude exports plugin option variables to hook processes, not commands run
+through its Bash tool or an independent terminal. When an option is absent from
+both environments above, the security wrapper queries Claude's installed-plugin
+inventory and reads saved non-sensitive options for the exact installation
+through `claude plugin configure FULL_ID --json` (Claude Code 2.1.285 or later).
+It does not read host settings or credential files directly. An ambiguous,
+unsupported or failed lookup blocks as unknown before any advisory request.
+Explicit shell values and hook option values still take priority. This also
+applies to the lock reconciliation command.
+
+With no Claude CLI or no matching installed plugin, a checkout or standalone CI
+script uses explicit `VS_SECURITY_*` values, otherwise both providers default
+to enabled. A standalone checkout does not inherit options from a different
+installed copy. Set the environment explicitly when invoking that checkout or
+when using a host that does not export these options. The source and scope are
+documented in Claude's [manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+and [configuration CLI reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+
 The startup audit and explicit `bash scripts/check-versions.sh` run both enabled
 providers before creating successful audit evidence. Supported structured npm
 manifest/lockfile changes and recognized npm commands trigger a post-tool scan
