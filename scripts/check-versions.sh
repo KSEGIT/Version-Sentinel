@@ -71,5 +71,6 @@ if [[ "$failed" != 0 ]]; then
   echo 'BLOCKED: version-sentinel. Mandatory audit failed due to registry lookup/manifest errors. Resolve the errors and rerun; version drift alone does not fail an audit.' >&2
   exit 2
 fi
+bash "$DIR/security-check.sh" audit "$PWD" || exit 2
 bash "$DIR/audit-state.sh" complete "$PWD" "$snapshot" || exit 2
 echo 'version-sentinel: mandatory online dependency audit completed; no dependency versions changed.'

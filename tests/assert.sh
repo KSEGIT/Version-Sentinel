@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Shared assertions. Source this from each test script.
 set -u
+# Legacy suites mock registry versions only. Security-specific suites explicitly
+# enable providers and provide advisory fixtures; product defaults stay enabled.
+export VS_SECURITY_NPM_AUDIT="${VS_SECURITY_NPM_AUDIT:-0}"
+export VS_SECURITY_OSV="${VS_SECURITY_OSV:-0}"
 
 VS_TEST_FAILED=0
 VS_TEST_NAME="${VS_TEST_NAME:-unnamed}"

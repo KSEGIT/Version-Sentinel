@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# Compatibility entry point for hosts that retain the old PostToolUse hook.
-# A completed installation is not evidence of an upstream check. Only
-# vs-record.sh may create online verification records, before dependency work.
-exit 0
+# Retained PostToolUse entry point: scan changed npm state, never record versions.
+set -u
+DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+source "$DIR/lib/options.sh"
+if [[ "${VS_DISABLE:-0}" == 1 ]]; then exit 0; fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo 'BLOCKED: version-sentinel. python3 is required to check changed security state.' >&2
+  exit 2
+fi
+python3 "$DIR/lib/security-post.py"
+status=$?
+[[ "$status" -eq 0 ]] || exit 2

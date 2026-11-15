@@ -33,6 +33,10 @@ for prerequisite in jq python3; do
   fi
 done
 project_root=$(cd "${VS_PROJECT_ROOT:-$PWD}" && pwd -P) || exit 2
+# Security policy applies even to intentional older version pins.
+if [[ "$ecosystem" == npm ]]; then
+  bash "$(dirname "$0")/security-check.sh" proposed "$project_root" "$pkg" "$version" || exit 2
+fi
 path=$(sidecar_path "$project_root")
 registry_endpoint=$(registry_url "$ecosystem" "$pkg") || exit 2
 

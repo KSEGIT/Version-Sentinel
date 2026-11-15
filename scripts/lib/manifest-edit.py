@@ -17,6 +17,7 @@ from path_helpers import bash_script_path, resolve_path
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 UNPINNED = "__version_sentinel_unpinned__"
+NPM_LOCKFILES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"}
 
 
 class Blocked(Exception):
@@ -46,7 +47,8 @@ def text(value, label):
 
 def relevant(root, name):
     # Write/Edit can follow a symlink whose basename hides the manifest.
-    return ecosystem(name) or ecosystem(resolve_path(name, root))
+    resolved = resolve_path(name, root)
+    return ecosystem(name) or ecosystem(resolved) or Path(name).name in NPM_LOCKFILES or resolved.name in NPM_LOCKFILES
 
 
 def run(args, root, content=None):
@@ -247,6 +249,14 @@ def inspect(root, proposed):
     errors = []
     checked_audit = None
     for path, before, after in proposed:
+        if path.name in NPM_LOCKFILES:
+            if before == after:
+                continue
+            result = run(["bash", bash_script_path(SCRIPTS / "security-check.sh"),
+                          "proposed-lock", str(root), str(path)], root, after)
+            if result.returncode:
+                errors.append(result.stderr.strip() or f"Cannot verify proposed npm lockfile: {path}")
+            continue
         before_validation = state("validate-content", root, path, content=before) if before is not None else None
         valid_before = before_validation is not None and before_validation.returncode == 0
         if before_validation is not None and "Unsupported dependency-selector" in before_validation.stderr:

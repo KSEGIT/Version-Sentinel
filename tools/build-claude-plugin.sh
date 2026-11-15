@@ -50,6 +50,9 @@ scripts/lib/retry.sh
 scripts/lib/sidecar.sh
 scripts/prereq-check.sh
 scripts/recover-manifest.sh
+scripts/security-check.sh
+scripts/lib/security.py
+scripts/lib/security-post.py
 scripts/session-start.sh
 scripts/vs-record.sh
 commands/vs-record.md
