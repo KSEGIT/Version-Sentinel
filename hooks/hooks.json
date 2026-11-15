@@ -82,49 +82,6 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(*npm*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*yarn*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*bun*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*pip*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*poetry*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*uv*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*cargo*)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
-            "timeout": 180
-          },
-          {
-            "type": "command",
-            "if": "Bash(*dotnet*)",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/auto-record.sh\"",
             "timeout": 180
           }

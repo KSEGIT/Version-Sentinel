@@ -245,6 +245,12 @@ def fingerprint(root, path, content):
     return result.stdout
 
 
+def diagnostics(result):
+    # Advisory findings use stdout; transport and validation failures use stderr.
+    # Keep both channels so blocking hooks retain IDs, links and severity.
+    return "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+
+
 def inspect(root, proposed):
     errors = []
     checked_audit = None
@@ -255,7 +261,7 @@ def inspect(root, proposed):
             result = run(["bash", bash_script_path(SCRIPTS / "security-check.sh"),
                           "proposed-lock", str(root), str(path)], root, after)
             if result.returncode:
-                errors.append(result.stderr.strip() or f"Cannot verify proposed npm lockfile: {path}")
+                errors.append(diagnostics(result) or f"Cannot verify proposed npm lockfile: {path}")
             continue
         before_validation = state("validate-content", root, path, content=before) if before is not None else None
         valid_before = before_validation is not None and before_validation.returncode == 0
@@ -299,7 +305,7 @@ def inspect(root, proposed):
                 continue
             record = run(["bash", bash_script_path(SCRIPTS / "check-sidecar.sh"), eco, pkg, version], root)
             if record.returncode:
-                errors.append(record.stderr.strip() or f"No online verification for {pkg}@{version}.")
+                errors.append(diagnostics(record) or f"No online verification for {pkg}@{version}.")
     if errors:
         raise Blocked("\n---\n".join(dict.fromkeys(errors)))
 

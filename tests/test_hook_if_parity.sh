@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Guards the `if` gate on the Bash hooks in hooks/hooks.json.
+# Guards PreToolUse manager filters and ungated PostToolUse snapshot coverage.
 #
-# detect-install-cmd.sh and auto-record.sh used to spawn on every single Bash
-# tool call and exit 0 immediately for the ~98% that are not installs. They are
-# now gated behind Claude Code `if` rules (permission-rule syntax), keyed on the
-# package-manager binary rather than the subcommand so that `npm i`, `npm add`
-# and `npm install` are all covered by one rule.
+# detect-install-cmd.sh uses Claude Code `if` rules keyed on the package-manager
+# binary rather than the subcommand, covering npm i/add/install with one rule.
+# PostToolUse runs one ungated snapshot checker because arbitrary shell programs
+# can change lockfiles without naming a package manager.
 #
 # The rules must stay in sync with the command names lib/parse-install-cmd.sh
 # recognizes. A manager the parser knows but no `if` rule covers is a SILENT
@@ -110,9 +109,9 @@ for expected in npm pnpm yarn bun pip pip3 poetry uv cargo dotnet; do
   esac
 done
 
-# --- Every Bash hook handler is gated, and covers every manager -------------
+# --- PreToolUse Bash handlers stay gated and cover every manager -----------
 checked_events=0
-for event in PreToolUse PostToolUse; do
+for event in PreToolUse; do
   rules=""
   n_rules=0
   while IFS= read -r line; do
@@ -207,7 +206,14 @@ done
 
 # If the loop above is ever skipped (as it silently was under bash 3.2 with
 # mapfile), every assertion in it is skipped too. Fail rather than pass green.
-assert_eq "2" "$checked_events" "parity loop ran for both PreToolUse and PostToolUse"
+assert_eq "1" "$checked_events" "parity loop ran for PreToolUse"
+
+# PostToolUse inspects actual file snapshots even for python/printf writes.
+# Keyword filters would miss these mutations, so use one ungated Bash handler.
+post_count=$(jq '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[]] | length' "$HOOKS" | tr -d '\r')
+post_filters=$(jq '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | select(has("if"))] | length' "$HOOKS" | tr -d '\r')
+assert_eq "1" "$post_count" "post-shell uses one snapshot checker"
+assert_eq "0" "$post_filters" "post-shell covers writes without package-manager keywords"
 
 # --- The manifest-edit hook is deliberately NOT gated ----------------------
 # Edit/Write/MultiEdit are a small share of tool calls, and `if` matches the

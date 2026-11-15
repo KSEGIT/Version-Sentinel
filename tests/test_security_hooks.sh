@@ -13,6 +13,7 @@ cat > "$VS_TMPDIR/scripts/security-check.sh" <<'MOCK'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$SECURITY_CALLS"
 if [[ "$1" == "${SECURITY_FAIL_ACTION:-}" ]]; then
+  echo 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture affected <2.0.0 fixed 2.0.0 provider osv'
   echo 'BLOCKED: version-sentinel. security unknown/incomplete' >&2
   exit 2
 fi
@@ -38,10 +39,16 @@ result=$(SECURITY_FAIL_ACTION=proposed bash "$VS_TMPDIR/scripts/check-sidecar.sh
 assert_exit_code 2 "$status" 'intentional pins cannot waive advisory findings'
 assert_contains "$(cat "$SECURITY_CALLS" 2>/dev/null)" "proposed $VS_TEST_CANONICAL_ROOT lodash 4.17.21" 'exact candidate reaches security engine'
 
+# Manifest proposal failures must retain provider findings written to stdout.
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"4.17.20\"}}"}}' | SECURITY_FAIL_ACTION=proposed bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 2 "$status" 'manifest proposal blocks advisory finding'
+assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'manifest proposal preserves advisory diagnostics'
+
 # Lockfiles are relevant before direct writes, including patch post-images.
 : > "$SECURITY_CALLS"
 result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_FAIL_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'direct lock write blocks failed proposal scan'
+assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'lock proposal preserves advisory diagnostics'
 assert_contains "$(cat "$SECURITY_CALLS")" "proposed-lock $VS_TEST_CANONICAL_ROOT" 'lock post-image reaches security engine'
 
 # Post hooks must skip unrelated tools, scan changed npm state, and never record.
@@ -84,4 +91,9 @@ cp "$VS_TMPDIR/failing-security" "$VS_TMPDIR/scripts/security-check.sh"
 result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'failed post scan reports blocking status'
 assert_contains "$result" 'security unknown/incomplete' 'provider diagnostic remains visible'
+# Claude post-shell dispatch must run for raw writes without manager keywords.
+post_shell_handlers=$(jq '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[]] | length' "$ROOT/hooks/hooks.json" | tr -d '\r')
+assert_eq 1 "$post_shell_handlers" 'one post-shell snapshot handler'
+post_shell_filtered=$(jq '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | select(has("if"))] | length' "$ROOT/hooks/hooks.json" | tr -d '\r')
+assert_eq 0 "$post_shell_filtered" 'raw python/printf shell writes reach post snapshot checks'
 finish_test

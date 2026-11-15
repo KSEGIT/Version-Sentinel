@@ -44,10 +44,10 @@ Verified live on 2026-07-26:
 - ✅ `marketplace add` + `plugin install` succeed; `plugin details` shows
   `Hooks (3) SessionStart, PreToolUse, PostToolUse`, slash commands
   `version-sentinel:vs-record` / `version-sentinel:check-versions` load in-session.
-  (Since the `if` gate landed, `plugin details` reports **19** hook handlers
-  rather than 4 — one `Bash(*<manager>*)` handler per covered manager on each of
-  PreToolUse and PostToolUse, plus a structured-edit post handler that scans
-  changed npm manifests and lockfiles. Still three hook *events*.)
+  (Since the `if` gate landed, `plugin details` reports **12** hook handlers
+  — one gated `Bash(*<manager>*)` handler per covered manager in PreToolUse,
+  one ungated Bash post handler for actual file snapshots, and a structured-edit
+  post handler for npm manifests and locks. Still three hook *events*.)
 - ✅ **Critical finding (fixed):** Claude Code *rejected* the combined
   `hooks/hooks.json` containing Gemini keys — `plugin list` showed
   `✘ failed to load / Hook load failed: invalid_key ... path: ["hooks","BeforeTool"]`
