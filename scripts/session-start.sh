@@ -24,7 +24,9 @@ if [[ "$audit_status" -eq 2 && "$audit_output" == *'BLOCKED: version-sentinel.'*
   # A reported audit block is context, not a lifecycle hook crash. The audit
   # already revoked prior evidence; PreToolUse still blocks dependency work.
   warning='Version Sentinel startup audit failed; dependency work remains blocked. File inspection and questions remain available.'
-  printf -v retry 'Resolve the reported errors, then rerun from %q: bash %q' "$PWD" "$DIR/check-versions.sh"
+  printf -v retry_command 'cd %q && bash %q' "$PWD" "$DIR/check-versions.sh"
+  printf -v retry 'Resolve the reported errors, then rerun from %q: %s' "$PWD" "$retry_command"
+  printf -v warning '%s\n%s\n%s' "$warning" 'Run the audit-dependencies skill, or resolve the reported errors and retry:' "$retry_command"
   printf '%s\n' "$audit_output" >&2
   printf '%s\n\n%s\n%s\n' "$audit_output" "$warning" "$retry" |
     if [[ "${1:-}" == --copilot ]]; then

@@ -3,21 +3,34 @@
 # arguments; ignore any {{args}} content rather than inventing flags.
 description = "Audit dependencies against upstream registries (npm, pypi, nuget, crates.io)"
 prompt = """
-Audit the workspace's dependency manifests against upstream registries.
+Run the bundled online audit in the affected project directory. Use the directory
+named in the startup warning, or the user's current project if there is no warning.
+Use it after a
+"Version Sentinel startup audit failed" warning or when audit evidence is
+missing or expired. The audit-dependencies skill provides the same workflow.
 
-Use the run_shell_command tool to execute exactly:
+Use the run_shell_command tool with dir_path set to that project's absolute path
+to execute exactly:
 
   bash "${extensionPath}/scripts/check-versions.sh"
 
 Then interpret the drift report for the user:
 
-- Scans package.json, requirements*.txt, pyproject.toml, Cargo.toml, and
-  *.csproj under the workspace and compares each pinned version to the
+- Scans package.json, requirements*.txt, constraints*.txt, pyproject.toml,
+  Cargo.toml, *.csproj, *.fsproj, and *.vbproj and compares each version to the
   latest upstream release (npmjs.com, pypi.org, crates.io, nuget.org).
 - DRIFT means the pinned version differs from the latest upstream version.
 - intentional-pin means the version was deliberately pinned via
   `/vs-record ... intentional:<reason>` — it is not drift; report it as such.
-- The audit is advisory only: it never blocks edits and changes nothing.
+- A successful audit records current project evidence in
+  .version-sentinel/audit.json without changing dependency versions.
+- Drift alone does not fail the audit. Report the exit status and full failure
+  diagnostic. Registry or manifest errors leave dependency work blocked;
+  resolve the reported cause and rerun. Preserve npm overrides and report
+  parser limitations as tool limitations. Do not disable enforcement.
+
+Missing or invalid required manifests need the user's approval before repair
+or recreation. Do not guess dependency contents.
 
 Summarize which packages drifted, by how much, and point out anything that
 looks like a security-relevant lag. Do not "fix" versions unless the user

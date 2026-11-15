@@ -116,6 +116,7 @@ SessionStart performs a mandatory online dependency audit. Missing or invalid ma
 
 - `/vs-record <ecosystem> <pkg> <version> <source>` — record a version check
 - `/check-versions` — audit manifests against upstream registries
+- `audit-dependencies` skill — run the installed audit after a startup warning, report the cause, and retry after it is resolved. Failed-audit warnings also show a terminal command for the affected project.
 
 ## Older pins and offline failures
 
