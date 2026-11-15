@@ -145,6 +145,67 @@ class ReconciliationTests(unittest.TestCase):
         self.assertTrue(any('check-versions.sh' in str(arg) for args in calls for arg in args))
         self.assertFalse(any('fix' == arg for args in calls for arg in args))
 
+    def test_staged_manifest_formatting_does_not_change_the_approved_project(self):
+        self.approved_change()
+        original = self.manifest.read_bytes()
+        reformatted = (json.dumps(json.loads(self.after), indent=2, sort_keys=True)
+                       .replace('\n', '\r\n') + '\r\n').encode()
+        self.assertNotEqual(reformatted, original)
+
+        def run(args, **kwargs):
+            if 'install' in args:
+                staging = Path(kwargs['cwd'])
+                (staging / 'package.json').write_bytes(reformatted)
+                (staging / 'package-lock.json').write_bytes(self.new_lock.encode())
+            return subprocess.CompletedProcess(args, 0, '', '')
+
+        with patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'), contextlib.redirect_stdout(io.StringIO()):
+            self.rec.regenerate(self.root, self.manifest)
+        self.assertEqual(self.manifest.read_bytes(), original)
+        self.assertEqual(self.lockpath.read_bytes(), self.new_lock.encode())
+
+    def test_staged_npm_empty_dependency_table_pruning_is_safe(self):
+        self.after = json.dumps({'name': 'fixture', **{key: {} for key in ('dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies')}})
+        self.approved_change()
+        original = self.manifest.read_bytes()
+
+        def run(args, **kwargs):
+            if 'install' in args:
+                staging = Path(kwargs['cwd'])
+                (staging / 'package.json').write_bytes(b'{"name":"fixture"}\r\n')
+                (staging / 'package-lock.json').write_bytes(self.new_lock.encode())
+            return subprocess.CompletedProcess(args, 0, '', '')
+
+        with patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'), contextlib.redirect_stdout(io.StringIO()):
+            self.rec.regenerate(self.root, self.manifest)
+        self.assertEqual(self.manifest.read_bytes(), original)
+        self.assertEqual(self.lockpath.read_bytes(), self.new_lock.encode())
+
+    def test_staged_manifest_meaning_changes_never_replace_the_real_lock(self):
+        self.after = json.dumps({'name': 'fixture', 'dependencies': {}, 'private': True})
+        self.approved_change()
+        original = self.manifest.read_bytes()
+        changed = [
+            json.dumps({'name': 'fixture', 'dependencies': {'extra': '1.0.0'}, 'private': True}),
+            json.dumps({'name': 'fixture', 'dependencies': {}, 'private': True, 'scripts': {'install': 'unexpected'}}),
+            json.dumps({'name': 'other', 'dependencies': {}, 'private': True}),
+            json.dumps({'name': 'fixture', 'dependencies': {}, 'private': 1}),
+            json.dumps({'name': 'fixture', 'dependencies': [], 'private': True}),
+            '{"name":"fixture","private":true,"dependencies":{},"dependencies":{}}',
+        ]
+        for replacement in changed:
+            with self.subTest(replacement=replacement):
+                def run(args, **kwargs):
+                    if 'install' in args:
+                        staging = Path(kwargs['cwd'])
+                        (staging / 'package.json').write_bytes(replacement.encode())
+                        (staging / 'package-lock.json').write_bytes(self.new_lock.encode())
+                    return subprocess.CompletedProcess(args, 0, '', '')
+                with patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'), self.assertRaises(ValueError):
+                    self.rec.regenerate(self.root, self.manifest)
+                self.assertEqual(self.manifest.read_bytes(), original)
+                self.assertEqual(self.lockpath.read_bytes(), self.lock.encode())
+
     def test_atomic_manifest_and_lock_edit_does_not_leave_reconciliation_authority(self):
         self.audited()
         changes = [(self.manifest, self.before, self.after), (self.lockpath, self.lock, self.new_lock)]
@@ -174,16 +235,21 @@ class ReconciliationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('npm'), 'npm is required for the real scriptless resolver smoke')
     def test_real_scriptless_lock_regeneration_after_approved_removal(self):
-        self.approved_change()
-        # Removing the sole dependency needs no registry resolution. Force
-        # offline mode so this test cannot contact a registry even by mistake.
-        with patch.dict(os.environ, {'npm_config_offline': 'true'}), contextlib.redirect_stdout(io.StringIO()):
-            self.rec.regenerate(self.root, self.manifest)
-        self.assertEqual(self.manifest.read_text(), self.after)
-        self.assertEqual(json.loads(self.lockpath.read_text())['packages'][''].get('dependencies', {}), {})
-        self.assertFalse((self.root / 'node_modules').exists())
-        self.assertEqual(self.edit.state('gate', self.root, self.root).returncode, 0)
-        self.assertFalse(self.rec.record_path(self.root).exists())
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                self.manifest.write_bytes(self.before.encode())
+                self.lockpath.write_bytes(self.lock.encode())
+                self.after = json.dumps({'name': 'fixture', 'dependencies': {}}, indent=2).replace('\n', newline) + newline
+                self.approved_change()
+                # Removing the sole dependency needs no registry resolution.
+                # Force offline mode to prohibit accidental registry requests.
+                with patch.dict(os.environ, {'npm_config_offline': 'true'}), contextlib.redirect_stdout(io.StringIO()):
+                    self.rec.regenerate(self.root, self.manifest)
+                self.assertEqual(self.manifest.read_bytes(), self.after.encode())
+                self.assertEqual(json.loads(self.lockpath.read_text())['packages'][''].get('dependencies', {}), {})
+                self.assertFalse((self.root / 'node_modules').exists())
+                self.assertEqual(self.edit.state('gate', self.root, self.root).returncode, 0)
+                self.assertFalse(self.rec.record_path(self.root).exists())
 
     def test_failed_proposal_or_changed_inputs_never_replace_actual_lock(self):
         for failure in ('provider', 'changed'):

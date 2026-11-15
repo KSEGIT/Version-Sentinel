@@ -135,6 +135,20 @@ def command(args, **kwargs):
     return result
 
 
+def manifest_content(raw):
+    """Allow npm serialization and its four empty dependency-table removals."""
+    value = security.object_value(security.parse_json(raw.decode('utf-8')), 'staged manifest')
+    # @npmcli/package-json prunes empty dependency tables when saving. Missing
+    # and empty tables declare the same dependencies; no other fields are
+    # normalized, and nonempty selectors must remain identical.
+    for key in FIELDS:
+        if type(value.get(key)) is dict and not value[key]:
+            del value[key]
+    # Canonical JSON keeps value types distinct (True must not equal 1), while
+    # allowing whitespace, line-ending, escape and object-key-order changes.
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+
+
 def regenerate(root, manifest):
     root = root.resolve(strict=True)
     manifest = resolve_path(str(manifest), root)
@@ -161,7 +175,10 @@ def regenerate(root, manifest):
                  '--workspaces=false', '--global=false', '--prefix', str(staging)], cwd=staging)
         sys.stdout.write(staged.stdout)
         sys.stderr.write(staged.stderr)
-        if (staging / 'package.json').read_bytes() != inputs['package.json']:
+        # npm can serialize the temporary manifest while saving the lock.
+        # Never copy that file back: the actual manifest stays byte-bound to
+        # the approved transition. Only equivalent staged content is allowed.
+        if manifest_content((staging / 'package.json').read_bytes()) != manifest_content(inputs['package.json']):
             raise ValueError('npm changed the approved staged manifest; lock not written')
         generated = (staging / 'package-lock.json').read_bytes()
         content = generated.decode('utf-8')
