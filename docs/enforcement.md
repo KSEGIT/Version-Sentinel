@@ -83,6 +83,8 @@ through its Bash tool or an independent terminal. When an option is absent from
 both environments above, the security wrapper queries Claude's installed-plugin
 inventory and reads saved non-sensitive options for the exact installation
 through `claude plugin configure FULL_ID --json` (Claude Code 2.1.285 or later).
+In-place marketplace installations need Claude Code 2.1.289 or later to expose
+their `readFromFolder` path; with older hosts, supply explicit `VS_*` settings.
 It does not read host settings or credential files directly. An ambiguous,
 unsupported or failed lookup blocks as unknown before any advisory request.
 Explicit shell values and hook option values still take priority. This also
