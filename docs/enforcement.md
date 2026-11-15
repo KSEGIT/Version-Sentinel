@@ -95,7 +95,12 @@ installs a package to repair a finding.
 
 Supported resolved-tree input is `package-lock.json` version 2 or 3, discovered
 within the same four-level project scope. Both direct and transitive resolved
-packages are checked. Missing or unsupported locks, unresolved entries and
+packages are checked. Initial source coverage is canonical HTTPS npm tarballs
+from `registry.npmjs.org` whose package name and version match the lock entry.
+Aliases, private/mirror registries, arbitrary tarballs, local/git/workspace
+sources and mismatched package metadata are incomplete. Missing nodes in the
+resolved dependency graph, including optional or peer edges, are incomplete
+rather than silently omitted. Missing or unsupported locks, unresolved entries and
 unsupported source coverage report unknown/incomplete; they cannot authorize a
 clean security result while a provider is enabled. Other lockfile formats and
 other ecosystems do not gain security coverage from this change.
