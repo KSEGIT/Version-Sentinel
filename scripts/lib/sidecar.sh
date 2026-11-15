@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Sidecar JSON state for version-sentinel.
+# Keyed by (ecosystem, pkg); last-write-wins dedupe.
+
+SCRIPT_DIR_SIDECAR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=json.sh
+source "$SCRIPT_DIR_SIDECAR/json.sh"
+if [[ -z "${_VS_LOCKFILE_LOADED:-}" ]]; then
+  source "$SCRIPT_DIR_SIDECAR/lockfile.sh"
+  _VS_LOCKFILE_LOADED=1
+fi
+
+sidecar_path() {
+  local cwd="${1:-$PWD}"
+  if [[ -w "$cwd" ]]; then
+    echo "$cwd/.version-sentinel/checks.json"
+    return 0
+  fi
+  local data="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/version-sentinel}"
+  echo "$data/checks.json"
+}
+
+sidecar_read() {
+  local path="$1"
+  if [[ ! -f "$path" ]]; then
+    echo '{"entries":[]}'
+    return 0
+  fi
+  if ! vs_jq -e '.entries' "$path" >/dev/null 2>&1; then
+    echo "version-sentinel: sidecar corrupt, treating as empty: $path" >&2
+    echo '{"entries":[]}'
+    return 0
+  fi
+  cat "$path"
+}
+
+sidecar_find_fresh() {
+  local path="$1" ecosystem="$2" pkg="$3" version="$4" window="$5"
+  local now="${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local now_epoch
+  now_epoch=$(_iso_to_epoch "$now") || return 1
+  local entry
+  entry=$(sidecar_read "$path" | vs_jq -c \
+    --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
+    '.entries[] | select(.ecosystem==$eco and .pkg==$pkg and .version==$ver)')
+  [[ -z "$entry" ]] && return 1
+  local checked
+  checked=$(echo "$entry" | vs_jq -r '.checkedAt')
+  local checked_epoch
+  checked_epoch=$(_iso_to_epoch "$checked") || return 1
+  local delta=$((now_epoch - checked_epoch))
+  local window_sec=$((window * 3600))
+  [[ "$delta" -ge 0 && "$delta" -le "$window_sec" ]]
+}
+
+sidecar_write_entry() {
+  local path="$1" ecosystem="$2" pkg="$3" version="$4" source="$5"
+  local checked="${6:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local verification="${7:-null}"
+  local project_root="${8:-}"
+  local dir
+  dir=$(dirname "$path")
+  mkdir -p "$dir"
+  local gi="$dir/.gitignore"
+  if [[ ! -f "$gi" ]]; then
+    printf '*\n!.gitignore\n' > "$gi"
+  fi
+  local lockpath="$dir/.vs-write.lock"
+  vs_lock_acquire "$lockpath" || return 1
+  local current updated
+  current=$(sidecar_read "$path")
+  updated=$(echo "$current" | vs_jq -c \
+    --arg eco "$ecosystem" --arg pkg "$pkg" --arg ver "$version" \
+    --arg src "$source" --arg at "$checked" --arg project "$project_root" \
+    --argjson verification "$verification" \
+    '.entries = ((.entries // []) | map(select(.ecosystem != $eco or .pkg != $pkg))
+      + [{ecosystem: $eco, pkg: $pkg, version: $ver, source: $src, checkedAt: $at}
+         + (if $verification == null then {} else {verification:$verification,projectRoot:$project} end)])') \
+    || { vs_lock_release "$lockpath"; echo "version-sentinel: jq failed, aborting write" >&2; return 1; }
+  [[ -n "$updated" ]] || { vs_lock_release "$lockpath"; echo "version-sentinel: jq produced empty output, aborting write" >&2; return 1; }
+
+  local tmp
+  tmp="$(mktemp "$dir/.vs-tmp-XXXXXX")" || { vs_lock_release "$lockpath"; echo "version-sentinel: mktemp failed" >&2; return 1; }
+  local write_status=0
+  printf '%s\n' "$updated" > "$tmp" || write_status=$?
+  if [[ "$write_status" -eq 0 ]]; then
+    mv "$tmp" "$path" || write_status=$?
+  else
+    rm -f "$tmp"
+  fi
+  # Prune is best-effort maintenance; only run if write succeeded
+  if [[ "$write_status" -eq 0 ]]; then
+    sidecar_prune "$path" "${VS_PRUNE_DAYS:-30}" || \
+      echo "version-sentinel: prune failed (non-critical)" >&2
+  fi
+  vs_lock_release "$lockpath"
+  return "$write_status"
+}
+
+# Strict dependency authorization. Legacy URL-only and post-install records are
+# data, not proof that a successful upstream request preceded the change.
+sidecar_find_verified() {
+  local path="$1" ecosystem="$2" pkg="$3" version="$4" window="$5" root="$6" url="$7"
+  [[ "$window" =~ ^[0-9]+$ ]] || return 1
+  local entry at checked now_epoch at_epoch source_value
+  entry=$(sidecar_read "$path" | vs_jq -ec --arg eco "$ecosystem" --arg pkg "$pkg" \
+    --arg ver "$version" --arg root "$root" --arg url "$url" '
+    .entries[] | select(.ecosystem==$eco and .pkg==$pkg and .version==$ver
+      and .projectRoot==$root and .verification.online==true
+      and .verification.exists==true and .verification.version==$ver
+      and .verification.url==$url and (.verification.latest|type)=="string"
+      and (.verification.latest|length)>0
+      and (.source|startswith("auto-recorded:")|not)
+      and (.verification.latest==$ver or (.source|test("^intentional:[[:space:]]*[^[:space:]]"))))') || return 1
+  # More than one matching entry is malformed, not a reason to guess.
+  [[ $(printf '%s\n' "$entry" | wc -l | tr -d ' ') == 1 ]] || return 1
+  source_value=$(printf '%s' "$entry" | vs_jq -r '.source') || return 1
+  if [[ "$source_value" != intentional:* ]]; then
+    registry_source_valid "$ecosystem" "$pkg" "$source_value" || return 1
+  fi
+  at=$(printf '%s' "$entry" | vs_jq -r '.verification.verifiedAt') || return 1
+  checked=$(printf '%s' "$entry" | vs_jq -r '.checkedAt') || return 1
+  [[ "$at" == "$checked" ]] || return 1
+  at_epoch=$(_iso_to_epoch "$at") || return 1
+  now_epoch=$(_iso_to_epoch "${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}") || return 1
+  [[ "$now_epoch" -ge "$at_epoch" && $((now_epoch-at_epoch)) -le $((window*3600)) ]]
+}
+
+sidecar_prune() {
+  local path="$1" max_age_days="$2"
+  [[ ! -f "$path" ]] && return 0
+  local now="${VS_NOW_OVERRIDE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  local now_epoch
+  now_epoch=$(_iso_to_epoch "$now") || return 1
+  local cutoff=$((now_epoch - max_age_days * 86400))
+  local updated
+  updated=$(vs_jq -c --arg cutoff "$cutoff" \
+    '.entries = [.entries[] | select((.checkedAt | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) >= ($cutoff | tonumber))]' \
+    "$path") || return 1
+  local dir tmp
+  dir=$(dirname "$path")
+  tmp="$(mktemp "$dir/.vs-tmp-XXXXXX")" || return 1
+  local write_status=0
+  printf '%s\n' "$updated" > "$tmp" || write_status=$?
+  if [[ "$write_status" -eq 0 ]]; then
+    mv "$tmp" "$path" || write_status=$?
+  else
+    rm -f "$tmp"
+  fi
+  return "$write_status"
+}
+
+_iso_to_epoch() {
+  python3 -c 'import sys, datetime; print(int(datetime.datetime.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp()))' "$1" 2>/dev/null
+}
