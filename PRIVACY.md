@@ -1,6 +1,6 @@
 # Version Sentinel Privacy Policy
 
-Effective date: September 8, 2026
+Effective date: November 15, 2026
 
 Version Sentinel is an open-source dependency-version guardrail maintained by
 Daniel Kiska. This policy explains how the Version Sentinel plugin and its
@@ -32,6 +32,11 @@ HTTP request metadata to public package registries, such as npm, PyPI,
 crates.io, and NuGet. Those services process requests under their own privacy
 policies. The coding-agent host can also process prompts, files, and tool output
 under the host provider's terms and privacy policy.
+
+The verifier uses public endpoints without package-registry authentication.
+Its curl requests ignore default curl configuration files, so those files cannot
+add credentials or extra request destinations. No registry account or API key is
+required.
 
 ## Data retention and deletion
 

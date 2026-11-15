@@ -1,0 +1,40 @@
+name: Publish Claude directory package
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: claude-directory
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      (github.event_name == 'release' && github.event.action == 'published') ||
+      (github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
+    runs-on: ubuntu-latest
+    steps:
+      # Resolve main when this queued job starts, not the triggering commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Test publication and build package
+        run: |
+          bash tests/test_claude_publish.sh
+          bash tests/test_claude_bundle.sh
+          bash tools/build-claude-plugin.sh "$RUNNER_TEMP/claude-package"
+      - name: Publish dedicated branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bash tools/publish-claude-plugin.sh "$RUNNER_TEMP/claude-package"

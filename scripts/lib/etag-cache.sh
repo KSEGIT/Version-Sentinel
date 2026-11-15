@@ -46,7 +46,7 @@ curl_with_etag() {
   shift 2
   # Bypass ETag when disabled (e.g., tests with curl stubs)
   if [[ "${VS_ETAG_DISABLE:-0}" == "1" ]]; then
-    curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 "$@" "$url"
+    curl -q -fsSL --proto '=https' --connect-timeout 10 --max-time 30 "$@" "$url"
     return $?
   fi
 
@@ -63,7 +63,7 @@ curl_with_etag() {
   curl_args+=("$url")
 
   local http_code
-  http_code=$(curl -w '%{http_code}' "${curl_args[@]}" 2>/dev/null) || {
+  http_code=$(curl -q -w '%{http_code}' "${curl_args[@]}" 2>/dev/null) || {
     [[ "${VS_REQUIRE_ONLINE:-0}" == "1" ]] && return 1
     # Network failure: serve stale cache rather than blocking the caller entirely.
     # This is intentional — resilience over freshness on transient outages.
