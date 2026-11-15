@@ -168,11 +168,20 @@ def regenerate(root, manifest):
         staging = Path(directory)
         for name, raw in inputs.items():
             (staging / name).write_bytes(raw)
+        # npm 10 treats an empty install as installing "." when localPrefix
+        # equals globalTop, even with global=false. A CLI --prefix creates
+        # that collision on Windows. Infer the local root from cwd instead;
+        # an environment prefix affects only npm's separate global prefix.
+        # Keep that unused prefix private and override every inherited casing.
+        npm_environment = {key: value for key, value in os.environ.items()
+                           if key.lower() != 'npm_config_prefix'}
+        npm_environment['npm_config_prefix'] = str(staging / '.npm-global')
         # No caller-supplied flags, package names, scripts, audit fix or install
         # into node_modules. Only the staged lock can change.
         staged = command([npm, 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund',
                  '--include=prod', '--include=dev', '--include=optional', '--include=peer',
-                 '--workspaces=false', '--global=false', '--prefix', str(staging)], cwd=staging)
+                 '--workspaces=false', '--global=false', '--location=project'],
+                 cwd=staging, env=npm_environment)
         sys.stdout.write(staged.stdout)
         sys.stderr.write(staged.stderr)
         # npm can serialize the temporary manifest while saving the lock.

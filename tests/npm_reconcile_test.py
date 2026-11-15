@@ -209,6 +209,43 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(self.manifest.read_bytes(), original)
         self.assertEqual(self.lockpath.read_bytes(), self.new_lock.encode())
 
+    def test_regeneration_keeps_local_and_global_prefixes_distinct(self):
+        self.approved_change()
+        outside = self.root / 'must-not-be-used-as-prefix'
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            if 'install' in args:
+                staging = Path(kwargs['cwd'])
+                # npm 10 compares its local prefix with globalTop even when
+                # global=false. A CLI prefix makes these equal on Windows.
+                self.assertFalse(any(arg == '--prefix' or str(arg).startswith('--prefix=') for arg in args))
+                self.assertIn('--global=false', args)
+                self.assertIn('--location=project', args)
+                environment = kwargs['env']
+                prefix_keys = [key for key in environment if key.lower() == 'npm_config_prefix']
+                self.assertEqual(prefix_keys, ['npm_config_prefix'])
+                private_prefix = Path(environment['npm_config_prefix'])
+                self.assertEqual(private_prefix.parent, staging)
+                self.assertNotEqual(private_prefix, staging)
+                self.assertNotEqual(private_prefix, outside)
+                (staging / 'package-lock.json').write_bytes(self.new_lock.encode())
+            return subprocess.CompletedProcess(args, 0, '', '')
+
+        original_environment = {'npm_config_prefix': str(outside),
+                                'NPM_CONFIG_PREFIX': str(outside),
+                                'Npm_Config_Prefix': str(outside),
+                                'npm_config_global': 'true',
+                                'npm_config_location': 'global'}
+        with patch.dict(os.environ, original_environment), patch.object(self.rec, 'command', side_effect=run), patch.object(self.rec.shutil, 'which', return_value='/fixture/executable'), contextlib.redirect_stdout(io.StringIO()):
+            self.rec.regenerate(self.root, self.manifest)
+            for key, value in original_environment.items():
+                self.assertEqual(os.environ[key], value)
+        self.assertTrue(any('install' in args for args in calls))
+        self.assertEqual(self.manifest.read_bytes(), self.after.encode())
+        self.assertFalse(outside.exists())
+
     def test_staged_npm_empty_dependency_table_pruning_is_safe(self):
         self.after = json.dumps({'name': 'fixture', **{key: {} for key in ('dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies')}})
         self.approved_change()
