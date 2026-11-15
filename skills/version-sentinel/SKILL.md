@@ -11,6 +11,8 @@ The `version-sentinel` setup blocks dependency changes until you've verified the
 
 From the project directory, run the bundled `scripts/check-versions.sh` at startup and after manifests or lockfiles change. Hooks require successful current project evidence before dependency work. Registry lookup failure blocks; newer-release drift is reported without upgrading dependencies. File inspection, user questions, audit retries, and version recording remain available.
 
+Handle deterministic tool compatibility issues automatically when existing file contents, dependency selectors, and sources can be preserved. Flat npm `overrides` strings and `$direct-dependency` references are parsed and audited automatically; they do not require manifest repair or user input. Do not remove overrides or bypass online checks. Nested and version-qualified override keys remain blocked until the parser can track their full intent. Report parser limitations as tool limitations, not damaged manifests; preserve the manifest.
+
 If a required manifest is missing or invalid, ask Daniel before recreating or repairing that exact file. Do not guess dependencies. Only after actual consent, run `bash <plugin-root>/scripts/recover-manifest.sh approve FILE --user-confirmed 'REASON'`. This records an attestation; it does not obtain approval or create contents. Online-verify proposed dependencies before writing approved contents, then rerun the audit. Do not use the consent flag without approval.
 
 ## When you see a BLOCKED message
