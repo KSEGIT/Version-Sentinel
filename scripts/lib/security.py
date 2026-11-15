@@ -30,6 +30,13 @@ PACKAGE = re.compile(r'^(?:@[a-z0-9._~-]+/)?[a-z0-9._~-]+$')
 LOCK_LOCATION = re.compile(r'^node_modules/(?:@[a-z0-9._~-]+/)?[a-z0-9._~-]+(?:/node_modules/(?:@[a-z0-9._~-]+/)?[a-z0-9._~-]+)*$')
 
 
+class IncompleteScan(ValueError):
+    """A failed provider can still have useful, reportable known findings."""
+    def __init__(self, message, findings):
+        super().__init__(message)
+        self.findings = findings
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -124,6 +131,18 @@ def registry_selector(value):
     return isinstance(value, str) and not value.startswith(('file:', 'link:', 'workspace:', 'npm:', 'git', 'github:', 'http:', 'https:', './', '../', '/'))
 
 
+def dependency_location(nodes, location, name):
+    """Follow npm's nested-then-hoisted lookup without reading node_modules."""
+    current = location
+    while True:
+        candidate = (current + '/' if current else '') + 'node_modules/' + name
+        if candidate in nodes:
+            return candidate
+        if not current:
+            return None
+        current = current.rsplit('/node_modules/', 1)[0] if '/node_modules/' in current else ''
+
+
 def locked_packages(root, manifest, proposed=None):
     """Return every registry node; unsupported provenance never disappears."""
     directory = manifest.parent
@@ -165,11 +184,22 @@ def locked_packages(root, manifest, proposed=None):
         name = entry.get('name', inferred)
         version = entry.get('version', '')
         resolved = entry.get('resolved', '')
-        if (not isinstance(name, str) or not PACKAGE.fullmatch(name) or not isinstance(version, str)
+        if (not isinstance(name, str) or not PACKAGE.fullmatch(name) or name != inferred or not isinstance(version, str)
                 or not EXACT.fullmatch(version) or entry.get('link') or entry.get('inBundle')
                 or not isinstance(resolved, str) or not resolved.startswith('https://') or not resolved.endswith('.tgz')):
             raise ValueError(f'incomplete security coverage: unsupported or missing registry metadata at {location}')
+        expected = 'https://registry.npmjs.org/' + name + '/-/' + name.rsplit('/', 1)[-1] + '-' + version + '.tgz'
+        if urllib.parse.unquote(resolved) != expected:
+            raise ValueError(f'incomplete security coverage: only matching public npm registry tarballs supported at {location}')
         result.append({'name': name, 'version': version, 'node': location, 'project': manifest.parent.relative_to(root).as_posix()})
+    for location, entry in nodes.items():
+        for kind in ('dependencies', 'optionalDependencies', 'peerDependencies'):
+            declared = object_value(entry.get(kind, {}), f'lock {location} {kind}')
+            for name, selected in declared.items():
+                if not PACKAGE.fullmatch(name) or not registry_selector(selected):
+                    raise ValueError(f'incomplete security coverage: unsupported transitive dependency source {name} at {location}')
+                if dependency_location(nodes, location, name) is None:
+                    raise ValueError(f'incomplete security coverage: unresolved {kind} {name} at {location or "root"}')
     return result
 
 
@@ -198,6 +228,15 @@ def finding(provider, package, version, ids, level, links, affected, fixed, raw=
 
 
 def osv_findings(packages):
+    findings = {}
+    try:
+        _osv_findings(packages, findings)
+    except (ValueError, OSError, urllib.error.URLError, subprocess.SubprocessError) as error:
+        raise IncompleteScan(str(error), list(findings.values())) from error
+    return list(findings.values())
+
+
+def _osv_findings(packages, findings):
     unique = sorted({(p['name'], p['version']) for p in packages})
     matches = {}
     for start in range(0, len(unique), 1000):
@@ -228,6 +267,9 @@ def osv_findings(packages):
                 for short in list_value(item.get('vulns', []), 'OSV vulnerabilities'):
                     identifier = text_value(object_value(short, 'OSV vulnerability').get('id'), 'OSV ID')
                     matches.setdefault(identifier, set()).add(pair)
+                    package, version = pair
+                    findings[(identifier, package, version)] = finding('osv', package, version, [identifier], 'unknown',
+                        ['https://osv.dev/vulnerability/' + urllib.parse.quote(identifier, safe='')], [], [], 'detail unavailable; scan incomplete')
                 token = item.get('next_page_token')
                 if token is not None:
                     text_value(token, 'OSV page token')
@@ -236,7 +278,6 @@ def osv_findings(packages):
                     seen_pages.add((pair, token))
                     following.append((pair, token))
             pending = following
-    findings = []
     for identifier, pairs in sorted(matches.items()):
         detail = request_json('https://api.osv.dev/v1/vulns/' + urllib.parse.quote(identifier, safe=''))
         if detail.get('id') != identifier or detail.get('withdrawn'):
@@ -273,11 +314,19 @@ def osv_findings(packages):
                     ranges.append({'versions': list_value(entry['versions'], 'OSV affected versions')})
             level = max(levels, key=SEVERITIES.get) if levels else 'unknown'
             raw_severity = {'classification': raw, 'scores': detail.get('severity', [])}
-            findings.append(finding('osv', package, version, ids, level, links, ranges, sorted(set(fixed)), raw_severity))
-    return findings
+            findings[(identifier, package, version)] = finding('osv', package, version, ids, level, links, ranges, sorted(set(fixed)), raw_severity)
 
 
 def npm_findings(directory, packages):
+    findings = []
+    try:
+        _npm_findings(directory, packages, findings)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        raise IncompleteScan(str(error), findings) from error
+    return findings
+
+
+def _npm_findings(directory, packages, results):
     executable = shutil.which('npm')
     if not executable:
         raise ValueError('incomplete npm-audit coverage: npm is unavailable')
@@ -309,7 +358,6 @@ def npm_findings(directory, packages):
     vulnerabilities = object_value(report.get('vulnerabilities'), 'npm vulnerabilities')
     if bool(vulnerabilities) != bool(counts['total']) or (not vulnerabilities and response.returncode != 0):
         raise ValueError('incomplete npm-audit coverage: inconsistent findings/exit status')
-    results = []
     for name, item in vulnerabilities.items():
         item = object_value(item, 'npm advisory')
         nodes = list_value(item.get('nodes'), 'npm affected nodes')
@@ -340,7 +388,6 @@ def npm_findings(directory, packages):
                 results.append(selected)
         if not via:
             raise ValueError('incomplete npm-audit coverage: advisory has no source')
-    return results
 
 
 def deduplicate(findings):
@@ -411,14 +458,14 @@ def audit(root, config):
                 continue
             try:
                 if provider == 'osv':
-                    found = osv_findings(packages)
+                    evidence['findings'].extend(osv_findings(packages))
                 else:
-                    found = []
                     for directory, selected in projects:
-                        found.extend(npm_findings(directory, selected))
-                evidence['findings'].extend(found)
+                        evidence['findings'].extend(npm_findings(directory, selected))
                 providers[provider] = 'complete' if not evidence['errors'] else 'incomplete'
             except (ValueError, OSError, urllib.error.URLError, subprocess.SubprocessError) as error:
+                if isinstance(error, IncompleteScan):
+                    evidence['findings'].extend(error.findings)
                 providers[provider] = 'unknown/incomplete'
                 evidence['errors'].append(f'{provider}: {error}')
         evidence['findings'] = deduplicate(evidence['findings'])
@@ -463,13 +510,13 @@ def run(args):
         if command == 'gate' and len(args) == 2:
             return gate(root, config)
         if command == 'proposed-lock' and len(args) == 3:
+            if not config['osv']:
+                print('security osv: disabled; proposed-lock security coverage disabled. npm-audit covers only the currently resolved tree.')
+                return 0
             path = resolve_path(args[2], root)
             relative = path.relative_to(root)
             if path.name != 'package-lock.json' or len(relative.parts) > 4 or EXCLUDED.intersection(relative.parts):
                 raise ValueError('incomplete proposed lock coverage: only in-project package-lock.json v2/v3 supported')
-            if not config['osv']:
-                print('security osv: disabled; proposed-lock security coverage disabled. npm-audit covers only the currently resolved tree.')
-                return 0
             selected = locked_packages(root, path.parent / 'package.json', proposed=sys.stdin.read())
             found = deduplicate(osv_findings(selected))
             status = 'blocked' if blocked(found) else 'complete'
@@ -488,6 +535,8 @@ def run(args):
         report({'status': status, 'providers': {'osv': 'complete', 'npm-audit': 'resolved-tree only; not a proposed-version check'}, 'findings': found})
         return 2 if status == 'blocked' else 0
     except (ValueError, OSError, urllib.error.URLError, subprocess.SubprocessError, TypeError, KeyError) as error:
+        if isinstance(error, IncompleteScan):
+            report({'status': 'incomplete', 'providers': {'osv': 'unknown/incomplete'}, 'findings': deduplicate(error.findings)})
         print(f'BLOCKED: version-sentinel. Security unknown/incomplete: {error}', file=sys.stderr)
         return 2
 

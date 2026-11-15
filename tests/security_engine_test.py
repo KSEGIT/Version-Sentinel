@@ -345,6 +345,101 @@ class SecurityEngineTests(unittest.TestCase):
             self.assertEqual(self.command(module, 'proposed-lock', str(self.root), 'package-lock.json')[0], 2)
         self.assertFalse((self.root / '.version-sentinel/security.json').exists())
 
+    def test_proposed_unsupported_lock_allows_explicit_osv_optout(self):
+        module = self.engine()
+        os.environ['VS_SECURITY_OSV'] = 'false'
+        with patch.object(sys, 'stdin', io.StringIO('unsupported text')):
+            code, out = self.command(module, 'proposed-lock', str(self.root), 'yarn.lock')
+        self.assertEqual(code, 0, out)
+        self.assertIn('disabled', out)
+
+    def test_partial_osv_details_preserve_known_ids_and_findings(self):
+        self.project()
+        module = self.engine()
+        def request(url, body=None):
+            if body is not None:
+                return {'results': [{'vulns': [{'id': 'GHSA-fixture-1234'}, {'id': 'GHSA-second-5678'}]} if q['package']['name'] == 'transitive' else {} for q in body['queries']]}
+            if url.endswith('GHSA-fixture-1234'):
+                return self.advisory()
+            raise ValueError('failed to retrieve second detail')
+        self.providers(module, request)
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        self.assertIn('GHSA-fixture-1234', out)
+        self.assertIn('GHSA-second-5678', out)
+        evidence = json.loads((self.root / '.version-sentinel/security.json').read_text())
+        self.assertEqual(len(evidence['findings']), 2)
+        self.assertEqual(evidence['status'], 'incomplete')
+
+    def test_missing_transitive_node_is_incomplete_with_osv_only(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_NPM_AUDIT'] = 'false'
+        self.providers(module)
+        lock = self.root / 'package-lock.json'
+        data = json.loads(lock.read_text())
+        data['packages']['node_modules/direct']['dependencies'] = {'missing-transitive': '2.0.0'}
+        lock.write_text(json.dumps(data))
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        self.assertIn('missing-transitive', out)
+        with patch.object(sys, 'stdin', io.StringIO(lock.read_text())):
+            self.assertEqual(self.command(module, 'proposed-lock', str(self.root), 'package-lock.json')[0], 2)
+
+    def test_nested_and_hoisted_transitive_nodes_are_both_covered(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_NPM_AUDIT'] = 'false'
+        self.providers(module)
+        lock = self.root / 'package-lock.json'
+        data = json.loads(lock.read_text())
+        data['packages']['node_modules/direct']['dependencies'] = {'transitive': '2.0.0'}
+        data['packages']['node_modules/direct/node_modules/transitive']['peerDependencies'] = {'direct': '1.0.0'}
+        lock.write_text(json.dumps(data))
+        self.assertEqual(self.command(module, 'audit', str(self.root))[0], 0)
+        data['packages']['node_modules/transitive'] = data['packages'].pop('node_modules/direct/node_modules/transitive')
+        lock.write_text(json.dumps(data))
+        self.assertEqual(self.command(module, 'audit', str(self.root))[0], 0)
+
+    def test_lock_identity_cannot_override_installed_package_name(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_NPM_AUDIT'] = 'false'
+        self.providers(module)
+        lock = self.root / 'package-lock.json'
+        data = json.loads(lock.read_text())
+        data['packages']['node_modules/direct']['name'] = 'innocent-package'
+        lock.write_text(json.dumps(data))
+        self.assertEqual(self.command(module, 'audit', str(self.root))[0], 2)
+
+    def test_arbitrary_tarball_is_not_identified_as_public_npm_code(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_NPM_AUDIT'] = 'false'
+        self.providers(module)
+        lock = self.root / 'package-lock.json'
+        data = json.loads(lock.read_text())
+        data['packages']['node_modules/direct']['resolved'] = 'https://github.com/unknown/code/archive/1.0.0.tgz'
+        lock.write_text(json.dumps(data))
+        self.assertEqual(self.command(module, 'audit', str(self.root))[0], 2)
+
+    def test_partial_npm_report_keeps_earlier_findings_on_later_error(self):
+        self.project()
+        module = self.engine()
+        os.environ['VS_SECURITY_OSV'] = 'false'
+        report = self.clean_npm()
+        data = json.loads(report.stdout)
+        data['metadata']['vulnerabilities'].update(high=2, total=2)
+        data['vulnerabilities'] = {
+            'transitive': {'name': 'transitive', 'severity': 'high', 'range': '<2.0.1', 'nodes': ['node_modules/direct/node_modules/transitive'], 'via': [{'source': 1234, 'severity': 'high', 'url': 'https://github.com/advisories/GHSA-fixture-1234', 'range': '<2.0.1'}], 'fixAvailable': True},
+            'broken-second': {'severity': 'high', 'nodes': [], 'via': []},
+        }
+        report.stdout = json.dumps(data)
+        self.providers(module, npm=report)
+        code, out = self.command(module, 'audit', str(self.root))
+        self.assertEqual(code, 2, out)
+        self.assertIn('GHSA-fixture-1234', out)
+
 
 if __name__ == '__main__':
     unittest.main()
