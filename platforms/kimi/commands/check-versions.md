@@ -14,7 +14,7 @@ To execute this command, run the following with your Bash tool:
 
     bash "$KIMI_PLUGIN_ROOT/scripts/check-versions.sh"
 
-If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/plugins info version-sentinel` (the managed copy lives under the Kimi plugins directory) and run the script from there.
+If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/plugins info version-sentinel` (the managed copy lives under the Kimi plugins directory). Resolve its `scripts/check-versions.sh` to an absolute path, then run that path with Bash while keeping the affected project as the working directory. Use the project named in the startup warning, or the user's current project if there is no warning; do not change directory to the plugin installation.
 
 Relay the script's output and exit status to the user. Drift alone does not fail the audit. Registry or manifest errors leave dependency work blocked; resolve the reported cause and rerun. Preserve npm overrides and report parser limitations as tool limitations. Do not change dependencies or disable enforcement to pass the audit.
 

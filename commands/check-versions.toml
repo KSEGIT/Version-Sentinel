@@ -3,11 +3,14 @@
 # arguments; ignore any {{args}} content rather than inventing flags.
 description = "Audit dependencies against upstream registries (npm, pypi, nuget, crates.io)"
 prompt = """
-Run the bundled online audit from the user's project directory. Use it after a
+Run the bundled online audit in the affected project directory. Use the directory
+named in the startup warning, or the user's current project if there is no warning.
+Use it after a
 "Version Sentinel startup audit failed" warning or when audit evidence is
 missing or expired. The audit-dependencies skill provides the same workflow.
 
-Use the run_shell_command tool to execute exactly:
+Use the run_shell_command tool with dir_path set to that project's absolute path
+to execute exactly:
 
   bash "${extensionPath}/scripts/check-versions.sh"
 
