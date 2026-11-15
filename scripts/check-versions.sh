@@ -4,6 +4,10 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib/options.sh"
 if [[ "${VS_DISABLE:-0}" == 1 ]]; then exit 0; fi
+# Manual Codex commands receive the thread ID, while hooks set VS_SESSION_ID.
+if [[ -z "${VS_SESSION_ID:-}" && -n "${CODEX_THREAD_ID:-}" ]]; then
+  export VS_SESSION_ID="$CODEX_THREAD_ID"
+fi
 bash "$DIR/audit-state.sh" invalidate "$PWD" || exit 2
 for prerequisite in jq curl python3; do
   if ! command -v "$prerequisite" >/dev/null 2>&1; then
