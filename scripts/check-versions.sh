@@ -4,6 +4,10 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib/options.sh"
 if [[ "${VS_DISABLE:-0}" == 1 ]]; then exit 0; fi
+# Manual Codex commands receive the thread ID, while hooks set VS_SESSION_ID.
+if [[ -z "${VS_SESSION_ID:-}" && -n "${CODEX_THREAD_ID:-}" ]]; then
+  export VS_SESSION_ID="$CODEX_THREAD_ID"
+fi
 bash "$DIR/audit-state.sh" invalidate "$PWD" || exit 2
 for prerequisite in jq curl python3; do
   if ! command -v "$prerequisite" >/dev/null 2>&1; then
@@ -15,7 +19,13 @@ source "$DIR/lib/registries.sh"
 source "$DIR/lib/sidecar.sh"
 source "$DIR/lib/circuit-breaker.sh"
 # begin revokes prior evidence before any registry requests.
-snapshot=$(bash "$DIR/audit-state.sh" begin "$PWD") || exit 2
+begin_command=begin
+if [[ "${1:-}" == --startup ]]; then begin_command=begin-if-present; fi
+snapshot=$(bash "$DIR/audit-state.sh" "$begin_command" "$PWD") || exit 2
+# Only startup can skip an empty shared inventory; it never completes evidence.
+if [[ "$begin_command" == begin-if-present ]] && printf '%s' "$snapshot" | vs_jq -e '(.required | length == 0) and (.files | length == 0)' >/dev/null; then
+  exit 0
+fi
 VS_CB_STATE=$(mktemp -d) || exit 2
 trap 'rm -rf "$VS_CB_STATE"' EXIT
 export VS_REQUIRE_ONLINE=1

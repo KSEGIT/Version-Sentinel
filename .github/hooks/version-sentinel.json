@@ -3,7 +3,7 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "bash scripts/session-start.sh",
+        "command": "bash scripts/session-start.sh --copilot",
         "timeout": 120
       }
     ],

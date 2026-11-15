@@ -16,7 +16,7 @@ import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
 
-from path_helpers import relative_key
+from path_helpers import relative_key, resolve_path
 
 UNPINNED = "__version_sentinel_unpinned__"
 EXCLUDED = {".git", ".worktrees", "node_modules", "target", ".venv", "venv", ".version-sentinel", "__pycache__"}
@@ -196,7 +196,7 @@ def dependencies(path, content, intents=False):
 
     if eco == "npm":
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
-        reject_resolver_sections(data, ("overrides", "resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
+        reject_resolver_sections(data, ("resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
         pnpm = mapping(data.get("pnpm", {}), "pnpm")
         reject_resolver_sections(pnpm, ("overrides", "catalog", "catalogs", "packageExtensions"), "pnpm")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
@@ -212,6 +212,32 @@ def dependencies(path, content, intents=False):
                 selected = version(raw, npm=True)
                 if selected is not None:
                     emit(name, selected, selector, f"{section}.{declaration}")
+        # Interpret only shapes whose full selector intent we can retain. Other
+        # npm override forms stay blocked instead of being silently ignored.
+        for name, raw in mapping(data.get("overrides", {}), "npm.overrides").items():
+            if not re.fullmatch(r"(?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*", name) or not isinstance(raw, str):
+                fail(f"Unsupported dependency-selector construct: npm.overrides.{name}. Only flat package-name keys with string values are tracked; nested/version-qualified overrides remain blocked.")
+            selector = {"override": raw}
+            if raw.startswith("$"):
+                reference = raw[1:]
+                for section in ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies"):
+                    resolved = data.get(section, {}).get(reference)
+                    if resolved:
+                        selector.update(reference=reference, source=section, resolved=resolved)
+                        raw = resolved
+                        break
+                else:
+                    fail(f"Unsupported dependency-selector reference: npm.overrides.{name} cannot resolve {raw} to a direct dependency.")
+            if raw.startswith("npm:"):
+                match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
+                if not match:
+                    fail(f"unsupported npm alias {raw}")
+                package, raw = match.group(1), match.group(2) or ""
+            else:
+                package = name
+            selected = version(raw, npm=True)
+            if selected is not None:
+                emit(package, selected, selector, f"overrides.{name}")
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
@@ -351,7 +377,7 @@ def dependency_fingerprint(path, content):
     eco = ecosystem(path)
     if eco == "npm":
         data = json.loads(content)
-        relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies") if key in data}
+        relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides") if key in data}
     elif eco in {"cargo", "pyproject"}:
         data = tomllib.loads(content)
         if eco == "cargo":
@@ -408,6 +434,43 @@ def write_json(path, data):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def invalidate_state(root, previous, session=""):
+    previous.update(status="pending", root=str(root))
+    if session:
+        previous["session"] = session
+    write_json(state_path(root), previous)
+
+
+def startup_invalidate(fallback):
+    """Resolve startup JSON and revoke target evidence without jq or curl."""
+    root = resolve_path(fallback).resolve(strict=True)
+    try:
+        # Hook JSON is UTF-8 even when native Windows pipes use an ANSI code page.
+        if hasattr(sys.stdin, "reconfigure"):
+            sys.stdin.reconfigure(encoding="utf-8")
+        raw = sys.stdin.read()
+        payload = json.loads(raw, object_pairs_hook=unique_object) if raw else {}
+        mapping(payload, "startup payload")
+        cwd = payload.get("cwd")
+        session = payload.get("session_id")
+        cwd = "" if cwd is None else cwd
+        session = "" if session is None else session
+        if not isinstance(cwd, str) or not isinstance(session, str):
+            fail("startup cwd and session_id must be strings")
+    except (ValueError, TypeError):
+        # No valid payload root is available; revoke the fallback evidence.
+        invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
+        fail("Invalid startup payload; mandatory audit was not completed.")
+    if cwd:
+        if any(character in cwd for character in "\r\n"):
+            fail("Unsupported line break in startup project directory.")
+        root = resolve_path(cwd, root).resolve(strict=True)
+    if any(character in str(root) for character in "\r\n"):
+        fail("Unsupported line break in startup project directory.")
+    invalidate_state(root, read_json(state_path(root), {}), session)
+    print(json.dumps({"cwd": root.as_posix(), "session_id": session}))
 
 
 def usable_path(root, name, *, allow_deep=False):
@@ -497,6 +560,8 @@ def ensure_manifests(root, snapshot):
         try:
             dependencies(path, path.read_text())
         except (ValueError, ET.ParseError) as error:
+            if str(error).startswith("Unsupported dependency-selector"):
+                fail(f"Cannot fully audit {name}: {error}. This is a parser limitation; preserve the manifest and add verified parser support before retrying.")
             fail(f"Required manifest is invalid: {name}: {error}. Ask Daniel before repairing/recreating it; use recover-manifest.sh approve FILE --user-confirmed REASON after consent.")
 
 
@@ -514,6 +579,9 @@ def condition(path):
 
 def main():
     command = sys.argv[1]
+    if command == "startup-invalidate":
+        startup_invalidate(sys.argv[2])
+        return
     if command in {"validate", "validate-content", "deps", "deps-content", "deps-intents-content", "dependency-fingerprint-content"}:
         path = Path(sys.argv[2])
         content = sys.stdin.read() if command.endswith("content") else path.read_text()
@@ -554,12 +622,9 @@ def main():
                 fail(f"Ask Daniel before recreating/repairing {relative}; no current user-confirmed recovery approval")
         return
     if command == "invalidate":
-        previous.update(status="pending", root=str(root))
-        if os.environ.get("VS_SESSION_ID"):
-            previous["session"] = os.environ["VS_SESSION_ID"]
-        write_json(path, previous)
+        invalidate_state(root, previous, os.environ.get("VS_SESSION_ID", ""))
         return
-    if command == "begin":
+    if command in {"begin", "begin-if-present"}:
         # Revoke old successful evidence before file validation or network access.
         pending = dict(previous)
         pending.update(status="pending", generation=secrets.token_hex(16), root=str(root))
@@ -567,7 +632,8 @@ def main():
         snapshot = inventory(root, previous)
         pending.update(snapshot)
         write_json(path, pending)
-        ensure_manifests(root, snapshot)
+        if command == "begin" or snapshot["required"] or snapshot["files"]:
+            ensure_manifests(root, snapshot)
         snapshot["generation"] = pending["generation"]
         print(json.dumps(snapshot, sort_keys=True))
         return

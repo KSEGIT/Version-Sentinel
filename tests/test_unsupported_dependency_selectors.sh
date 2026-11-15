@@ -17,7 +17,7 @@ probe() {
     | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1
 }
 for content in \
-  '{"dependencies":{},"overrides":{"body-parser":"99.99.99"}}' \
+  '{"dependencies":{},"overrides":{"body-parser":{".":"99.99.99"}}}' \
   '{"dependencies":{},"resolutions":{"body-parser":"99.99.99"}}' \
   '{"dependencies":{},"pnpm":{"overrides":{"body-parser":"99.99.99"}}}' \
   '{"dependencies":{},"catalog":{"body-parser":"99.99.99"}}' \
@@ -44,7 +44,7 @@ done
 printf '%s\n' '[dependencies]' 'serde="1.0.196"' '[patch]' '[replace]' | bash "$SCRIPTS/audit-state.sh" validate-content Cargo.toml >/dev/null 2>&1
 assert_exit_code 0 "$?" 'empty Cargo resolver maps retain compatibility'
 # A pre-existing unsupported override must fail the startup audit as well.
-printf '%s\n' '{"overrides":{"body-parser":"99.99.99"}}' > package.json
+printf '%s\n' '{"overrides":{"body-parser":{".":"99.99.99"}}}' > package.json
 result=$(bash "$SCRIPTS/check-versions.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'startup audit rejects unsupported npm dependency selectors'
 assert_contains "$result" 'Unsupported dependency-selector' 'startup identifies unsupported resolver'
