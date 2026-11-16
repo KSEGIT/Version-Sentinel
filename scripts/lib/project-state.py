@@ -608,6 +608,81 @@ def condition(path):
     fail("manifest is valid; recovery cannot authorize replacing it")
 
 
+def retire_manifest(root, previous, arguments):
+    """Remove one stale requirement after user consent and committed deletion proof."""
+    if (len(arguments) != 5 or arguments[1] != "--deleted-by"
+            or arguments[3] != "--user-confirmed" or not arguments[4].strip()):
+        fail("Ask Daniel first; FILE --deleted-by COMMIT --user-confirmed REASON is required")
+    name, _, commit, _, reason = arguments
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+        fail("retirement requires the full Git deletion commit ID")
+    target, relative = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
+    if previous.get("root") != str(root) or relative not in previous.get("required", []):
+        fail("retirement requires an existing project-bound required manifest record")
+    if not ecosystem(target):
+        fail("retirement target is not a supported dependency manifest")
+    if os.path.lexists(target):
+        fail("retirement target must be absent from the working tree")
+
+    # The audit root may contain several repositories. Find the target's real
+    # repository, including when its containing directory was also deleted.
+    directory = target.parent
+    while not directory.exists() and directory != root:
+        directory = directory.parent
+    if not shutil.which("git"):
+        fail("Git is required to prove a committed manifest deletion")
+    # Repository/object overrides must not redirect proof to another checkout.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+    def git(*args, cwd=directory):
+        result = subprocess.run(["git", "--no-replace-objects", "--literal-pathspecs", "-C", str(cwd), *args],
+                                capture_output=True, env=environment)
+        if result.returncode:
+            fail("Git could not prove the requested committed manifest deletion")
+        return result.stdout
+
+    repo = Path(os.fsdecode(git("rev-parse", "--show-toplevel")).strip()).resolve(strict=True)
+    try:
+        git_name = target.relative_to(repo).as_posix()
+    except ValueError:
+        fail("retirement target is outside its Git repository")
+    head = git("rev-parse", "--verify", "HEAD^{commit}", cwd=repo).decode().strip()
+    verified = git("rev-parse", "--verify", commit + "^{commit}", cwd=repo).decode().strip()
+    if verified != commit:
+        fail("retirement requires an exact commit object")
+    git("merge-base", "--is-ancestor", commit, head, cwd=repo)
+    parents = git("rev-list", "--parents", "-n", "1", commit, cwd=repo).decode().split()
+    if len(parents) != 2:
+        fail("retirement requires a deletion commit with exactly one parent")
+    parent = parents[1]
+    prior = git("ls-tree", "-z", parent, "--", git_name, cwd=repo).split(b"\0")
+    if len(prior) != 2 or not prior[0]:
+        fail("manifest did not exist in the deletion commit's parent")
+    metadata, prior_name = prior[0].split(b"\t", 1)
+    mode, kind, blob = metadata.split()
+    if mode not in {b"100644", b"100755"} or kind != b"blob" or os.fsdecode(prior_name) != git_name:
+        fail("deletion proof must name the exact regular manifest file")
+    if (git("ls-tree", "-z", commit, "--", git_name, cwd=repo)
+            or git("ls-tree", "-z", head, "--", git_name, cwd=repo)
+            or git("ls-files", "-z", "--", git_name, cwd=repo)):
+        fail("manifest must be deleted in the supplied commit, HEAD, and index")
+    prior_hash = hashlib.sha256(git("cat-file", "blob", blob.decode(), cwd=repo)).hexdigest()
+    updated = dict(previous)
+    updated["required"] = [entry for entry in previous["required"] if entry != relative]
+    # A live include or lockfile still requires its source, even with consent.
+    if relative in inventory(root, updated)["required"]:
+        fail("manifest remains required by a tracked file, include, or lockfile")
+    updated["files"] = dict(previous.get("files", {}))
+    updated["files"].pop(relative, None)
+    receipt = {"file": relative, "repository": str(repo), "deletionCommit": commit,
+               "head": head, "reason": reason, "approvedAt": now(), "previousFileHash": prior_hash}
+    updated["retirements"] = [*previous.get("retirements", []), receipt]
+    updated.update(status="pending", generation=secrets.token_hex(16))
+    updated.pop("checkedAt", None)
+    write_json(state_path(root), updated)
+    print(f"Retired stale manifest record for {relative}; no dependency checks recorded. Run check-versions.sh for a fresh online audit before dependency work.")
+
+
 def main():
     command = sys.argv[1]
     if command == "startup-invalidate":
@@ -629,6 +704,9 @@ def main():
     root = resolve_path(sys.argv[2]).resolve(strict=True)
     path = state_path(root)
     previous = read_json(path, {})
+    if command == "retire":
+        retire_manifest(root, previous, sys.argv[3:])
+        return
     if command in {"recovery-allowed", "approve"}:
         target, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")
         if not in_scope(Path(relative)) and relative not in inventory(root, previous)["required"]:
@@ -678,6 +756,8 @@ def main():
         if previous.get("status") != "pending" or previous.get("generation") != started.get("generation") or any(started.get(key) != snapshot[key] for key in snapshot):
             fail("project manifests changed while the audit ran; rerun check-versions.sh")
         snapshot.update(status="complete", generation=started["generation"], checkedAt=now(), session=os.environ.get("VS_SESSION_ID") or previous.get("session", ""))
+        if "retirements" in previous:
+            snapshot["retirements"] = previous["retirements"]
         write_json(path, snapshot)
     elif command in {"gate", "covers"}:
         age = now() - previous.get("checkedAt", 0)

@@ -50,6 +50,7 @@ scripts/lib/retry.sh
 scripts/lib/sidecar.sh
 scripts/prereq-check.sh
 scripts/recover-manifest.sh
+scripts/retire-manifest.sh
 scripts/session-start.sh
 scripts/vs-record.sh
 commands/vs-record.md
