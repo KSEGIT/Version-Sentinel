@@ -233,14 +233,24 @@ def dependencies(path, content, intents=False):
                 selector = {"override": raw}
                 if raw.startswith("$"):
                     reference = raw[1:]
-                    for section in ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies"):
-                        resolved = data.get(section, {}).get(reference)
-                        if resolved:
-                            selector.update(reference=reference, source=section, resolved=resolved)
-                            raw = resolved
+                    pnpm_reference = location == "pnpm.overrides"
+                    if pnpm_reference:
+                        # PNPM merges dev, runtime, then optional declarations;
+                        # peer dependencies do not supply version references.
+                        sections = ("optionalDependencies", "dependencies", "devDependencies")
+                    else:
+                        sections = ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies")
+                    for section in sections:
+                        available = data.get(section, {})
+                        resolved = available.get(reference)
+                        if resolved or (pnpm_reference and reference in available):
                             break
                     else:
+                        resolved = None
+                    if not resolved:
                         fail(f"Unsupported dependency-selector reference: {location}.{name} cannot resolve {raw} to a direct dependency.")
+                    selector.update(reference=reference, source=section, resolved=resolved)
+                    raw = resolved
                 if raw.startswith("npm:"):
                     match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
                     if not match:

@@ -46,6 +46,29 @@ class PackageOverrideCompatibility(unittest.TestCase):
             "pnpm": {"overrides": {"alias": "npm:other@~2.0.0", "target": "$source"}}}),
             [("@scope/real", "1.0.0"), ("other", "2.0.0")])
 
+    def test_pnpm_reference_uses_optional_then_runtime_then_dev_dependency(self):
+        data = {"devDependencies": {"source": "1.0.0"}, "dependencies": {"source": "2.0.0"},
+                "optionalDependencies": {"source": "3.0.0"}, "peerDependencies": {"source": "4.0.0"},
+                "pnpm": {"overrides": {"target": "$source"}}}
+        for section, version in [("optionalDependencies", "3.0.0"),
+                                 ("dependencies", "2.0.0"), ("devDependencies", "1.0.0")]:
+            with self.subTest(section=section):
+                row = next(row for row in self.deps(data, intents=True) if row[0] == "target")
+                self.assertEqual(row[:2], ("target", version))
+                self.assertEqual(json.loads(row[2])["selector"],
+                                 {"override": "$source", "reference": "source", "source": section, "resolved": version})
+                del data[section]
+
+    def test_pnpm_peer_only_reference_is_unresolved(self):
+        with self.assertRaises(ValueError):
+            self.deps({"peerDependencies": {"source": "1.0.0"},
+                       "pnpm": {"overrides": {"target": "$source"}}})
+
+    def test_empty_pnpm_reference_does_not_fall_back_to_shadowed_version(self):
+        with self.assertRaises(ValueError):
+            self.deps({"dependencies": {"source": "1.0.0"}, "optionalDependencies": {"source": ""},
+                       "pnpm": {"overrides": {"target": "$source"}}})
+
     def test_pnpm_fingerprint_tracks_full_override_keys_and_external_values(self):
         before = {"pnpm": {"overrides": {"foo": "^1.0.0", "local": "file:../one"}}}
         for after in [{"pnpm": {"overrides": {"foo": "~1.0.0", "local": "file:../one"}}},
