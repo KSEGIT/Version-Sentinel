@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manifest validation and project-bound startup audit state (Python 3.11+)."""
+from contextlib import contextmanager
 import datetime as dt
 import fnmatch
 import hashlib
@@ -444,6 +445,30 @@ def state_path(root):
     return root / ".version-sentinel" / "audit.json"
 
 
+@contextmanager
+def state_lock(root):
+    """Serialize project transactions; kernel locks release if a process exits."""
+    lock_path = state_path(root).with_suffix(".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # Keep this file: unlinking it could let waiters lock different inodes.
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def read_json(path, default):
     if not path.exists():
         return default
@@ -494,7 +519,8 @@ def startup_invalidate(fallback):
             fail("startup cwd and session_id must be strings")
     except (ValueError, TypeError):
         # No valid payload root is available; revoke the fallback evidence.
-        invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
+        with state_lock(root):
+            invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
         fail("Invalid startup payload; mandatory audit was not completed.")
     if cwd:
         if any(character in cwd for character in "\r\n"):
@@ -502,7 +528,8 @@ def startup_invalidate(fallback):
         root = resolve_path(cwd, root).resolve(strict=True)
     if any(character in str(root) for character in "\r\n"):
         fail("Unsupported line break in startup project directory.")
-    invalidate_state(root, read_json(state_path(root), {}), session)
+    with state_lock(root):
+        invalidate_state(root, read_json(state_path(root), {}), session)
     print(json.dumps({"cwd": root.as_posix(), "session_id": session}))
 
 
@@ -536,6 +563,13 @@ def inventory(root, previous):
         # Previously audited includes remain required even after deletion.
         _, safe = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
         required.add(safe)
+    # Retired deep includes can lie beyond normal discovery. Rediscover them
+    # only when present; once found, ordinary required-path tracking resumes.
+    for receipt in previous.get("retirements", []):
+        name = receipt["file"]
+        target, safe = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
+        if target.exists():
+            required.add(safe)
     tracked = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--"], capture_output=True) if shutil.which("git") else None
     if tracked is not None and tracked.returncode == 0:
         for name in tracked.stdout.decode().split("\0"):
@@ -646,6 +680,9 @@ def retire_manifest(root, previous, arguments):
         git_name = target.relative_to(repo).as_posix()
     except ValueError:
         fail("retirement target is outside its Git repository")
+    graft_path = resolve_path(os.fsdecode(git("rev-parse", "--git-path", "info/grafts", cwd=repo)).strip(), repo)
+    if graft_path.exists() and graft_path.stat().st_size:
+        fail("Git grafts can alter commit ancestry; retirement requires unmodified history")
     head = git("rev-parse", "--verify", "HEAD^{commit}", cwd=repo).decode().strip()
     verified = git("rev-parse", "--verify", commit + "^{commit}", cwd=repo).decode().strip()
     if verified != commit:
@@ -702,6 +739,12 @@ def main():
                 print(f"{package}\t{selected}")
         return
     root = resolve_path(sys.argv[2]).resolve(strict=True)
+    with state_lock(root):
+        project_command(command, root)
+
+
+def project_command(command, root):
+    # The caller holds the lock from the first read through every state write.
     path = state_path(root)
     previous = read_json(path, {})
     if command == "retire":

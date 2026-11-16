@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
+import time
 import tempfile
 import unittest
 
@@ -159,6 +161,121 @@ class ManifestRetirement(unittest.TestCase):
         state = self.read_state()
         state['root'] = str(self.repo)
         path.write_text(json.dumps(state))
+        self.assert_blocked_unchanged()
+
+    def wait_for_marker(self, path, timeout=10):
+        deadline = time.monotonic() + timeout
+        while not path.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return path.exists()
+
+    def paused_worker(self, label, arguments):
+        marker = self.root / (label + '.read')
+        release = self.root / (label + '.release')
+        ready = self.root / (label + '.ready')
+        worker = r"""
+import importlib.util, json, pathlib, sys, time
+script, marker, release, ready, arguments = sys.argv[1:]
+sys.path.insert(0, str(pathlib.Path(script).parent))
+spec = importlib.util.spec_from_file_location('project_state', script)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+original = module.read_json
+def paused_read(path, default):
+    data = original(path, default)
+    if path.name == 'audit.json':
+        pathlib.Path(marker).touch()
+        deadline = time.monotonic() + 15
+        while not pathlib.Path(release).exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError('test did not release paused audit read')
+            time.sleep(0.01)
+    return data
+module.read_json = paused_read
+sys.argv = [script, *json.loads(arguments)]
+pathlib.Path(ready).touch()
+module.main()
+"""
+        process = subprocess.Popen([sys.executable, '-c', worker,
+            str(PLUGIN / 'scripts/lib/project-state.py'), str(marker), str(release),
+            str(ready), json.dumps(arguments)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: process.poll() is None and process.kill())
+        self.assertTrue(self.wait_for_marker(ready), 'worker did not start')
+        return process, marker, release
+
+    def race_commands(self, second_arguments):
+        first_arguments = ['retire', str(self.root), self.file, '--deleted-by', self.deleted,
+                           '--user-confirmed', 'approved first deletion']
+        first, marker, release = self.paused_worker('first', first_arguments)
+        self.assertTrue(self.wait_for_marker(marker), 'first transaction did not read state')
+        second, second_marker, second_release = self.paused_worker('second', second_arguments)
+        # Force stale reads when no transaction lock exists. With a lock, the
+        # second read cannot happen until the first transaction has committed.
+        self.wait_for_marker(second_marker, timeout=0.5)
+        release.touch()
+        output, error = first.communicate(timeout=20)
+        self.assertEqual(0, first.returncode, output + error)
+        second_release.touch()
+        output, error = second.communicate(timeout=20)
+        self.assertEqual(0, second.returncode, output + error)
+
+    def test_concurrent_retirements_keep_both_receipts_and_removals(self):
+        other = self.repo / 'requirements-other.txt'
+        other.write_text('')
+        self.git('add', 'requirements-other.txt')
+        self.git('commit', '-qm', 'second manifest')
+        self.state('begin')
+        self.git('rm', '-q', 'requirements-other.txt')
+        self.git('commit', '-qm', 'second deliberate deletion')
+        second_commit = self.git('rev-parse', 'HEAD').stdout.strip()
+        self.race_commands(['retire', str(self.root), 'work/project/requirements-other.txt',
+                            '--deleted-by', second_commit, '--user-confirmed', 'approved second deletion'])
+        state = self.read_state()
+        self.assertEqual(['work/project/package.json'], state['required'])
+        self.assertEqual({self.file, 'work/project/requirements-other.txt'}, {r['file'] for r in state['retirements']})
+
+    def test_concurrent_begin_preserves_retirement_receipt(self):
+        self.race_commands(['begin', str(self.root)])
+        state = self.read_state()
+        self.assertEqual(['work/project/package.json'], state['required'])
+        self.assertEqual([self.file], [r['file'] for r in state['retirements']])
+
+    def test_recreated_deep_retired_include_is_audited_again(self):
+        self.assertEqual(0, self.retire().returncode)
+        deep = self.repo / 'a/b/c/d/requirements-old.txt'
+        deep.parent.mkdir(parents=True)
+        deep.write_text('')
+        source = self.repo / 'requirements.txt'
+        source.write_text('-r a/b/c/d/requirements-old.txt\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'deep include')
+        self.state('begin')
+        source.write_text('')
+        self.git('rm', '-q', 'a/b/c/d/requirements-old.txt')
+        self.git('add', 'requirements.txt')
+        self.git('commit', '-qm', 'retire deep include')
+        commit = self.git('rev-parse', 'HEAD').stdout.strip()
+        relative = 'work/project/a/b/c/d/requirements-old.txt'
+        result = self.retire(relative, '--deleted-by', commit, '--user-confirmed', 'approved deep deletion')
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        deep.parent.mkdir(parents=True, exist_ok=True)
+        deep.write_text('lodash==4.17.21\n')
+        snapshot = self.state('begin')
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout + snapshot.stderr)
+        self.assertIn(relative, json.loads(snapshot.stdout)['required'])
+        deep.unlink()
+        self.assertEqual(2, self.state('begin').returncode)
+
+    def test_grafts_cannot_forge_deletion_ancestry(self):
+        self.git('reset', '--hard', self.initial)
+        self.git('rm', '-q', 'requirements-seed.txt')
+        self.git('commit', '-qm', 'different deletion', '--date=2000-01-01T00:00:00Z')
+        head = self.git('rev-parse', 'HEAD').stdout.strip()
+        self.assertEqual(1, self.git('merge-base', '--is-ancestor', self.deleted, head, check=False).returncode)
+        graft = Path(self.git('rev-parse', '--git-path', 'info/grafts').stdout.strip())
+        if not graft.is_absolute():
+            graft = self.repo / graft
+        graft.write_text(head + ' ' + self.deleted + '\n')
         self.assert_blocked_unchanged()
 
     def test_retirement_requires_real_repository(self):
