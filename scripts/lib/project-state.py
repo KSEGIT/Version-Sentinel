@@ -317,17 +317,24 @@ def dependencies(path, content, intents=False):
                 for name, spec in mapping(table, "Poetry dependencies").items():
                     if name == "python":
                         continue
-                    if isinstance(spec, dict):
-                        if any(k in spec for k in ("path", "git", "url")):
-                            continue
-                        raw = spec.get("version", "")
-                    elif isinstance(spec, str):
-                        raw = spec
+                    if isinstance(spec, list):
+                        if not spec or not all(isinstance(item, dict) for item in spec):
+                            fail(f"unsupported Poetry dependency {name}: expected a nonempty array of tables")
+                        specs = spec
                     else:
-                        fail(f"unsupported Poetry dependency {name}")
-                    selected = version(raw)
-                    if selected is not None:
-                        emit(name, selected, spec, f"{location}.{name}")
+                        specs = [spec]
+                    for item in specs:
+                        if isinstance(item, dict):
+                            if any(k in item for k in ("path", "git", "url")):
+                                continue
+                            raw = item.get("version", "")
+                        elif isinstance(item, str):
+                            raw = item
+                        else:
+                            fail(f"unsupported Poetry dependency {name}")
+                        selected = version(raw)
+                        if selected is not None:
+                            emit(name, selected, item, f"{location}.{name}")
 
             poetry_table(poetry.get("dependencies", {}), "tool.poetry.dependencies")
             poetry_table(poetry.get("dev-dependencies", {}), "tool.poetry.dev-dependencies")
