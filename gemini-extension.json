@@ -1,6 +1,6 @@
 {
   "name": "version-sentinel",
   "version": "0.6.0",
-  "description": "Hard-blocks dependency additions and version changes until the agent records a WebSearch-verified latest-version check.",
+  "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
   "contextFileName": "GEMINI.md"
 }

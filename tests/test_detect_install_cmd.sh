@@ -5,7 +5,7 @@ source "$(dirname "$0")/assert.sh"
 
 VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
-SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/detect-install-cmd.sh"
+SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/validate-detect-install-cmd.sh"
 
 source "$(dirname "$SCRIPT")/../tests/registry-fixture.sh"
 registry_fixture_setup

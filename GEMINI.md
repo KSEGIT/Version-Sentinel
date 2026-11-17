@@ -1,63 +1,34 @@
-# version-sentinel (Gemini CLI extension)
+# Version Sentinel (Gemini CLI extension)
 
-This extension hard-blocks dependency additions, bumps, and downgrades until a
-fresh, source-cited version check is recorded. It exists to stop the model from
-shipping a hallucinated or stale package version remembered from training data.
+Version Sentinel gives dependency warnings only. Hooks always return status 0 and allow the tool call. Missing or failed audits, stale checks, unsupported syntax, private registries, missing prerequisites, and missing or invalid manifests never become permission gates. Continue the user-authorized task and report the relevant limitation. Do not ask for approval merely because Version Sentinel warns.
 
-## How it works
+## Recommended version checks
 
-1. You try to edit a dependency manifest (`write_file` / `replace` on
-   `package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`,
-   `*.csproj`, ...) or run an install command via `run_shell_command`
-   (`npm install`, `pip install`, `cargo add`, `dotnet add package`, ...).
-2. A `BeforeTool` hook fires and exits 2 — the tool call is blocked and the
-   hook's stderr explains why:
-   ```text
-   BLOCKED: version-sentinel.
-   Package: lodash (npm). Version: 4.17.21.
-   No fresh version check on record.
-   ```
-3. To unblock: look up the real latest version on the upstream registry
-   (npmjs.com, pypi.org, crates.io, nuget.org), then record the check:
-   ```bash
-   /vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash
-   ```
-   Then retry with that exact version. For example, use
-   `npm install lodash@4.17.21`, not `npm install lodash` or
-   `npm install lodash@latest`. The hook finds the fresh entry and lets it
-   through. Local paths, URLs, git sources, and workspace dependencies are
-   outside registry-version checks.
+Look up the intended version on its upstream registry when practical:
 
-## Intentional pins
+- npm: `https://www.npmjs.com/package/<pkg>`
+- pip / pyproject: `https://pypi.org/project/<pkg>/`
+- Cargo: `https://crates.io/crates/<pkg>`
+- NuGet: `https://www.nuget.org/packages/<pkg>`
 
-Pinning an old version on purpose is fine — record it with a reason instead
-of a URL:
+Record a successful check from the project directory:
 
 ```bash
-/vs-record npm pkg 1.0.0 "intentional: CVE fix deferred pending audit"
+bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
 ```
 
-Intentional pins unblock the hook and show as `intentional-pin` (not `DRIFT`)
-in audits.
+Use a canonical `https://` source you actually consulted, or `intentional:<reason>` for a deliberate older pin. The recorder makes its own online check. Report failures truthfully; do not claim verification when it failed. Exact versions make checks reproducible, but floating versions and versionless installs remain allowed.
 
-## Auditing drift
+## Audits and limitations
 
-Run `/check-versions` to scan manifests within 4 directory levels of the workspace
-and compare each pinned version against the latest upstream release. Advisory only
-— never blocks.
+Startup only suggests an optional explicit audit; it makes no registry requests.
 
-## Escape hatch
+Run `bash <plugin-root>/scripts/check-versions.sh` to compare supported manifests against upstream releases. Report the exit status and diagnostics. Direct audit and recorder commands can return nonzero when validation fails; that reports their result and does not prohibit other work.
 
-Set `VS_DISABLE=1` in the environment to make every version-sentinel hook a
-no-op (useful for throwaway sessions).
+Preserve valid dependencies, overrides, selectors, and sources when the parser cannot understand them. Do not rewrite a manifest merely to satisfy the tool. Resolve missing or invalid manifests within the user's authorized task using repository evidence. Normal approval rules for destructive changes still apply separately; no recovery-consent command is needed to continue.
 
-## Prerequisites
+Checks are stored in `.version-sentinel/checks.json` and audit evidence in `.version-sentinel/audit.json`. Evidence expires after the configured freshness window (24 hours by default). Local paths, git sources, workspace dependencies, and private registries are outside public registry verification. A NuGet `PackageReference` without `Version` may use Central Package Management.
 
-`bash`, `jq`, `curl`, and `python3` (3.11+, for `tomllib`) on `PATH`.
+`VS_DISABLE=1` disables hook warnings. It is not needed to continue work. See the advisory workflow in `docs/enforcement.md` for scope and limits.
 
-Recorded checks live in `<workspace>/.version-sentinel/checks.json`
-(auto-gitignored on first write).
-
-## Mandatory startup audit and recovery
-
-Before dependency work, complete the online startup audit. Missing or invalid manifests require Daniel's explicit approval before recovery. The recorder now performs a successful online upstream check itself; URL-only, offline, and post-install records do not authorize changes. Older pins still need online verification and a reason. Follow [the enforcement workflow](docs/enforcement.md) for audit, recovery, and interception limits.
+Gemini uses `BeforeTool` and `AfterTool` adapters. These hooks warn and allow tool calls. Prerequisites: `bash`, `jq`, `curl`, and Python 3.11+ on `PATH`.

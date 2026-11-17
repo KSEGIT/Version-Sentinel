@@ -97,14 +97,14 @@ hook_command=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$PLUGIN/hooks/ho
 output=$(cd "$PROJECT" && printf '{"cwd":"%s","session_id":"bundle-fixture"}\n' "$PROJECT" | bash -c "$hook_command" 2>&1)
 status=$?
 assert_exit_code 0 "$status" "shipped startup hook executes: $output"
-assert_file_exists "$PROJECT/.version-sentinel/audit.json" "shipped startup hook creates audit evidence"
+assert_contains "$output" "optional" "shipped startup offers an optional audit"
 
 # The package must also supply the recovery skill that a failed audit names.
 output=$(cd "$PROJECT" && printf '{"cwd":"%s","session_id":"bundle-failure"}\n' "$PROJECT" | VS_FIXTURE_NETWORK_FAIL=1 bash -c "$hook_command" 2>"$VS_TMPDIR/startup.err")
 status=$?
 assert_exit_code 0 "$status" "shipped failed audit returns advisory context: $(cat "$VS_TMPDIR/startup.err")"
 message=$(printf '%s' "$output" | jq -r '.systemMessage')
-assert_contains "$message" 'audit-dependencies skill' "shipped failed audit names the recovery skill"
+assert_contains "$message" 'Work may continue' "shipped failed audit allows continued work"
 assert_file_exists "$PLUGIN/skills/audit-dependencies/SKILL.md" "named recovery skill is installed with the package"
 
 finish_test

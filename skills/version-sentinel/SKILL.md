@@ -1,65 +1,43 @@
 ---
 name: version-sentinel
-description: Use when adding, bumping, or changing a dependency in package.json, requirements*.txt, constraints*.txt, pyproject.toml, Cargo.toml, *.csproj, *.fsproj, or *.vbproj. Triggered automatically by version-sentinel's PreToolUse hook (where the host supports hooks) — this skill explains how to satisfy the block and record a version check.
+description: Use when adding, bumping, or changing dependencies. Explains advisory version checks and how to record truthful evidence without blocking work.
 ---
 
-# Version Sentinel — Workflow
+# Version Sentinel — Advisory workflow
 
-The `version-sentinel` setup blocks dependency changes until you've verified the package version against its upstream registry. Here's the required flow. On hosts without hook support, follow the same flow whenever you change a manifest or run an install command.
+For a public package without a version, treat it as a latest-version request when looking up evidence. Ask the user only when the dependency is ambiguous or private and the task lacks enough information to identify it. A warning alone never requires clarification.
 
-## Mandatory startup audit
+Version Sentinel gives dependency warnings only. Hooks always return status 0 and allow the tool call. Missing or failed audits, stale checks, unsupported syntax, private registries, missing prerequisites, and missing or invalid manifests never become permission gates. Continue the user-authorized task and report the relevant limitation. Do not ask for approval merely because Version Sentinel warns.
 
-From the project directory, run the bundled `scripts/check-versions.sh` at startup and after manifests or lockfiles change. Hooks require successful current project evidence before dependency work. Registry lookup failure blocks; newer-release drift is reported without upgrading dependencies. File inspection, user questions, audit retries, and version recording remain available.
+## Recommended version checks
 
-Handle deterministic tool compatibility issues automatically when existing file contents, dependency selectors, and sources can be preserved. Flat npm `overrides` strings and `$direct-dependency` references are parsed and audited automatically; they do not require manifest repair or user input. Do not remove overrides or bypass online checks. Nested and version-qualified override keys remain blocked until the parser can track their full intent. Report parser limitations as tool limitations, not damaged manifests; preserve the manifest.
+Look up the intended version on its upstream registry when practical:
 
-If a required manifest is missing or invalid, ask Daniel before recreating or repairing that exact file. Do not guess dependencies. Only after actual consent, run `bash <plugin-root>/scripts/recover-manifest.sh approve FILE --user-confirmed 'REASON'`. This records an attestation; it does not obtain approval or create contents. Online-verify proposed dependencies before writing approved contents, then rerun the audit. Do not use the consent flag without approval.
+- npm: `https://www.npmjs.com/package/<pkg>`
+- pip / pyproject: `https://pypi.org/project/<pkg>/`
+- Cargo: `https://crates.io/crates/<pkg>`
+- NuGet: `https://www.nuget.org/packages/<pkg>`
 
-## When you see a BLOCKED message
+Record a successful check from the project directory:
 
-If a tool call exits 2 with `BLOCKED: version-sentinel`, you must:
+```bash
+bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
+```
 
-1. **Resolve the intended dependency.** Identify the ecosystem and package. For
-   a public package without a version, treat it as a latest-version request and
-   look up the current release. Ask the user only when the dependency is
-   ambiguous or private. Private registries are unsupported by the canonical verifier; explain the limitation and stop dependency work instead of guessing a public source.
+Use a canonical `https://` source you actually consulted, or `intentional:<reason>` for a deliberate older pin. The recorder makes its own online check. Report failures truthfully; do not claim verification when it failed. Exact versions make checks reproducible, but floating versions and versionless installs remain allowed.
 
-2. **Verify the version.** For a latest-version request, look up the current
-   release. For a deliberate pin, verify that the requested version exists and
-   record the reason as described below. Use a web search first:
-   - `npm`:      search `"<pkg> latest version site:npmjs.com"`
-   - `pip`/`pyproject`: search `"<pkg> latest version site:pypi.org"`
-   - `csproj`:   search `"<pkg> latest version site:nuget.org"`
-   - `cargo`:    search `"<pkg> latest version site:crates.io"`
+## Audits and limitations
 
-   If web search is unavailable, fetch the registry URL directly, or consult a current documentation tool for the package.
+Startup only suggests an optional explicit audit; it makes no registry requests.
 
-3. **Record the check.** From the user's project directory, locate this plugin's bundled `scripts/vs-record.sh` and run:
+Run `bash <plugin-root>/scripts/check-versions.sh` to compare supported manifests against upstream releases. Report the exit status and diagnostics. Direct audit and recorder commands can return nonzero when validation fails; that reports their result and does not prohibit other work.
 
-       bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version-you-intend-to-install> <source-url>
+Preserve valid dependencies, overrides, selectors, and sources when the parser cannot understand them. Do not rewrite a manifest merely to satisfy the tool. Resolve missing or invalid manifests within the user's authorized task using repository evidence. Normal approval rules for destructive changes still apply separately; no recovery-consent command is needed to continue.
 
-   The source must be the canonical `https://` package page or upstream URL, or `intentional:` followed by a nonempty reason for a deliberate pin. The recorder makes its own successful online upstream request and verifies that the exact intended version exists. Older pins need both online evidence and a reason.
+Checks are stored in `.version-sentinel/checks.json` and audit evidence in `.version-sentinel/audit.json`. Evidence expires after the configured freshness window (24 hours by default). Local paths, git sources, workspace dependencies, and private registries are outside public registry verification. A NuGet `PackageReference` without `Version` may use Central Package Management.
 
-4. **Retry with the verified version.** If the blocked input omitted the version or used a floating tag such as `latest`, rewrite it first. For example, use `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
+`VS_DISABLE=1` disables hook warnings. It is not needed to continue work. See the advisory workflow in `docs/enforcement.md` for scope and limits.
 
-Local paths, URLs, git sources, and workspace dependencies are outside registry-version checks. A NuGet `PackageReference` without `Version` may use Central Package Management, so the manifest gate ignores that form.
+Locate this plugin's bundled scripts before running commands. In a plugin installation they are under `../../scripts/` relative to this skill; in the repository's `.agents/skills/` copy they are under `../../../scripts/`. Use absolute paths and run them with the user's project as the working directory.
 
-## Intentional non-latest pins
-
-If you genuinely intend to install an older version (CVE mitigation or compatibility), record with:
-
-    bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> "intentional: <brief reason>"
-
-After a successful online check and current audit, this can pass the hook and is flagged as `intentional-pin` (not `DRIFT`) in the audit output.
-
-## What NOT to do
-
-- Don't fake a source URL you didn't actually see. The recorder validates canonical upstream data; a URL string alone is not evidence.
-- Don't try to bypass the hook with `git commit --no-verify` or similar. The hook runs on file edits and terminal commands, not on git.
-- Don't `unset VS_DISABLE` without the user's awareness; that's an escape hatch for throwaway sessions, not normal flow.
-
-## Audit command
-
-From the user's project directory, run `bash <plugin-root>/scripts/check-versions.sh`. It scans manifests within four directory levels and reports drift. Run it before tagging a release.
-
-Legacy URL-only records, automatic post-install records, and stale offline responses cannot authorize dependency changes. Private registries are not supported by the current canonical verifier; a reason cannot bypass online verification. Hooks do not intercept arbitrary shell/Python file writes. See docs/enforcement.md for scan scope, recovery trust, and host activation limits.
+If an old installed version reports `BLOCKED: version-sentinel`, report the installation mismatch and use the normal plugin update path. The current policy is advisory; do not turn the old message into an agent-imposed pause or fabricate evidence to satisfy it.

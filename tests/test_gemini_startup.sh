@@ -4,28 +4,23 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/tests/assert.sh"
 VS_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$VS_TMPDIR"' EXIT
-mkdir -p "$VS_TMPDIR/project"
-cd "$VS_TMPDIR/project" || exit 1
-printf '{}' > package.json
-for source in startup resume clear; do
-  output=$(jq -nc --arg cwd "$PWD" --arg source "$source" '{cwd:$cwd,source:$source,session_id:$source,hook_event_name:"SessionStart"}' |
-    bash "$ROOT/scripts/session-start.sh" --gemini 2>"$VS_TMPDIR/startup.err"); status=$?
-  assert_exit_code 0 "$status" "Gemini $source runs audit"
-  printf '%s' "$output" | jq -e 'type == "object" and (.hookSpecificOutput.additionalContext | contains("audit completed"))' >/dev/null 2>&1
-  assert_exit_code 0 "$?" "Gemini $source returns valid JSON context"
-  VS_SESSION_ID="$source" bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
-  assert_exit_code 0 "$?" "Gemini $source creates enforced session evidence"
-done
+cd "$VS_TMPDIR" || exit 1
 printf '%s\n' '-r other.txt' > requirements.txt
-output=$(bash "$ROOT/scripts/session-start.sh" --gemini <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
-assert_exit_code 0 "$status" "Gemini blocked audit is advisory"
-printf '%s' "$output" | jq -e 'type == "object" and .hookSpecificOutput.hookEventName == "SessionStart" and (.hookSpecificOutput.additionalContext | contains("unsupported requirements include name: other.txt") and contains("dependency work remains blocked") and contains("check-versions.sh") and (contains("audit completed") | not))' >/dev/null 2>&1
-assert_exit_code 0 "$?" "Gemini blocked audit returns valid failure context JSON only"
-bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
-assert_exit_code 2 "$?" "Gemini advisory failure revokes successful evidence"
-# The published Gemini schema uses milliseconds, not seconds.
-timeout=$(jq '.hooks.SessionStart[0].hooks[0].timeout' "$ROOT/hooks/gemini-hooks.json")
-if [[ "$timeout" -lt 60000 ]]; then _fail 'Gemini startup timeout must allow a real online audit (milliseconds)'; fi
-matcher=$(jq -r '.hooks.SessionStart[0].matcher // ""' "$ROOT/hooks/gemini-hooks.json")
-assert_eq '' "$matcher" 'Gemini startup audit covers resume and clear too'
+for source in startup resume clear; do
+  output=$(jq -nc --arg source "$source" '{source:$source}' | bash "$ROOT/scripts/session-start.sh" --gemini); status=$?
+  assert_exit_code 0 "$status" "Gemini $source continues"
+  printf '%s' "$output" | jq -e '.systemMessage and (.hookSpecificOutput.additionalContext | contains("optional"))' >/dev/null
+  assert_exit_code 0 "$?" "Gemini $source has valid optional-audit context"
+done
+if [[ -d .version-sentinel ]]; then _fail 'startup must not write audit evidence'; fi
+# A hung online audit must never be started by the lifecycle hook.
+cp -R "$ROOT/scripts" "$VS_TMPDIR/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'touch "$AUDIT_STARTED"' 'sleep 30' > "$VS_TMPDIR/scripts/check-versions.sh"
+AUDIT_STARTED="$VS_TMPDIR/audit-started" python3 - "$VS_TMPDIR/scripts/session-start.sh" <<'PY'
+import subprocess
+import sys
+subprocess.run(['bash', sys.argv[1], '--gemini'], input='{}', text=True, capture_output=True, timeout=2, check=True)
+PY
+assert_exit_code 0 "$?" 'startup finishes before host timeout despite slow audit command'
+if [[ -f "$VS_TMPDIR/audit-started" ]]; then _fail 'startup invoked online audit'; fi
 finish_test

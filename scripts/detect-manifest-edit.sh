@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
-# All edit shapes share one parser, including Codex patch-only input.
-set -u
+# Public hook entrypoint: all validation is advisory, including runtime errors.
 DIR="${BASH_SOURCE[0]%/*}"
-# shellcheck source=lib/options.sh
-source "$DIR/lib/options.sh"
-if [[ "${VS_DISABLE:-0}" == "1" ]]; then exit 0; fi
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "BLOCKED: version-sentinel. python3 is required to inspect manifest edits." >&2
-  exit 2
+case "${VS_DISABLE:-${CLAUDE_PLUGIN_OPTION_DISABLE:-0}}" in 1|true|TRUE|True) exit 0 ;; esac
+if source "$DIR/lib/advisory-hook.sh"; then
+  vs_advisory_hook "$DIR/validate-detect-manifest-edit.sh" 'manifest edit' "$@"
+else
+  printf '%s\n' '{"systemMessage":"WARNING: Version Sentinel hook is unavailable. Work may continue."}'
 fi
-python3 "$DIR/lib/manifest-edit.py"
-status=$?
-if [[ "$status" -ne 0 ]]; then
-  if [[ "$status" -ne 2 ]]; then
-    echo "BLOCKED: version-sentinel. Manifest inspection failed (status $status); repair the hook before dependency edits." >&2
-  fi
-  exit 2
-fi
+exit 0

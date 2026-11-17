@@ -1,3 +1,5 @@
+> Historical website planning record. Current copy and behavior are advisory: hooks never block tools. See `docs/enforcement.md`.
+
 # Version Sentinel Website Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

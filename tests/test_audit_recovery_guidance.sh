@@ -18,7 +18,7 @@ printf '%s\n' '{"dependencies":{"lodash":"4.17.21"}}' > "$PROJECT/package.json"
 
 for mode in '' --gemini --copilot; do
   input=$(jq -nc --arg cwd "$PROJECT" '{cwd:$cwd,session_id:"warning-session"}')
-  output=$(printf '%s' "$input" | VS_FIXTURE_NETWORK_FAIL=1 bash "$PLUGIN/scripts/session-start.sh" "$mode" 2>"$VS_TMPDIR/startup.err"); status=$?
+  output=$(printf '%s' "$input" | VS_FIXTURE_NETWORK_FAIL=1 bash "$PLUGIN/scripts/validate-session-start.sh" "$mode" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_exit_code 0 "$status" "failed startup remains advisory ($mode): $(cat "$VS_TMPDIR/startup.err")"
   printf '%s' "$output" | jq -e 'type == "object" and .hookSpecificOutput.hookEventName == "SessionStart"' >/dev/null 2>&1
   assert_exit_code 0 "$?" "failed startup returns JSON ($mode)"

@@ -11,6 +11,4 @@ Relay the full output to the user, then interpret it briefly:
 - **intentional-pin** rows: deliberate pins with a recorded reason — no action needed unless the pin is stale.
 - **lookup-failed** rows: registry fetch failed; suggest re-running once, then checking the registry URL manually.
 
-Version drift alone is advisory. A missing, failed, expired, or outdated audit blocks dependency work.
-
-Missing or invalid required manifests require user-confirmed recovery before recreation. Do not silently recreate them. See the repository enforcement workflow in docs/enforcement.md.
+Report the exit status and full diagnostic. Drift alone does not fail the audit. Registry, prerequisite, and manifest errors are advisory: continue authorized work and report the limitation. Preserve npm overrides and other selectors. Do not change dependencies to make the audit pass. No Version Sentinel recovery-consent command is needed; normal authorization rules for destructive changes still apply separately.

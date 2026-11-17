@@ -1,8 +1,8 @@
 # Version Sentinel for Claude Code
 
-Version Sentinel blocks dependency additions and version changes until Claude
-verifies the intended version against its public package registry and records
-the check. It supports npm, Python, Cargo, and NuGet manifests.
+Version Sentinel warns about missing or stale dependency checks and recommends
+verifying the intended version against its public package registry. Hooks never
+block tools. It supports npm, Python, Cargo, and NuGet manifests.
 
 ## Requirements
 
@@ -11,13 +11,14 @@ Git Bash and install Python separately. Registry checks require internet access.
 
 ## Use
 
-The startup hook audits the current project. Before changing a dependency,
-verify its version and use `/version-sentinel:vs-record` to save the check.
+The startup hook suggests an optional audit and makes no registry requests. For dependency work,
+consider verifying its version and using `/version-sentinel:vs-record` to save the check.
 Use `/version-sentinel:check-versions` to run another audit. The included
-version-sentinel skill explains the required workflow and recovery steps.
+version-sentinel skill explains advisory checks and truthful reporting.
 
-Hooks enforce the recorded checks before supported edits and install commands.
-Read [the enforcement guide](docs/enforcement.md) for supported operations and
+Hooks return status 0 for every result. Audit failures, parser limits, and missing
+manifests do not require a pause or a recovery-consent command.
+Read [the advisory guide](docs/enforcement.md) for supported operations and
 limits. The package includes readable scripts for each hook and command.
 
 ## Privacy

@@ -8,7 +8,7 @@ source "$TESTS_DIR/registry-fixture.sh"
 VS_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$VS_TMPDIR"' EXIT
 
-SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/detect-manifest-edit.sh"
+SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/validate-detect-manifest-edit.sh"
 
 cd "$VS_TMPDIR" || exit 1
 registry_fixture_setup

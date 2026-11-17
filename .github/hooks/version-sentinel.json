@@ -11,13 +11,13 @@
       {
         "matcher": "Edit|Write|MultiEdit|apply_patch|editFiles|createFile|write_file|replace",
         "type": "command",
-        "command": "bash scripts/detect-manifest-edit.sh",
+        "command": "bash scripts/detect-manifest-edit.sh --copilot",
         "timeout": 10
       },
       {
         "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command",
         "type": "command",
-        "command": "bash scripts/detect-install-cmd.sh",
+        "command": "bash scripts/detect-install-cmd.sh --copilot",
         "timeout": 10
       }
     ],

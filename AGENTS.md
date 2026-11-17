@@ -1,60 +1,35 @@
 # Version Sentinel — Cross-Agent Instructions
 
-Version Sentinel is a guardrail that prevents stale, hallucinated, or compromised dependency versions from reaching your manifests. Before any dependency is added, bumped, downgraded, or installed, the agent must verify the intended version against its upstream registry and record that check. Checks are stored in `.version-sentinel/checks.json` and expire after a freshness window (default 24h).
+Version Sentinel gives dependency warnings only. Hooks always return status 0 and allow the tool call. Missing or failed audits, stale checks, unsupported syntax, private registries, missing prerequisites, and missing or invalid manifests never become permission gates. Continue the user-authorized task and report the relevant limitation. Do not ask for approval merely because Version Sentinel warns.
 
+## Recommended version checks
 
-## Mandatory startup audit and recovery
+Look up the intended version on its upstream registry when practical:
 
-Before dependency work, complete the online startup audit. Missing or invalid manifests require Daniel's explicit approval before recovery. The recorder now performs a successful online upstream check itself; URL-only, offline, and post-install records do not authorize changes. Older pins still need online verification and a reason. Follow [the enforcement workflow](docs/enforcement.md) for audit, recovery, and interception limits.
+- npm: `https://www.npmjs.com/package/<pkg>`
+- pip / pyproject: `https://pypi.org/project/<pkg>/`
+- Cargo: `https://crates.io/crates/<pkg>`
+- NuGet: `https://www.nuget.org/packages/<pkg>`
 
-## Required workflow when a dependency change is blocked
-
-If a hook blocks an edit or install (exit 2, `BLOCKED: version-sentinel`), or if you are about to change any dependency on a platform without hooks:
-
-1. **Look up the latest version on the upstream registry** via web search or fetch:
-   - npm: `https://www.npmjs.com/package/<pkg>`
-   - pip / pyproject: `https://pypi.org/project/<pkg>/`
-   - cargo: `https://crates.io/crates/<pkg>`
-   - csproj (NuGet): `https://www.nuget.org/packages/<pkg>`
-2. **Record the check:**
-
-   ```bash
-   bash scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
-   ```
-
-   The source must be the canonical `https://` registry URL you actually consulted, or `intentional:<reason>` for deliberate pins that also pass online verification (e.g. CVE lock, compatibility). Example:
-
-   ```bash
-   bash scripts/vs-record.sh npm lodash 4.17.21 https://www.npmjs.com/package/lodash
-   bash scripts/vs-record.sh csproj Serilog 3.1.1 "intentional: CVE lock pending audit"
-   ```
-
-3. **Retry with the verified version.** If the blocked edit or command omitted the version or used a floating tag such as `latest`, replace it with the exact version you recorded. For example, retry `npm install lodash@4.17.21`, not `npm install lodash` or `npm install lodash@latest`.
-
-Never fabricate a source URL you did not actually consult, and never bypass the record step to force a dependency change through.
-
-## Audit
+Record a successful check from the project directory:
 
 ```bash
-bash scripts/check-versions.sh
+bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
 ```
 
-Scans manifests within 4 directory levels of the current directory, compares each dependency against its upstream registry, and reports drift. Intentional pins show as `intentional-pin`, not `DRIFT`. Run before tagging a release.
+Use a canonical `https://` source you actually consulted, or `intentional:<reason>` for a deliberate older pin. The recorder makes its own online check. Report failures truthfully; do not claim verification when it failed. Exact versions make checks reproducible, but floating versions and versionless installs remain allowed.
 
-## Supported manifests
+## Audits and limitations
 
-`package.json` (npm/pnpm/yarn/bun), `requirements*.txt`, `constraints*.txt`, `pyproject.toml` (pip, Poetry, uv), `Cargo.toml`, and `*.csproj` / `*.fsproj` / `*.vbproj` (NuGet).
+Startup only suggests an optional explicit audit; it makes no registry requests.
 
-Local paths, URLs, git sources, and workspace dependencies do not name a registry version, so the gate ignores them. A NuGet `PackageReference` without a `Version` may use Central Package Management from an ancestor `Directory.Packages.props`; the manifest parser also ignores that form. It still blocks floating NuGet versions such as `Version="*"`.
+Run `bash <plugin-root>/scripts/check-versions.sh` to compare supported manifests against upstream releases. Report the exit status and diagnostics. Direct audit and recorder commands can return nonzero when validation fails; that reports their result and does not prohibit other work.
 
-## Escape hatch
+Preserve valid dependencies, overrides, selectors, and sources when the parser cannot understand them. Do not rewrite a manifest merely to satisfy the tool. Resolve missing or invalid manifests within the user's authorized task using repository evidence. Normal approval rules for destructive changes still apply separately; no recovery-consent command is needed to continue.
 
-`VS_DISABLE=1` makes all hooks no-op (block, prereq warning, auto-record). Use only for throwaway sessions; do not set it without the user's awareness.
+Checks are stored in `.version-sentinel/checks.json` and audit evidence in `.version-sentinel/audit.json`. Evidence expires after the configured freshness window (24 hours by default). Local paths, git sources, workspace dependencies, and private registries are outside public registry verification. A NuGet `PackageReference` without `Version` may use Central Package Management.
 
-## Platform behavior
-
-- On platforms with hooks (Claude Code and derivatives such as z.ai's ZCode / GLM Coding Plan, Kimi Code, OpenAI Codex), the workflow above is **enforced automatically** via PreToolUse hooks.
-- On platforms without hooks (e.g. Zed), you MUST follow the same workflow **voluntarily** before any dependency change: look up the version, run `bash scripts/vs-record.sh ...`, then make the edit.
+`VS_DISABLE=1` disables hook warnings. It is not needed to continue work. See the advisory workflow in `docs/enforcement.md` for scope and limits.
 
 ## Project structure
 
@@ -70,7 +45,7 @@ Local paths, URLs, git sources, and workspace dependencies do not name a registr
 - `scripts/` — hook and workflow scripts (`vs-record.sh`, `check-versions.sh`, `detect-manifest-edit.sh`, `detect-install-cmd.sh`, `auto-record.sh`, `prereq-check.sh`).
 - `commands/` — Claude Code slash commands (`/vs-record`, `/check-versions`).
 - `platforms/kimi/commands/` — Kimi Code command files (same workflow, `$KIMI_PLUGIN_ROOT`-based).
-- `skills/version-sentinel/` — agent skill explaining how to satisfy the hook.
+- `skills/version-sentinel/` — agent skill explaining advisory checks.
 - `hooks/hooks.json` — hook definitions (Claude Code). Claude-only: the Bash
   handlers are gated with `if` rules that Codex ignores.
 - `hooks/codex-hooks.json` — the same wiring ungated, used by Codex.

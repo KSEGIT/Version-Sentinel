@@ -30,7 +30,7 @@ printf '{"dependencies":{"lodash":"4.17.21"}}' > package.json
 for target in empty empty-repo; do
   for mode in '' --gemini --copilot; do
     input=$(jq -nc --arg cwd "$VS_TMPDIR/$target" '{cwd:$cwd,session_id:"empty-session"}')
-    output=$(AUDIT_FIXTURE_FAIL=1 bash "$ROOT/scripts/session-start.sh" "$mode" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
+    output=$(AUDIT_FIXTURE_FAIL=1 bash "$ROOT/scripts/validate-session-start.sh" "$mode" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
     assert_exit_code 0 "$status" "fresh $target startup succeeds ($mode)"
     assert_eq '' "$output" "fresh $target emits no context ($mode)"
     assert_eq '' "$(cat "$VS_TMPDIR/startup.err")" "fresh $target emits no errors ($mode)"
@@ -49,7 +49,7 @@ cp .version-sentinel/audit.json "$VS_TMPDIR/launch-before.json"
 printf '{"dependencies":{"lodash":"4.17.21"}}' > "$VS_TMPDIR/project/package.json"
 for target in empty project; do
   input=$(jq -nc --arg cwd "$VS_TMPDIR/$target" '{cwd:$cwd,session_id:"target-session"}')
-  output=$(bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
+  output=$(bash "$ROOT/scripts/validate-session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_exit_code 0 "$status" "$target payload startup succeeds from audited launch"
   cmp -s .version-sentinel/audit.json "$VS_TMPDIR/launch-before.json"
   assert_exit_code 0 "$?" "$target payload startup preserves launch evidence"
@@ -86,7 +86,7 @@ for missing_prerequisite in curl jq; do
   (cd "$VS_TMPDIR/project" && bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1)
   assert_exit_code 0 "$?" "target has fresh evidence before missing $missing_prerequisite"
   input=$(jq -nc --arg cwd "$startup_target" '{cwd:$cwd}')
-  output=$(PATH="$VS_TMPDIR/startup-bin" /bin/bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>&1); status=$?
+  output=$(PATH="$VS_TMPDIR/startup-bin" /bin/bash "$ROOT/scripts/validate-session-start.sh" <<< "$input" 2>&1); status=$?
   assert_exit_code 2 "$status" "missing $missing_prerequisite fails startup"
   assert_contains "$output" "$missing_prerequisite missing" "missing startup prerequisite stays visible"
   cmp -s .version-sentinel/audit.json "$VS_TMPDIR/launch-before.json"
@@ -105,13 +105,13 @@ printf '{}' > "$VS_TMPDIR/café project/package.json"
 for startup_encoding in utf-8 cp1252; do
   # Native Windows Python uses the ANSI code page for pipes; hook JSON is UTF-8.
   input=$(jq -nc --arg cwd "$VS_TMPDIR/café project" --arg session "unicode-$startup_encoding" '{cwd:$cwd,session_id:$session}')
-  output=$(PYTHONIOENCODING="$startup_encoding" bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
+  output=$(PYTHONIOENCODING="$startup_encoding" bash "$ROOT/scripts/validate-session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_exit_code 0 "$status" "startup preserves Unicode and spaces in payload cwd ($startup_encoding): $(cat "$VS_TMPDIR/startup.err")"
   VS_SESSION_ID="unicode-$startup_encoding" bash "$ROOT/scripts/audit-state.sh" gate "$VS_TMPDIR/café project" >/dev/null 2>&1
   assert_exit_code 0 "$?" "Unicode target receives its own session evidence ($startup_encoding)"
 done
 input=$(jq -nc --arg cwd "$VS_TMPDIR/linebreak"$'\n' '{cwd:$cwd}')
-output=$(bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>&1); status=$?
+output=$(bash "$ROOT/scripts/validate-session-start.sh" <<< "$input" 2>&1); status=$?
 assert_exit_code 2 "$status" 'line break cwd fails before ambiguous shell transport'
 [[ ! -e "$VS_TMPDIR/linebreak/.version-sentinel" ]] || _fail 'line break cwd touched trimmed sibling'
 [[ ! -e "$VS_TMPDIR/linebreak"$'\n'/.version-sentinel ]] || _fail 'rejected line break cwd created state'
@@ -156,7 +156,7 @@ assert_exit_code 0 "$?" 'raw cwd is rejected before a Windows mapper can trim it
 printf 'invalid launch audit' > .version-sentinel/audit.json
 for target in empty project; do
   input=$(jq -nc --arg cwd "$VS_TMPDIR/$target" '{cwd:$cwd,session_id:"target-session"}')
-  output=$(bash "$ROOT/scripts/session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
+  output=$(bash "$ROOT/scripts/validate-session-start.sh" <<< "$input" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_exit_code 0 "$status" "corrupt launch state cannot fail $target startup"
   assert_eq 'invalid launch audit' "$(cat .version-sentinel/audit.json)" 'launch state remains untouched'
 done
@@ -167,11 +167,11 @@ assert_exit_code 2 "$?" 'direct empty audit still fails'
 bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 2 "$?" 'empty project gate remains closed'
 input=$(jq -nc --arg cwd "$PWD" '{cwd:$cwd,tool_name:"Bash",tool_input:{command:"npm install"}}')
-bash "$ROOT/scripts/detect-install-cmd.sh" <<< "$input" >/dev/null 2>&1
+bash "$ROOT/scripts/validate-detect-install-cmd.sh" <<< "$input" >/dev/null 2>&1
 assert_exit_code 2 "$?" 'empty startup cannot authorize dependency installation'
 # Even old empty success evidence must not survive a skipped startup.
 jq -nc --arg root "$PWD" '{root:$root,required:[],files:{},status:"complete",checkedAt:9999999999}' > .version-sentinel/audit.json
-output=$(bash "$ROOT/scripts/session-start.sh" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
+output=$(bash "$ROOT/scripts/validate-session-start.sh" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
 assert_exit_code 0 "$status" 'stale empty success does not force a false audit'
 assert_eq '' "$output" 'stale empty success is skipped silently'
 assert_eq pending "$(jq -r .status .version-sentinel/audit.json)" 'skipped startup revokes stale success'
@@ -187,7 +187,7 @@ rm "$VS_TMPDIR/tracked/package.json"
 printf '{}' > "$VS_TMPDIR/orphan/package-lock.json"
 for target in project tracked orphan; do
   cd "$VS_TMPDIR/$target" || exit 1
-  output=$(bash "$ROOT/scripts/session-start.sh" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
+  output=$(bash "$ROOT/scripts/validate-session-start.sh" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_exit_code 0 "$status" "$target missing manifest is advisory"
   assert_contains "$output" 'Required manifest is missing: package.json' "$target missing manifest stays visible"
   bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
@@ -199,7 +199,7 @@ for dependency_file in packages.lock.json Directory.Packages.props; do
   cd "$VS_TMPDIR/$dependency_file" || exit 1
   printf '{}' > "$dependency_file"
   for mode in '' --gemini --copilot; do
-    output=$(bash "$ROOT/scripts/session-start.sh" "$mode" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
+    output=$(bash "$ROOT/scripts/validate-session-start.sh" "$mode" <<< '{}' 2>"$VS_TMPDIR/startup.err"); status=$?
     assert_exit_code 0 "$status" "$dependency_file missing manifest is advisory ($mode)"
     assert_contains "$output" 'Required dependency manifest is missing' "$dependency_file is not an empty workspace ($mode)"
     bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1

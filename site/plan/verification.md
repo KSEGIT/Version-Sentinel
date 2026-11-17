@@ -1,3 +1,5 @@
+> Historical website planning record. Current copy and behavior are advisory: hooks never block tools. See `docs/enforcement.md`.
+
 # Website verification
 
 Recorded 23 October 2026 for [PR #37](https://github.com/KSEGIT/Version-Sentinel/pull/37).

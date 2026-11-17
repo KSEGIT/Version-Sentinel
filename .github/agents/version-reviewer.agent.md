@@ -26,3 +26,5 @@ Group output into three sections:
 - Output is markdown with one heading per section, a table under each, and a final TL;DR line with counts (`N DRIFT, M intentional, K unknown`).
 - Keep the full report under 400 words.
 - If there are 0 DRIFT and 0 lookup-failed, end with: `READY TO RELEASE`.
+
+Audit results are advisory. Report failed checks truthfully; never instruct the user or another agent to halt dependency work because of these results.

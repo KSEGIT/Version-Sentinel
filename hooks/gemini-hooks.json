@@ -8,7 +8,7 @@
             "name": "version-sentinel-startup-audit",
             "command": "bash \"${extensionPath}${/}scripts${/}session-start.sh\" --gemini",
             "timeout": 120000,
-            "description": "Run mandatory online dependency audit; dependency gates enforce completion"
+            "description": "Suggest an optional dependency audit without registry requests"
           }
         ]
       }
@@ -20,9 +20,9 @@
           {
             "type": "command",
             "name": "version-sentinel-manifest-edit",
-            "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\"",
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\" --gemini",
             "timeout": 60000,
-            "description": "Block dependency-manifest edits without a recorded version check"
+            "description": "Warn about dependency-manifest edits without a recorded version check"
           }
         ]
       },
@@ -32,9 +32,9 @@
           {
             "type": "command",
             "name": "version-sentinel-install-cmd",
-            "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\"",
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\" --gemini",
             "timeout": 60000,
-            "description": "Block package-install commands without a recorded version check"
+            "description": "Warn about package-install commands without a recorded version check"
           }
         ]
       }
@@ -48,7 +48,7 @@
             "name": "version-sentinel-auto-record",
             "command": "bash \"${extensionPath}${/}scripts${/}auto-record.sh\"",
             "timeout": 60000,
-            "description": "Auto-record version check after a successful install command"
+            "description": "Compatibility hook; successful installs do not create verification evidence"
           }
         ]
       }

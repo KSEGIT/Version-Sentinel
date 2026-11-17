@@ -32,6 +32,10 @@ scripts/check-sidecar.sh
 scripts/check-versions.sh
 scripts/detect-install-cmd.sh
 scripts/detect-manifest-edit.sh
+scripts/validate-detect-install-cmd.sh
+scripts/validate-detect-manifest-edit.sh
+scripts/validate-session-start.sh
+scripts/lib/advisory-hook.sh
 scripts/lib/circuit-breaker.sh
 scripts/lib/coalesce.sh
 scripts/lib/etag-cache.sh

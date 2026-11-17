@@ -14,7 +14,7 @@ printf '%s\n' '[package]' 'name="demo"' 'version="0.1.0"' > Cargo.toml
 bash "$SCRIPTS/check-versions.sh" >/dev/null 2>&1
 probe() {
   jq -nc --arg path "$1" --arg content "$2" '{tool_name:"Write",tool_input:{file_path:$path,content:$content}}' \
-    | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1
+    | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1
 }
 for content in \
   '{"dependencies":{},"overrides":{"body-parser":{".":"99.99.99"}}}' \

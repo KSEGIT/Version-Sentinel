@@ -12,14 +12,14 @@ registry_fixture_setup
 printf '%s\n' '[project]' 'name = "demo"' > pyproject.toml
 bash "$SCRIPTS/check-versions.sh" >/dev/null 2>&1
 post=$'[project]\nname = "demo"\n[build-system]\nrequires = ["nonexistent-build-backend==99.99.99"]\n'
-result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'unverified build backend addition blocks'
 assert_contains "$result" 'nonexistent-build-backend' 'blocked build backend named'
 post=$'[project]\nname = "demo"\n[build-system]\nrequires = ["requests==2.31.0"]\n'
-result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'existing build package still needs online record'
 bash "$SCRIPTS/vs-record.sh" pyproject requests 2.31.0 https://pypi.org/project/requests/ >/dev/null 2>&1
-result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(jq -nc --arg content "$post" '{tool_name:"Write",tool_input:{file_path:"pyproject.toml",content:$content}}' | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'build backend addition allowed after online record'
 printf '%s' "$post" > pyproject.toml
 result=$(bash "$SCRIPTS/check-versions.sh" 2>&1); status=$?

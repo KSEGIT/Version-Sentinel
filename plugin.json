@@ -1,7 +1,7 @@
 {
   "name": "version-sentinel",
   "version": "0.6.0",
-  "description": "Hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.",
+  "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
   "author": {
     "name": "Daniel Kiska",
     "url": "https://github.com/KSEGIT"
@@ -29,13 +29,13 @@
     "disable": {
       "type": "boolean",
       "title": "Turn off Version Sentinel (kill switch)",
-      "description": "Default: false — the guardrail is active. Set true and every hook becomes a no-op: dependency edits and install commands are no longer blocked, the startup check for jq/curl/python3 is skipped, and successful installs stop being auto-recorded. Use it as a temporary escape hatch when a hook misfires or you are working offline, then switch it back. A VS_DISABLE variable set in your shell overrides this setting in both directions.",
+      "description": "Default: false \u2014 advisory warnings are active. Set true to suppress hook warnings. Hooks never block tools even when enabled. VS_DISABLE in your shell overrides this setting.",
       "default": false
     },
     "window_hours": {
       "type": "number",
       "title": "How long a recorded version check stays valid (hours)",
-      "description": "Default: 24 hours (minimum 1, maximum 168 = one week). A check you save with /vs-record satisfies the guardrail for this long; once it lapses, the next change to that dependency is blocked again until you re-verify the version against its registry. Lower it to catch fast-moving packages and new advisories sooner; raise it to avoid repeat lookups during a long refactor, at the cost of acting on staler data.",
+      "description": "Default: 24 hours (minimum 1, maximum 168). Expired checks can produce advisory warnings; work remains allowed. Lower it for more frequent reminders or raise it to reuse evidence longer.",
       "default": 24,
       "min": 1,
       "max": 168

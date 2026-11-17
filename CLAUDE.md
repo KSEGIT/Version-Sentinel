@@ -1,6 +1,6 @@
 # Version Sentinel
 
-Claude Code plugin that hard-blocks dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded. Multi-agent: ships adapters for Claude Code (also covers z.ai GLM Coding Plan / ZCode, which reuse the Claude Code plugin format), Kimi Code, GitHub Copilot (VS Code), Gemini CLI, OpenAI Codex, and Zed.
+Claude Code plugin that warns about missing or stale dependency version checks without blocking tools. Multi-agent: ships adapters for Claude Code (also covers z.ai GLM Coding Plan / ZCode, which reuse the Claude Code plugin format), Kimi Code, GitHub Copilot (VS Code), Gemini CLI, OpenAI Codex, and Zed.
 
 ## Project structure
 
@@ -37,17 +37,16 @@ docs/                 Documentation
 ## How it works
 
 1. PreToolUse hooks intercept `Edit`/`Write`/`MultiEdit` on manifest files and `Bash` install commands
-2. Hook exits 2 (blocks) if no fresh version check exists in `.version-sentinel/checks.json`
-3. User runs WebSearch + `/vs-record` to record a check, then retries
-4. PostToolUse compatibility hook does not create verification records. SessionStart runs the mandatory online audit; dependency hooks enforce current project evidence. See docs/enforcement.md.
+2. Hooks always exit 0 and report missing or stale checks as advisory warnings.
+3. Recommend upstream verification and `/vs-record` to save truthful evidence; continue authorized work if either fails.
+4. PostToolUse compatibility hook does not create verification records. SessionStart suggests an optional explicit audit without making registry requests; failed audits never prohibit dependency work. See docs/enforcement.md.
 
 The two `Bash` hooks are gated with Claude Code `if` rules (`Bash(*npm*)`,
 `Bash(*pip*)`, ...), one per covered manager, so they only spawn for
 package-manager commands instead of on every Bash tool call. Keyed on the
 binary rather than the subcommand, so `npm i` / `npm add` / `npm install` are
 all covered. `tests/test_hook_if_parity.sh` fails if a manager known to
-`lib/parse-install-cmd.sh` has no matching rule — a gap there is a silent
-bypass, not a slowdown.
+`lib/parse-install-cmd.sh` has no matching rule — a gap there can skip a warning.
 
 `if` is a Claude Code field. Measured on codex-cli 0.151.0: Codex loads the
 file fine and normalizes its shell tool to `Bash` in the payload, but it
@@ -56,14 +55,14 @@ Ignoring `if` means it runs every handler in the group, so sharing the gated
 file cost 10 spawns of each script per shell command instead of 1. Hence
 `.codex-plugin/plugin.json` points at `hooks/codex-hooks.json`: same events,
 matchers and scripts, one handler per group, no `if`. Codex honors that
-declared path (verified: 4 spawns per two commands, not 40), and blocking works
-end-to-end there. `tests/test_hook_if_parity.sh` fails if the two files drift.
+declared path (verified: 4 spawns per two commands, not 40), and hooks run
+there. `tests/test_hook_if_parity.sh` fails if the two files drift.
 
 Rules are shaped `Bash(*<mgr>*)` -- leading star, no trailing space. A rule
 covers every manager whose name contains its token, so `Bash(*npm*)` also covers
 pnpm and `Bash(*pip*)` covers pip3; adding rules for those would only fork the
 script twice per call. tests/test_hook_if_parity.sh asserts coverage AND
-minimality, and asserts the gate invariant: anything the parser detects must be
+minimality, and asserts the dispatch invariant: anything the parser detects must be
 matched by some rule, or the hook never spawns to run it. Measured: the narrow
 form does not fire for a process-wrapper prefix (`timeout ... `, `nice ... `),
 though it does for a leading env assignment. `lib/parse-install-cmd.sh` strips

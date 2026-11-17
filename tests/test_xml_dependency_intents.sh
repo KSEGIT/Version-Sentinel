@@ -13,7 +13,7 @@ printf '%s\n' '<Project><ItemGroup><PackageReference Include="Example" Version="
 bash "$SCRIPTS/check-versions.sh" >/dev/null 2>&1
 probe() {
   jq -nc --arg content "$1" '{tool_name:"Write",tool_input:{file_path:"Demo.csproj",content:$content}}' \
-    | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1
+    | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1
 }
 pretty=$'<Project>\n  <ItemGroup>\n    <PackageReference Condition="enabled" Version="13.0.3" Include="Example">\n    </PackageReference>\n  </ItemGroup>\n</Project>\n'
 result=$(probe "$pretty"); status=$?
