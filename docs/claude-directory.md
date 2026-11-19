@@ -69,11 +69,11 @@ People using the existing custom marketplace can continue to use it.
 | Root `CLAUDE.md` is not loaded | The package has no root `CLAUDE.md`; the workflow instructions ship in `skills/version-sentinel/SKILL.md`. |
 | README registry redirect | The package has a short Claude README without installation snippets or images. |
 | Credential forwarding | The flagged runtime files do not explicitly read or forward account credentials. Public registry requests ignore the user's curl configuration. The privacy policy states what requests send. A reviewer must confirm any remaining warning. |
-| Uses hooks | Accurate and retained: hooks enforce the dependency guardrail. |
+| Uses hooks | Accurate and retained: hooks provide advisory dependency diagnostics. |
 | Images passed without a code check | No images or fonts are included in the package. |
 
 Packaging does not grant Verified organization status. The directory may still
 refuse the required hooks and scripts under its Verified organization rules.
-Do not remove enforcement or disguise source files to bypass those rules.
+Describe warning-only hooks accurately; do not disguise source files to bypass directory rules.
 Local checks prove package contents and behavior; only portal validation can
 confirm which directory findings have cleared.

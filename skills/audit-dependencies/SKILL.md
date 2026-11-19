@@ -1,6 +1,6 @@
 ---
 name: audit-dependencies
-description: Use when the user requests a Version Sentinel dependency audit or sees "Version Sentinel startup audit failed", missing or expired audit evidence, or dependency work blocked by the startup audit.
+description: Use when the user requests a Version Sentinel dependency audit or sees "Version Sentinel startup audit failed", missing or expired audit evidence, or an advisory startup audit warning.
 ---
 
 # Audit dependencies
@@ -21,8 +21,10 @@ Run the online audit for the user's current project and report the result. The a
 
 ## Report the result
 
-- Report the exit status and the specific diagnostic. `DRIFT`, `UNPINNED`, and `intentional-pin` rows alone do not fail the audit or authorize upgrades.
-- Report completion only when the command exits 0 and prints `mandatory online dependency audit completed`. A silent exit 0 can mean the plugin is disabled; report that the audit was skipped, without changing the disable setting or claiming current evidence. Separate package-version recording is still required before dependency changes.
-- On failure, keep dependency work blocked. Report registry or prerequisite failures with the retry command. For parser limitations, preserve manifests and npm overrides and report the tool limitation. Missing or invalid manifests need the user's approval before repair or recreation.
+- Report the exit status and specific diagnostic. `DRIFT`, `UNPINNED`, and `intentional-pin` rows alone do not fail the audit or authorize upgrades.
+- Report completion only when the command exits 0 and explicitly reports that the online dependency audit completed. A silent exit 0 can mean the plugin is disabled; report a skipped audit truthfully.
+- On failure, report registry, prerequisite, or manifest errors with the retry command. Continue the user's authorized task. A failed audit is never a permission gate.
+- Preserve manifests and npm overrides when reporting parser limitations. Do not change dependencies just to make an audit pass.
+- Missing or invalid manifests do not require a Version Sentinel recovery-consent ritual. Repair them only within the user's authorized scope, using repository evidence and normal rules for destructive changes.
 
-Do not disable hooks, bypass verification, edit evidence by hand, or change dependencies to make the audit pass. After the reported cause is resolved, rerun this same command.
+Do not edit evidence by hand or claim a failed check passed. Rerun the audit when useful after the reported cause is resolved. Hooks always return status 0; direct audit commands may return nonzero to report validation failure or support CI.

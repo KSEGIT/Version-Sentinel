@@ -1,3 +1,5 @@
+> Historical website planning record. Current copy and behavior are advisory: hooks never block tools. See `docs/enforcement.md`.
+
 # Version Sentinel landing site design
 
 Date: 2026-10-15

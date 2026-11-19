@@ -79,7 +79,7 @@ assert_exit_code 0 "$status" 'existing flat overrides audit automatically'
 assert_eq "$before" "$(file_sha256 package.json)" 'automatic handling preserves the manifest'
 probe() {
   jq -nc --arg path "$VS_TMPDIR/package.json" --arg content "$1" '{tool_name:"Write",tool_input:{file_path:$path,content:$content}}' \
-    | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1
+    | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1
 }
 content='{"dependencies":{"lodash":"4.17.21"},"overrides":{"lodash":"$lodash","other":"4.17.20"}}'
 result=$(probe "$content"); status=$?

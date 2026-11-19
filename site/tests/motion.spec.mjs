@@ -8,7 +8,7 @@ async function frozenDemo(page) {
 const step = (page, name) => page.locator(`[data-demo-step="${name}"] .demo-visual`);
 
 // Missing controller, changed order, or unpinned retry must fail this test.
-test('automatic transcript types, blocks with exit 2, looks up, records, and retries the exact version', async ({ page }) => {
+test('automatic transcript types, warns with exit 0, looks up, records, and retries the exact version', async ({ page }) => {
   await frozenDemo(page);
   await expect(page.locator('#terminal-demo')).toHaveAttribute('data-state', 'playing');
   await expect(step(page, 'block')).toBeHidden();
@@ -18,7 +18,7 @@ test('automatic transcript types, blocks with exit 2, looks up, records, and ret
   await expect(step(page, 'block')).toBeHidden();
   await page.clock.runFor(1500);
   const expected = [
-    ['block', 'exit 2'], ['lookup', 'https://www.npmjs.com/package/lodash'],
+    ['block', 'exit 0'], ['lookup', 'https://www.npmjs.com/package/lodash'],
     ['record', '/vs-record npm lodash 4.17.21'], ['retry', '> npm install lodash@4.17.21'], ['result', 'ALLOWED']
   ];
   for (let index = 0; index < expected.length; index++) {
@@ -137,7 +137,7 @@ test('all registry details support hover and keyboard focus and reduced motion r
     await expect(detail).toContainText('same npm, PyPI, crates.io, and NuGet registries');
   }
   await expect(page.locator('.agent-list a[href^="#install-"]')).toHaveCount(6);
-  await expect(page.locator('.agent-list > li').last()).toContainText('No automatic hook blocking.');
+  await expect(page.locator('.agent-list > li').last()).toContainText('Manual checks; no hook warnings.');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const item of await page.locator('.ecosystem-list > div, .agent-list > li').all()) {
     expect(await item.evaluate(node => getComputedStyle(node).opacity)).toBe('1');

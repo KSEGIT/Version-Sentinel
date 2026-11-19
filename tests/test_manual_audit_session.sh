@@ -18,7 +18,7 @@ cd "$VS_TMPDIR/project" || exit 1
 hook() {
   jq -nc --arg cwd "$VS_TMPDIR/launch" --arg workdir "${2:-$PWD}" --arg session "$1" \
     '{tool_name:"exec_command",cwd:$cwd,session_id:$session,tool_input:{cmd:"npm run verify",workdir:$workdir}}' |
-    CODEX_THREAD_ID=unrelated-hook-environment bash "$ROOT/scripts/detect-install-cmd.sh" 2>&1
+    CODEX_THREAD_ID=unrelated-hook-environment bash "$ROOT/scripts/validate-detect-install-cmd.sh" 2>&1
 }
 
 # A fresh explicit workdir has no startup identity to inherit.

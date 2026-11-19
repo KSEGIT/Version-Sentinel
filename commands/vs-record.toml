@@ -30,4 +30,6 @@ Examples:
 If the user gave no or incomplete arguments, ask for the missing ones instead
 of guessing. Pass the arguments through exactly as provided — do not modify,
 quote-rewrite, or fabricate versions, URLs, or reasons.
+
+Recording is recommended evidence, not permission to proceed. Report a failed record truthfully and continue authorized work. Hooks never block tools.
 """

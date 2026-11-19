@@ -1,7 +1,7 @@
 {
   "name": "version-sentinel",
   "version": "0.6.1",
-  "description": "Hard-blocks dependency additions and version changes until the agent records a WebSearch-verified latest-version check.",
+  "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
   "keywords": [
     "dependencies",
     "packages",
@@ -46,6 +46,6 @@
   ],
   "interface": {
     "displayName": "Version Sentinel",
-    "shortDescription": "Blocks dependency changes until the version is verified against the upstream registry."
+    "shortDescription": "Warns about dependency version checks and recommends upstream verification. Never blocks tools."
   }
 }

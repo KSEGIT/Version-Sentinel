@@ -4,28 +4,28 @@
       {
         "type": "command",
         "command": "bash scripts/session-start.sh --copilot",
-        "timeout": 180
+        "timeout": 120
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit|apply_patch|editFiles|createFile|write_file|replace",
         "type": "command",
-        "command": "bash scripts/detect-manifest-edit.sh",
-        "timeout": 180
+        "command": "bash scripts/detect-manifest-edit.sh --copilot",
+        "timeout": 10
       },
       {
         "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command",
         "type": "command",
-        "command": "bash scripts/detect-install-cmd.sh",
-        "timeout": 180
+        "command": "bash scripts/detect-install-cmd.sh --copilot",
+        "timeout": 10
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command|Edit|Write|MultiEdit|apply_patch|editFiles|createFile|write_file|replace",
         "type": "command",
-        "command": "bash scripts/auto-record.sh",
+        "command": "bash scripts/auto-record.sh --copilot",
         "timeout": 180
       }
     ]

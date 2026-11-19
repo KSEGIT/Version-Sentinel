@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" alt="Version Sentinel — no dependency ships unverified" width="864" />
+  <img src="assets/hero.png" alt="Version Sentinel — advisory dependency version checks" width="864" />
 </p>
 
 <p align="center">
@@ -11,17 +11,17 @@
 
 <p align="center"><a href="https://ksegit.github.io/Version-Sentinel/">Website and installation guide</a></p>
 
-<p align="center">Claude Code plugin that <strong>hard-blocks</strong> dependency additions, bumps, and downgrades until a fresh, source-cited version check is recorded.</p>
+<p align="center">Claude Code plugin that warns about missing or stale dependency version checks. Hooks never block tools.</p>
 
-> If Claude tries to add `"lodash": "^4.17.21"` without looking up the latest version first, the tool call is rejected with exit 2. Claude must run `WebSearch`, then `/vs-record`, then retry. Five ecosystems supported in v0.1.
+> If an agent changes a dependency without a fresh registry check, Version Sentinel warns and allows the tool call. Upstream verification and `/vs-record` remain recommended.
 
 **Keywords:** Claude Code, Anthropic, AI coding guardrails, LLM supply-chain security, dependency management, hallucinated package versions, npm, PyPI, Cargo, NuGet, PreToolUse hook.
 
 ## Why
 
-LLM-assisted coding silently ships whatever version the model remembers from its training data. For packages with frequent releases or known compromised versions, that's unacceptable. `version-sentinel` inserts a mandatory "check the registry" step — without stopping you from pinning an old version on purpose.
+LLM-assisted coding silently ships whatever version the model remembers from its training data. For packages with frequent releases or known compromised versions, that's unacceptable. `version-sentinel` recommends checking the registry and records the source without stopping your work.
 
-## What it prevents
+## What it helps you check
 
 - **Hallucinated versions** — LLM picks a version that never existed or never shipped.
 - **Stale defaults** — model reaches for a 2-year-old pin because training data froze there.
@@ -31,13 +31,13 @@ LLM-assisted coding silently ships whatever version the model remembers from its
 
 ## How it compares
 
-| Tool | Scope | Enforcement |
+| Tool | Scope | Result |
 |------|-------|-------------|
-| `version-sentinel` | Claude Code **PreToolUse hook** — blocks the tool call before the edit lands | Hard-fail exit 2 |
+| `version-sentinel` | Agent hooks — checks before supported edits and installs | Advisory, exit 0 |
 | Generic dependency-audit skills | Post-hoc scan of `package.json` / `requirements.txt` | Advisory |
 | Dependabot / Renovate | Scheduled PR bot against remote registries | Async PR |
 
-Unlike post-hoc auditors, `version-sentinel` runs **inside the agent loop** — the agent cannot merge a bad version by accident because the write itself is refused until the check is cited.
+Version Sentinel runs inside the agent workflow. It supplies evidence warnings and registry checks; it does not guarantee that a dependency is safe.
 
 ## Supported ecosystems (v0.1)
 
@@ -49,9 +49,9 @@ Unlike post-hoc auditors, `version-sentinel` runs **inside the agent loop** — 
 | `Cargo.toml` | Rust | crates.io |
 | `*.csproj`, `*.fsproj`, `*.vbproj` | .NET | api.nuget.org |
 
-Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`, `pip install`, `poetry add`, `uv add`, `cargo add`, `dotnet add package`). A registry package without a version, or with a floating tag such as npm `latest`, is blocked. The agent must retry with the verified version. Local paths, URLs, git sources, and workspace dependencies are not registry checks and are ignored.
+Covers `Edit`, `Write`, `MultiEdit`, and `Bash` install commands (`npm install`, `pip install`, `poetry add`, `uv add`, `cargo add`, `dotnet add package`). A registry package without a version, or with a floating tag such as npm `latest`, can produce a warning but remains allowed. Local paths, URLs, git sources, and workspace dependencies are not registry checks and are ignored.
 
-NuGet Central Package Management can supply a version from an ancestor `Directory.Packages.props`. For this reason, a `PackageReference` without a `Version` is not treated as unpinned. Floating NuGet versions such as `Version="*"` are blocked.
+NuGet Central Package Management can supply a version from an ancestor `Directory.Packages.props`. For this reason, a `PackageReference` without a `Version` is not treated as unpinned. Floating NuGet versions such as `Version="*"` can produce advisory warnings.
 
 ## Install
 
@@ -74,7 +74,7 @@ One repo, six agent platforms. The same hook scripts and sidecar state back ever
 | GitHub Copilot in VS Code | Files under `.github/` + `.agents/skills/` — works when this repo is the workspace, or copy them into yours |
 | Gemini CLI | `gemini extensions install https://github.com/KSEGIT/Version-Sentinel`, then `bash ~/.gemini/extensions/version-sentinel/platforms/gemini/setup.sh` to activate hooks (see `docs/e2e-checklist.md`) |
 | OpenAI Codex | `codex plugin marketplace add KSEGIT/Version-Sentinel` → `codex plugin add version-sentinel` (or legacy `.claude-plugin` marketplace compat) |
-| Zed | Manual: `AGENTS.md` + `.agents/skills/` + `docs/zed.md` — static-permissions approximation; **no hook support**, so blocking is best-effort |
+| Zed | Manual: `AGENTS.md` + `.agents/skills/` + `docs/zed.md` — advisory instructions and manual checks |
 
 Platform-specific layout:
 
@@ -99,24 +99,20 @@ For marketplace listings and submission status per platform (what's ready, what 
 
 ## How it works
 
-SessionStart performs a mandatory online dependency audit. npm projects also run npm audit and OSV security checks, both enabled by default. High/critical advisories and unknown/incomplete enabled checks block dependency work. Missing or invalid manifests block dependency work until the user confirms recovery. Audit and online version evidence are enforced separately. See [enforcement and recovery](docs/enforcement.md) for commands, scan scope, and limits.
+SessionStart suggests an optional explicit dependency audit without making registry requests. All hooks return status 0, even for failed audits, missing prerequisites, parser limits, and missing or invalid manifests. Continue authorized work and report any limits. No recovery-consent ritual is needed. See [the advisory workflow](docs/enforcement.md).
 
-1. Claude tries to add/bump a dep (`Edit package.json`, `npm install X@Y`, ...)
-2. PreToolUse hook fires, exits 2 with stderr:
-   ```
-   BLOCKED: version-sentinel.
-   Package: lodash (npm). Version: 4.17.21.
-   No fresh version check on record.
-   ```
-3. Claude runs `WebSearch "lodash latest version site:npmjs.com"`
-4. Claude invokes `/vs-record npm lodash 4.17.21 https://www.npmjs.com/package/lodash`
-5. Claude retries with the verified version — for example, `npm install lodash@4.17.21`. The hook finds the fresh entry and lets the call through. Retrying `npm install lodash` or `npm install lodash@latest` stays blocked because neither command names the recorded version.
+1. An agent tries to change a dependency or run an install.
+2. The hook reports missing or stale evidence as a warning and allows the call.
+3. The agent can verify the intended version on its upstream registry and use `/vs-record` to save evidence.
+4. If verification fails, report that result truthfully and continue the user's authorized task. Preserve valid manifests and overrides when the parser cannot understand them.
+
+Direct audit and recorder commands can still return nonzero for validation failures or CI. Their status does not prohibit other work.
 
 ## Commands
 
 - `/vs-record <ecosystem> <pkg> <version> <source>` — record a version check
 - `/check-versions` — audit manifests against upstream registries
-- `audit-dependencies` skill — run the installed audit after a startup warning, report the cause, and retry after it is resolved. Failed-audit warnings also show a terminal command for the affected project.
+- `audit-dependencies` skill — run the installed audit from the current project when useful, report its result, and continue authorized work.
 
 ## Older pins and offline failures
 
@@ -125,11 +121,11 @@ SessionStart performs a mandatory online dependency audit. npm projects also run
 | Deliberate old-version pin | `/vs-record npm pkg 1.0.0 "intentional: CVE fix deferred"` |
 | Throwaway session | `export VS_DISABLE=1` |
 | Private registry | Not supported by the canonical upstream verifier |
-| Registry offline | Wait for a successful online check; an intentional reason does not bypass it |
+| Registry offline | Report the lookup failure and continue authorized work |
 
 ## Sidecar file
 
-State: `<project-root>/.version-sentinel/checks.json` and `audit.json`. Auto-gitignored on first write. The recorder fetches canonical upstream metadata and checks version existence before recording; old pins require an explicit reason too. Post-install hooks cannot grant verification.
+State: `<project-root>/.version-sentinel/checks.json` and `audit.json`. Auto-gitignored on first write. The recorder fetches canonical upstream metadata and checks version existence before recording; old pins require an explicit reason too. Post-install hooks do not create verification evidence.
 
 ## Uninstall
 
@@ -144,13 +140,13 @@ State: `<project-root>/.version-sentinel/checks.json` and `audit.json`. Auto-git
 Claude Code only — relies on the PreToolUse hook API exposed by the CLI.
 
 **Does it slow Claude down?**
-Startup audits contact upstream registries. Package recording makes a separate online check. Fresh checks can be reused for the same project/package/version during the configured freshness window; file changes still require another audit.
+Startup only shows an optional audit reminder. Explicit audits and package recording contact upstream registries. Fresh checks can be reused for the same project/package/version during the configured freshness window; file changes can produce a new audit warning.
 
 **Can I use this for private / internal registries?**
-Version verification uses the public canonical registries only. npm audit uses npm's configured registry and authentication. OSV receives npm package names and exact versions. Review the [security settings and data disclosure](docs/enforcement.md#npm-security-checks) before checking private packages. A justification does not bypass online verification or security policy.
+The current verifier supports the public canonical registries only. Report that limitation and continue authorized work; do not claim public verification.
 
 **Why not just run `npm audit` / `pip-audit`?**
-Version Sentinel now runs npm audit and OSV alongside version verification. OSV checks proposed exact npm versions before supported dependency changes; both enabled providers scan the resolved package-lock tree, including transitive dependencies. A clean advisory scan means no known matching findings, not proof that a package is safe or exploitable. Other ecosystems still receive version checks only.
+Those tools scan vulnerabilities. Version Sentinel recommends version-freshness checks and records sources. Its hooks warn and always allow tools.
 
 **Does it support Go modules, Gradle, Maven, composer, gems?**
 Not in v0.1. See `docs/roadmap.md`.
@@ -163,3 +159,11 @@ Not in v0.1. See `docs/roadmap.md`.
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## npm security diagnostics
+
+Explicit audits use npm audit and OSV by default for public npm lockfile v2/v3 projects. Each provider can be disabled separately with the `security_npm_audit` or `security_osv` plugin setting, or `VS_SECURITY_NPM_AUDIT=0` or `VS_SECURITY_OSV=0`. Findings retain provider attribution, severity, advisory IDs, and links. Missing, stale, or incomplete evidence is reported truthfully.
+
+Public tool hooks only check local cached security evidence. They never contact providers or launch the saved-settings CLI. Candidate versions without a current security check produce a warning. Run `bash <plugin-root>/scripts/security-check.sh audit <project-root>` explicitly to refresh security evidence; this is optional and does not gate authorized work. Low and moderate findings remain visible as advisory text.
+
+The explicit `reconcile-npm-lock.sh` helper can regenerate a lockfile without install scripts and scan it before replacement. Its Git/project/settings evidence and validation errors apply to that explicit command, not permission to continue other work. See [the privacy policy](https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md) for upstream package-name disclosures and local evidence storage.

@@ -10,6 +10,4 @@ Intentional pins (via `/vs-record ... "intentional: ..."`) show as `intentional-
 
 !bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-versions.sh"
 
-Report the exit status and full failure diagnostic. Drift alone does not fail the audit. Registry or manifest errors leave dependency work blocked; resolve the reported cause and rerun. Preserve npm overrides and report parser limitations as tool limitations. Do not change dependencies or disable enforcement to pass the audit.
-
-Missing or invalid required manifests require user-confirmed recovery before recreation. Do not silently recreate them. See the repository enforcement workflow in docs/enforcement.md.
+Report the exit status and full diagnostic. Drift alone does not fail the audit. Registry, prerequisite, and manifest errors are advisory: continue authorized work and report the limitation. Preserve npm overrides and other selectors. Do not change dependencies to make the audit pass. No Version Sentinel recovery-consent command is needed; normal authorization rules for destructive changes still apply separately.

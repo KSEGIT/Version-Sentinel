@@ -19,3 +19,5 @@ Record that a dependency version has been verified. Run after WebSearch/WebFetch
 !bash "${CLAUDE_PLUGIN_ROOT}/scripts/vs-record.sh" $ARGUMENTS
 
 The script performs an online upstream lookup and checks that the exact version exists. An older pin requires a nonempty intentional reason as well as a successful online check. A fabricated URL, stale offline cache, or post-install record cannot pass.
+
+Recording is recommended evidence, not permission to proceed. Report a failed record truthfully and continue authorized work. Hooks never block tools.

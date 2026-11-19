@@ -24,3 +24,5 @@ If `$KIMI_PLUGIN_ROOT` is not set in your shell, locate the plugin root with `/p
 Relay the script's output verbatim to the user. If it exits non-zero, report the error and do not retry with fabricated values.
 
 The script performs an online upstream lookup and checks that the exact version exists. An older pin requires a nonempty intentional reason as well as a successful online check. A fabricated URL, stale offline cache, or post-install record cannot pass.
+
+Recording is recommended evidence, not permission to proceed. Report a failed record truthfully and continue authorized work. Hooks never block tools.

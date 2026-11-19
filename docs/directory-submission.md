@@ -21,13 +21,13 @@ Notes: Matches `plugin.json` (`version-sentinel`) and the GitHub repo. Contains 
 ### Short (≈180 chars)
 
 ```
-Hard-blocks dependency additions, bumps, and downgrades in Claude Code until a fresh, source-cited version check is recorded. Supports npm, pip, Poetry/uv, Cargo, and NuGet.
+Warns about dependency version checks in Claude Code without blocking tools. Supports npm, pip, Poetry/uv, Cargo, and NuGet.
 ```
 
 ### Medium (recommended)
 
 ```
-Version Sentinel is a PreToolUse guardrail that refuses dependency edits and install commands until Claude has verified the package version against its upstream registry and recorded the citation. It stops hallucinated versions, stale training-data pins, silent downgrades, and compromised-release installs from reaching your manifest. Supports package.json (npm/pnpm/yarn/bun), requirements.txt / pyproject.toml (pip, Poetry, uv), Cargo.toml, and .csproj/.fsproj/.vbproj. Includes /vs-record to log a check, /check-versions to audit existing manifests, and a version-reviewer subagent. Escape hatches exist for intentional old-version pins, private registries, and offline sessions.
+Version Sentinel provides advisory PreToolUse warnings and recommends checking package versions against upstream registries. It helps identify hallucinated versions, stale pins, and unexplained downgrades. Hooks always allow tools. Supports package.json (npm/pnpm/yarn/bun), requirements.txt / pyproject.toml (pip, Poetry, uv), Cargo.toml, and .csproj/.fsproj/.vbproj. Includes /vs-record to log a check, /check-versions to audit existing manifests, and a version-reviewer subagent. Failed checks, private registries, and offline sessions remain allowed and are reported truthfully.
 ```
 
 ---
@@ -35,11 +35,11 @@ Version Sentinel is a PreToolUse guardrail that refuses dependency edits and ins
 ## Example use cases
 
 ```
-Example 1: Claude tries to add "lodash": "^4.17.21" to package.json from memory. Version Sentinel blocks the Edit with exit 2, Claude runs WebSearch against npmjs.com, calls /vs-record npm lodash <latest> <url>, then retries — and the write succeeds with an audit trail.
+Example 1: Claude tries to add "lodash": "^4.17.21" to package.json from memory. Version Sentinel warns and allows the Edit. Claude can check npmjs.com and use /vs-record to save truthful evidence.
 
-Example 2: An agent runs `pip install requests==2.28.0` to "fix" a failing CI job by downgrading. The Bash PreToolUse hook refuses the install until a fresh PyPI check is on record, preventing a silent regression to a vulnerable build.
+Example 2: An agent runs `pip install requests==2.28.0` to "fix" a failing CI job by downgrading. The Bash PreToolUse hook warns about missing version evidence and allows the install. A PyPI check can help assess the chosen version.
 
 Example 3: You ask Claude to bump every dependency in a Rust workspace. Running /check-versions audits Cargo.toml against crates.io and reports drift before any edit is attempted, so the upgrade plan is grounded in current registry data instead of training-cutoff guesses.
 
-Example 4: You intentionally want to stay on an older pin (e.g. deferring a CVE fix). You run /vs-record npm <pkg> 1.0.0 "intentional: CVE fix deferred" once — subsequent edits to that pin pass the hook without re-checking.
+Example 4: You intentionally want to stay on an older pin (e.g. deferring a CVE fix). You run /vs-record npm <pkg> 1.0.0 "intentional: CVE fix deferred" once — the reason appears in later audits. All edits remain allowed.
 ```

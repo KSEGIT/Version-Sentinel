@@ -35,11 +35,11 @@ input=$(cat <<EOF
 }
 EOF
 )
-echo "[1/4] Edit adds lodash (expect exit 2)"
-echo "$input" | bash "$SCRIPT_DIR/scripts/detect-manifest-edit.sh" 2>/tmp/smoke1_$$.err
+echo "[1/4] Edit adds lodash (expect warning and exit 0)"
+echo "$input" | bash "$SCRIPT_DIR/scripts/detect-manifest-edit.sh" >/tmp/smoke1_$$.err
 rc=$?
-[[ "$rc" -eq 2 ]] || { echo "FAIL: expected exit 2, got $rc"; exit 1; }
-grep -q "lodash" /tmp/smoke1_$$.err || { echo "FAIL: stderr missing lodash"; exit 1; }
+[[ "$rc" -eq 0 ]] || { echo "FAIL: expected exit 0, got $rc"; exit 1; }
+grep -q "WARNING" /tmp/smoke1_$$.err || { echo "FAIL: stderr missing warning"; exit 1; }
 echo "  OK"
 
 # --- 2. /vs-record the check ---
@@ -50,18 +50,23 @@ echo "  OK"
 
 # --- 3. Retry edit → should pass ---
 echo "[3/4] Retry edit (expect exit 0)"
-echo "$input" | bash "$SCRIPT_DIR/scripts/detect-manifest-edit.sh" 2>/tmp/smoke2_$$.err
+echo "$input" | bash "$SCRIPT_DIR/scripts/detect-manifest-edit.sh" >/tmp/smoke2_$$.err
 rc=$?
 [[ "$rc" -eq 0 ]] || { echo "FAIL: expected exit 0 after record, got $rc"; cat /tmp/smoke2_$$.err; exit 1; }
+[[ ! -s /tmp/smoke2_$$.err ]] || { echo "FAIL: recorded edit still warns with security providers disabled"; cat /tmp/smoke2_$$.err; exit 1; }
+# Also prove the recorded edit itself is verifiable through the explicit tool.
+echo "$input" | bash "$SCRIPT_DIR/scripts/validate-detect-manifest-edit.sh" >/tmp/smoke2_$$.err 2>&1
+rc=$?
+[[ "$rc" -eq 0 ]] || { echo "FAIL: recorded edit did not validate, got $rc"; cat /tmp/smoke2_$$.err; exit 1; }
 echo "  OK"
 
 # --- 4. Bash install cmd without record → block ---
-echo "[4/4] Bash npm install requests@2.31.0 (expect exit 2)"
+echo "[4/4] Bash npm install requests@2.31.0 (expect warning and exit 0)"
 echo '{"tool_name":"Bash","tool_input":{"command":"npm install requests@2.31.0"}}' \
-  | bash "$SCRIPT_DIR/scripts/detect-install-cmd.sh" 2>/tmp/smoke3_$$.err
+  | bash "$SCRIPT_DIR/scripts/detect-install-cmd.sh" >/tmp/smoke3_$$.err
 rc=$?
-[[ "$rc" -eq 2 ]] || { echo "FAIL: bash install not blocked, got $rc"; exit 1; }
-grep -q "requests" /tmp/smoke3_$$.err || { echo "FAIL: stderr missing requests"; exit 1; }
+[[ "$rc" -eq 0 ]] || { echo "FAIL: bash install did not continue, got $rc"; exit 1; }
+grep -q "WARNING" /tmp/smoke3_$$.err || { echo "FAIL: stderr missing warning"; exit 1; }
 echo "  OK"
 
 rm -f /tmp/smoke1_$$.err /tmp/smoke2_$$.err /tmp/smoke3_$$.err

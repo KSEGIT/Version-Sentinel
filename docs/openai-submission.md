@@ -19,8 +19,8 @@ Prerequisites the portal enforces before the form works:
 ## Submission type
 
 **Skills only.** Hooks are not a submittable component, so the directory
-listing cannot enforce blocking — it ships the `version-sentinel` skill
-(the workflow + scripts), and enforcement remains a feature of the
+listing ships the `version-sentinel` skill
+(the workflow + scripts); automatic advisory warnings are supplied by the
 repo-installed plugin (`.codex-plugin/plugin.json` + `hooks/codex-hooks.json`).
 Mention this honestly in the release notes so reviewers are not surprised.
 
@@ -157,7 +157,7 @@ https://github.com/KSEGIT/Version-Sentinel (MIT). The bundled skill archive
 (`version-sentinel-openai-skill.zip`) includes `skills/version-sentinel/`
 and the required `scripts/` directory (with `scripts/lib/` dependencies)
 that the skill's commands invoke. The skill teaches the verify-then-record
-workflow; the full plugin (with blocking hooks) is installable from the same
+workflow; the full plugin (with advisory hooks) is installable from the same
 repo via `codex plugin marketplace add KSEGIT/Version-Sentinel`. Test cases
 use public registries (npm, PyPI, crates.io, NuGet) and need no credentials
 or special data.

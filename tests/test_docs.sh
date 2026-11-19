@@ -6,14 +6,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 skill=$(<"$ROOT/skills/version-sentinel/SKILL.md")
 privacy=$(<"$ROOT/PRIVACY.md")
 
-assert_contains "$skill" "public package without a version" \
-  "public package without version is handled"
-assert_contains "$skill" "latest-version request" \
-  "public package without version uses latest"
-assert_contains "$skill" "Ask the user only when the dependency is" \
-  "clarification guidance is explicit"
-assert_contains "$skill" "ambiguous or private" \
-  "clarification is limited to ambiguous or private dependencies"
+assert_contains "$skill" "warns" "skill describes warning policy"
+assert_contains "$skill" "allow the tool call" "skill forbids blocking work"
+assert_contains "$skill" "optional" "verification is optional"
 
 assert_contains "$privacy" ".version-sentinel/.etag-cache/" \
   "privacy policy names the registry cache"

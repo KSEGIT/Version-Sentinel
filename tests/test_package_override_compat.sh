@@ -99,13 +99,20 @@ assert_exit_code 0 "$status" 'supported override forms complete an online fixtur
 assert_eq "$before" "$(file_sha256 package.json)" 'override audit leaves manifest unchanged'
 content='{"pnpm":{"overrides":{"lodash":"4.17.20"}},"overrides":{"other@1":"4.17.21"}}'
 probe() {
+  local validator="${1:-validate-detect-manifest-edit.sh}"
   jq -nc --arg path "$VS_TMPDIR/package.json" --arg content "$content" '{tool_name:"Write",tool_input:{file_path:$path,content:$content}}' \
-    | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1
+    | bash "$SCRIPTS/$validator" 2>&1
 }
 result=$(probe); status=$?
-assert_exit_code 2 "$status" 'pnpm override version change requires online evidence'
+assert_exit_code 2 "$status" 'strict pnpm override validation requires online evidence'
+result=$(probe detect-manifest-edit.sh); status=$?
+assert_exit_code 0 "$status" 'public hook allows an unrecorded pnpm override change'
+assert_contains "$result" 'WARNING' 'public hook warns about an unrecorded override'
 bash "$SCRIPTS/vs-record.sh" npm lodash 4.17.20 'intentional: override compatibility regression' >/dev/null 2>&1
 assert_exit_code 0 "$?" 'override replacement version is verified before recording'
 result=$(probe); status=$?
-assert_exit_code 0 "$status" 'verified pnpm replacement version passes the edit gate'
+assert_exit_code 0 "$status" 'verified pnpm replacement version passes strict validation'
+result=$(probe detect-manifest-edit.sh); status=$?
+assert_exit_code 0 "$status" 'public hook allows a verified pnpm override change'
+assert_eq '' "$result" 'verified override is silent with security providers disabled'
 finish_test

@@ -24,16 +24,7 @@ Then interpret the drift report for the user:
   `/vs-record ... intentional:<reason>` — it is not drift; report it as such.
 - A successful audit records current project evidence in
   .version-sentinel/audit.json without changing dependency versions.
-- Drift alone does not fail the audit. Report the exit status and full failure
-  diagnostic. Registry or manifest errors leave dependency work blocked;
-  resolve the reported cause and rerun. Preserve npm overrides and report
-  parser limitations as tool limitations. Do not disable enforcement.
+- Report the exit status and full diagnostic. Drift alone does not fail the audit. Registry, prerequisite, and manifest errors are advisory: continue authorized work and report the limitation. Preserve npm overrides and other selectors. Do not change dependencies to make the audit pass. No Version Sentinel recovery-consent command is needed; normal authorization rules for destructive changes still apply separately.
 
-Missing or invalid required manifests need the user's approval before repair
-or recreation. Do not guess dependency contents.
-
-Summarize which packages drifted, by how much, and point out anything that
-looks like a security-relevant lag. Do not "fix" versions unless the user
-asks — and remember manifest edits are still subject to the version-sentinel
-block, so a fresh /vs-record is required first.
+Summarize drift and unknown results. Do not change versions unless the user requests it. Hooks always allow work, even when this audit fails.
 """

@@ -1,3 +1,5 @@
+> Historical record: the blocking behavior and probes below describe an older release. Current hooks are warning-only and always allow tool calls. These old steps are not current instructions. See [the advisory workflow](enforcement.md).
+
 # Mandatory audit verification
 
 Verified on 2026-11-03 against the feature branch. Routine tests use canonical-registry HTTP fixtures, not production installs.

@@ -117,7 +117,7 @@ Submission status legend:
   portal component, so a directory listing ships the `version-sentinel` skill
   archive (`version-sentinel-openai-skill.zip` containing `skills/version-sentinel/`
   plus the required `scripts/` directory with `scripts/lib/` dependencies) and
-  cannot enforce blocking; hook-based enforcement stays a property of the
+  does not include automatic warnings; advisory hooks are supplied by the
   repo-installed plugin. Repo-marketplace install remains the fallback either way.
 - **Paste-ready listing copy, test cases, and the portal walkthrough live in
   [openai-submission.md](openai-submission.md).** Privacy and Terms URLs now

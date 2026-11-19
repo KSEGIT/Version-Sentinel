@@ -64,11 +64,17 @@ for file in hooks/hooks.json hooks/codex-hooks.json hooks/gemini-hooks.json; do
           *detect-manifest-edit.sh*) input="$manifest_input" ;;
           *) input="$install_input" ;;
         esac
-        # The exit code distinguishes a real dependency block from a shell
-        # error caused by a split path (usually exit 127).
+        # The warning proves the validator ran through the quoted plugin path.
         output=$(run_hook "$command" "$input" 2>&1)
         status=$?
-        assert_exit_code 2 "$status" "$file blocks unchecked dependency from a spaced path: $output"
+        assert_exit_code 0 "$status" "$file warns about unchecked dependency from a spaced path: $output"
+        assert_contains "$output" "WARNING" "$file reports unchecked dependency"
+        printf '%s' "$output" | jq -e '.systemMessage | contains("WARNING")' >/dev/null
+        assert_exit_code 0 "$?" "$file warning is visible to the user"
+        if [[ "$file" == *gemini* ]]; then
+          printf '%s' "$output" | jq -e 'has("hookSpecificOutput") | not' >/dev/null
+          assert_exit_code 0 "$?" 'Gemini BeforeTool uses common output fields only'
+        fi
         (
           cd "$PROJECT" || exit 1
           bash "$PLUGIN/scripts/vs-record.sh" npm path-fixture 1.0.0 "intentional: path fixture"

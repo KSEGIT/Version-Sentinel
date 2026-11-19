@@ -7,8 +7,8 @@
             "type": "command",
             "name": "version-sentinel-startup-audit",
             "command": "bash \"${extensionPath}${/}scripts${/}session-start.sh\" --gemini",
-            "timeout": 180000,
-            "description": "Run mandatory online dependency audit; dependency gates enforce completion"
+            "timeout": 120000,
+            "description": "Suggest an optional dependency audit without registry requests"
           }
         ]
       }
@@ -20,9 +20,9 @@
           {
             "type": "command",
             "name": "version-sentinel-manifest-edit",
-            "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\"",
-            "timeout": 180000,
-            "description": "Block dependency-manifest edits without a recorded version check"
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\" --gemini",
+            "timeout": 60000,
+            "description": "Warn about dependency-manifest edits without a recorded version check"
           }
         ]
       },
@@ -32,9 +32,9 @@
           {
             "type": "command",
             "name": "version-sentinel-install-cmd",
-            "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\"",
-            "timeout": 180000,
-            "description": "Block package-install commands without a recorded version check"
+            "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\" --gemini",
+            "timeout": 60000,
+            "description": "Warn about package-install commands without a recorded version check"
           }
         ]
       }
@@ -46,9 +46,9 @@
           {
             "type": "command",
             "name": "version-sentinel-auto-record",
-            "command": "bash \"${extensionPath}${/}scripts${/}auto-record.sh\"",
+            "command": "bash \"${extensionPath}${/}scripts${/}auto-record.sh\" --gemini",
             "timeout": 180000,
-            "description": "Scan changed npm dependency state without creating version verification records"
+            "description": "Warn about changed npm security evidence without delaying tools"
           }
         ]
       }

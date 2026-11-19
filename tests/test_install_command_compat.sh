@@ -12,7 +12,7 @@ printf '{}' > package.json
 printf '{}' > ../other/package.json
 hook() {
   jq -nc --arg cwd "$PWD" --arg cmd "$1" '{tool_name:"Bash",cwd:$cwd,tool_input:{command:$cmd}}' |
-    bash "$ROOT/scripts/detect-install-cmd.sh" 2>&1
+    bash "$ROOT/scripts/validate-detect-install-cmd.sh" 2>&1
 }
 for cmd in 'yarn --frozen-lockfile' 'yarn --immutable' 'yarn --cwd ../other'; do
   output=$(hook "$cmd"); status=$?

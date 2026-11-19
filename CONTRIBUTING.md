@@ -25,7 +25,7 @@ No build step — the plugin is shell scripts + markdown.
 bash tests/run.sh
 ```
 
-`tests/run.sh` discovers every `tests/test_*.sh` unit test plus `tests/integration/smoke.sh` (end-to-end block → record → retry → allow). **All tests must pass before you open a PR.** Unit tests are offline and use fixtures under `tests/fixtures/`; they must never hit the real network.
+`tests/run.sh` discovers every `tests/test_*.sh` unit test plus `tests/integration/smoke.sh` (end-to-end advisory warning and evidence checks). **All tests must pass before you open a PR.** Unit tests are offline and use fixtures under `tests/fixtures/`; they must never hit the real network.
 
 ## Adding a new ecosystem
 
@@ -75,4 +75,4 @@ You don't need to hand-edit `CHANGELOG.md`, `version.txt`, or `plugin.json` — 
 
 ## Security
 
-Found a bypass, false-negative, or other issue in the block logic? **Please don't file a public issue.** Open a private [GitHub Security Advisory](https://github.com/KSEGIT/Version-Sentinel/security/advisories/new) instead so we can coordinate a fix before disclosure.
+Found a bypass, false-negative, or other issue in dependency diagnostics? **Please don't file a public issue.** Open a private [GitHub Security Advisory](https://github.com/KSEGIT/Version-Sentinel/security/advisories/new) instead so we can coordinate a fix before disclosure.
