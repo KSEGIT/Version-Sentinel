@@ -23,25 +23,25 @@
       "event": "SessionStart",
       "matcher": "*",
       "command": "bash ./scripts/session-start.sh",
-      "timeout": 120
+      "timeout": 180
     },
     {
       "event": "PreToolUse",
       "matcher": "Edit|Write|MultiEdit",
       "command": "bash ./scripts/detect-manifest-edit.sh",
-      "timeout": 10
+      "timeout": 180
     },
     {
       "event": "PreToolUse",
       "matcher": "Bash",
       "command": "bash ./scripts/detect-install-cmd.sh",
-      "timeout": 10
+      "timeout": 180
     },
     {
       "event": "PostToolUse",
-      "matcher": "Bash",
+      "matcher": "Bash|Edit|Write|MultiEdit|apply_patch",
       "command": "bash ./scripts/auto-record.sh",
-      "timeout": 10
+      "timeout": 180
     }
   ],
   "interface": {

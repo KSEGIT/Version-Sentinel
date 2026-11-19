@@ -34,3 +34,11 @@ Report the finding and inspect repository evidence. Continue repairs already aut
 Claude Code, Codex, Kimi, Gemini, and Copilot adapters use the same advisory policy. Hosts without hooks use the recommended checks manually. `VS_DISABLE=1` suppresses hook warnings; it is not needed to continue work.
 
 Updating source does not reload an installed plugin or change an existing session. Use the normal plugin update path and host trust settings, then start a new session to test advisory behavior. Do not modify installed caches to simulate activation. The hooks are diagnostics, not an operating-system sandbox or a vulnerability scanner.
+
+## npm security diagnostics
+
+Explicit audits use npm audit and OSV by default for public npm lockfile v2/v3 projects. Each provider can be disabled separately with the `security_npm_audit` or `security_osv` plugin setting, or `VS_SECURITY_NPM_AUDIT=0` or `VS_SECURITY_OSV=0`. Findings retain provider attribution, severity, advisory IDs, and links. Missing, stale, or incomplete evidence is reported truthfully.
+
+Public tool hooks only check local cached security evidence. They never contact providers or launch the saved-settings CLI. Candidate versions without a current security check produce a warning. Run `bash <plugin-root>/scripts/security-check.sh audit <project-root>` explicitly to refresh security evidence; this is optional and does not gate authorized work. Low and moderate findings remain visible as advisory text.
+
+The explicit `reconcile-npm-lock.sh` helper can regenerate a lockfile without install scripts and scan it before replacement. Its Git/project/settings evidence and validation errors apply to that explicit command, not permission to continue other work. See [the privacy policy](https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md) for upstream package-name disclosures and local evidence storage.

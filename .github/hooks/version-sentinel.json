@@ -23,10 +23,10 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command",
+        "matcher": "Bash|run_shell_command|runTerminalCommand|exec_command|Edit|Write|MultiEdit|apply_patch|editFiles|createFile|write_file|replace",
         "type": "command",
-        "command": "bash scripts/auto-record.sh",
-        "timeout": 10
+        "command": "bash scripts/auto-record.sh --copilot",
+        "timeout": 180
       }
     ]
   }

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # End-to-end smoke test. Runs hook scripts directly against realistic fixtures.
 set -u
+# This legacy version-gate smoke uses registry fixtures without advisory/lock
+# fixtures. Dedicated security suites cover enabled product defaults/providers.
+export VS_SECURITY_NPM_AUDIT=0 VS_SECURITY_OSV=0
 
 echo "=== version-sentinel integration smoke ==="
 

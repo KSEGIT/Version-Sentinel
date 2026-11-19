@@ -39,6 +39,18 @@
       "default": 24,
       "min": 1,
       "max": 168
+    },
+    "security_npm_audit": {
+      "type": "boolean",
+      "title": "Check resolved npm dependencies with npm audit",
+      "description": "Default: true. Check package-lock.json v2/v3 resolved registry packages, including transitive, development, optional and peer dependencies. High/critical advisories and unknown/incomplete enabled checks warn about dependency work. Set false to disable this provider explicitly; it does not disable OSV. VS_SECURITY_NPM_AUDIT overrides this setting. Scans send dependency information to the configured npm registry.",
+      "default": true
+    },
+    "security_osv": {
+      "type": "boolean",
+      "title": "Check npm versions with OSV",
+      "description": "Default: true. Check proposed exact npm versions and supported resolved package-lock trees with OSV. High/critical advisories, unknown severity and incomplete enabled checks warn about dependency work. Set false to disable this provider explicitly; it does not disable npm audit. VS_SECURITY_OSV overrides this setting. Package names and versions are sent to the public OSV API.",
+      "default": true
     }
   }
 }

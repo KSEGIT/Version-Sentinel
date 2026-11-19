@@ -32,4 +32,9 @@ if command -v cygpath >/dev/null 2>&1; then
     exit 2
   fi
 fi
-exec python3 "$python_entrypoint" "$@"
+python3 "$python_entrypoint" "$@"
+status=$?
+[[ "$status" -eq 0 ]] || exit "$status"
+if [[ "${1:-}" == gate || "${1:-}" == covers ]]; then
+  bash "$DIR/security-check.sh" gate "$2" || exit 2
+fi
