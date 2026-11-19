@@ -93,10 +93,10 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 cd "$VS_TMPDIR" || exit 1
 registry_fixture_setup
 printf '%s\n' '{"pnpm":{"overrides":{"lodash":"4.17.21"}},"overrides":{"other@1":"4.17.21"}}' > package.json
-before=$(shasum package.json)
+before=$(file_sha256 package.json) || exit 1
 result=$(bash "$SCRIPTS/check-versions.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'supported override forms complete an online fixture audit'
-assert_eq "$before" "$(shasum package.json)" 'override audit leaves manifest unchanged'
+assert_eq "$before" "$(file_sha256 package.json)" 'override audit leaves manifest unchanged'
 content='{"pnpm":{"overrides":{"lodash":"4.17.20"}},"overrides":{"other@1":"4.17.21"}}'
 probe() {
   jq -nc --arg path "$VS_TMPDIR/package.json" --arg content "$content" '{tool_name:"Write",tool_input:{file_path:$path,content:$content}}' \

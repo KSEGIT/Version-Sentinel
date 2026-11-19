@@ -40,6 +40,11 @@ assert_file_exists() {
   fi
 }
 
+# Python is already required by the suite and is available on every CI host.
+file_sha256() {
+  python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$1"
+}
+
 finish_test() {
   if [[ "$VS_TEST_FAILED" -eq 0 ]]; then
     echo "PASS [$VS_TEST_NAME]"
