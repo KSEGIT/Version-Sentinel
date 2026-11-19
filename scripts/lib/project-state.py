@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manifest validation and project-bound startup audit state (Python 3.11+)."""
+from contextlib import contextmanager
 import datetime as dt
 import fnmatch
 import hashlib
@@ -203,7 +204,7 @@ def dependencies(path, content, intents=False):
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
         reject_resolver_sections(data, ("resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
         pnpm = mapping(data.get("pnpm", {}), "pnpm")
-        reject_resolver_sections(pnpm, ("overrides", "catalog", "catalogs", "packageExtensions"), "pnpm")
+        reject_resolver_sections(pnpm, ("catalog", "catalogs", "packageExtensions"), "pnpm")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
             for name, raw in mapping(data.get(section, {}), section).items():
                 if not isinstance(raw, str) or not name or any(c.isspace() for c in name):
@@ -217,32 +218,51 @@ def dependencies(path, content, intents=False):
                 selected = version(raw, npm=True)
                 if selected is not None:
                     emit(name, selected, selector, f"{section}.{declaration}")
-        # Interpret only shapes whose full selector intent we can retain. Other
-        # npm override forms stay blocked instead of being silently ignored.
-        for name, raw in mapping(data.get("overrides", {}), "npm.overrides").items():
-            if not re.fullmatch(r"(?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*", name) or not isinstance(raw, str):
-                fail(f"Unsupported dependency-selector construct: npm.overrides.{name}. Only flat package-name keys with string values are tracked; nested/version-qualified overrides remain blocked.")
-            selector = {"override": raw}
-            if raw.startswith("$"):
-                reference = raw[1:]
-                for section in ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies"):
-                    resolved = data.get(section, {}).get(reference)
-                    if resolved:
-                        selector.update(reference=reference, source=section, resolved=resolved)
-                        raw = resolved
-                        break
-                else:
-                    fail(f"Unsupported dependency-selector reference: npm.overrides.{name} cannot resolve {raw} to a direct dependency.")
-            if raw.startswith("npm:"):
-                match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
-                if not match:
-                    fail(f"unsupported npm alias {raw}")
-                package, raw = match.group(1), match.group(2) or ""
-            else:
-                package = name
-            selected = version(raw, npm=True)
-            if selected is not None:
-                emit(package, selected, selector, f"overrides.{name}")
+        # Keep override keys in the location so version-qualified rules remain
+        # distinct even when they resolve to the same registry package/version.
+        def package_overrides(table, location, qualified=False):
+            name_pattern = r"((?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*)"
+            if qualified:
+                name_pattern += r"(?:@([^@/\n]+))?"
+            for name, raw in mapping(table, location).items():
+                target = re.fullmatch(name_pattern, name)
+                if (not target or not isinstance(raw, str)
+                        or (qualified and target.group(2) is not None and not target.group(2).strip())
+                        or (location == "pnpm.overrides" and raw == "-")):
+                    fail(f"Unsupported dependency-selector construct: {location}.{name}. Only flat package keys with string replacements are tracked; npm keys may include version selectors. Nested, parent, and deletion forms remain blocked.")
+                package = target.group(1)
+                selector = {"override": raw}
+                if raw.startswith("$"):
+                    reference = raw[1:]
+                    pnpm_reference = location == "pnpm.overrides"
+                    if pnpm_reference:
+                        # PNPM merges dev, runtime, then optional declarations;
+                        # peer dependencies do not supply version references.
+                        sections = ("optionalDependencies", "dependencies", "devDependencies")
+                    else:
+                        sections = ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies")
+                    for section in sections:
+                        available = data.get(section, {})
+                        resolved = available.get(reference)
+                        if resolved or (pnpm_reference and reference in available):
+                            break
+                    else:
+                        resolved = None
+                    if not resolved:
+                        fail(f"Unsupported dependency-selector reference: {location}.{name} cannot resolve {raw} to a direct dependency.")
+                    selector.update(reference=reference, source=section, resolved=resolved)
+                    raw = resolved
+                if raw.startswith("npm:"):
+                    match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
+                    if not match:
+                        fail(f"unsupported npm alias {raw}")
+                    package, raw = match.group(1), match.group(2) or ""
+                selected = version(raw, npm=True)
+                if selected is not None:
+                    emit(package, selected, selector, f"{location}.{name}")
+
+        package_overrides(data.get("overrides", {}), "overrides", qualified=True)
+        package_overrides(pnpm.get("overrides", {}), "pnpm.overrides")
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
@@ -317,17 +337,24 @@ def dependencies(path, content, intents=False):
                 for name, spec in mapping(table, "Poetry dependencies").items():
                     if name == "python":
                         continue
-                    if isinstance(spec, dict):
-                        if any(k in spec for k in ("path", "git", "url")):
-                            continue
-                        raw = spec.get("version", "")
-                    elif isinstance(spec, str):
-                        raw = spec
+                    if isinstance(spec, list):
+                        if not spec or not all(isinstance(item, dict) for item in spec):
+                            fail(f"unsupported Poetry dependency {name}: expected a nonempty array of tables")
+                        specs = spec
                     else:
-                        fail(f"unsupported Poetry dependency {name}")
-                    selected = version(raw)
-                    if selected is not None:
-                        emit(name, selected, spec, f"{location}.{name}")
+                        specs = [spec]
+                    for item in specs:
+                        if isinstance(item, dict):
+                            if any(k in item for k in ("path", "git", "url")):
+                                continue
+                            raw = item.get("version", "")
+                        elif isinstance(item, str):
+                            raw = item
+                        else:
+                            fail(f"unsupported Poetry dependency {name}")
+                        selected = version(raw)
+                        if selected is not None:
+                            emit(name, selected, item, f"{location}.{name}")
 
             poetry_table(poetry.get("dependencies", {}), "tool.poetry.dependencies")
             poetry_table(poetry.get("dev-dependencies", {}), "tool.poetry.dev-dependencies")
@@ -383,6 +410,8 @@ def dependency_fingerprint(path, content):
     if eco == "npm":
         data = json.loads(content)
         relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides") if key in data}
+        if "overrides" in data.get("pnpm", {}):
+            relevant["pnpm"] = {"overrides": data["pnpm"]["overrides"]}
     elif eco in {"cargo", "pyproject"}:
         data = tomllib.loads(content)
         if eco == "cargo":
@@ -414,6 +443,30 @@ def dependency_fingerprint(path, content):
 
 def state_path(root):
     return root / ".version-sentinel" / "audit.json"
+
+
+@contextmanager
+def state_lock(root):
+    """Serialize project transactions; kernel locks release if a process exits."""
+    lock_path = state_path(root).with_suffix(".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # Keep this file: unlinking it could let waiters lock different inodes.
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def read_json(path, default):
@@ -466,7 +519,8 @@ def startup_invalidate(fallback):
             fail("startup cwd and session_id must be strings")
     except (ValueError, TypeError):
         # No valid payload root is available; revoke the fallback evidence.
-        invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
+        with state_lock(root):
+            invalidate_state(root, read_json(state_path(root), {}), os.environ.get("VS_SESSION_ID", ""))
         fail("Invalid startup payload; mandatory audit was not completed.")
     if cwd:
         if any(character in cwd for character in "\r\n"):
@@ -474,7 +528,8 @@ def startup_invalidate(fallback):
         root = resolve_path(cwd, root).resolve(strict=True)
     if any(character in str(root) for character in "\r\n"):
         fail("Unsupported line break in startup project directory.")
-    invalidate_state(root, read_json(state_path(root), {}), session)
+    with state_lock(root):
+        invalidate_state(root, read_json(state_path(root), {}), session)
     print(json.dumps({"cwd": root.as_posix(), "session_id": session}))
 
 
@@ -508,6 +563,13 @@ def inventory(root, previous):
         # Previously audited includes remain required even after deletion.
         _, safe = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
         required.add(safe)
+    # Retired deep includes can lie beyond normal discovery. Rediscover them
+    # only when present; once found, ordinary required-path tracking resumes.
+    for receipt in previous.get("retirements", []):
+        name = receipt["file"]
+        target, safe = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
+        if target.exists():
+            required.add(safe)
     tracked = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--"], capture_output=True) if shutil.which("git") else None
     if tracked is not None and tracked.returncode == 0:
         for name in tracked.stdout.decode().split("\0"):
@@ -580,6 +642,84 @@ def condition(path):
     fail("manifest is valid; recovery cannot authorize replacing it")
 
 
+def retire_manifest(root, previous, arguments):
+    """Remove one stale requirement after user consent and committed deletion proof."""
+    if (len(arguments) != 5 or arguments[1] != "--deleted-by"
+            or arguments[3] != "--user-confirmed" or not arguments[4].strip()):
+        fail("Ask Daniel first; FILE --deleted-by COMMIT --user-confirmed REASON is required")
+    name, _, commit, _, reason = arguments
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+        fail("retirement requires the full Git deletion commit ID")
+    target, relative = usable_path(root, name, allow_deep=ecosystem(name) == "pip")
+    if previous.get("root") != str(root) or relative not in previous.get("required", []):
+        fail("retirement requires an existing project-bound required manifest record")
+    if not ecosystem(target):
+        fail("retirement target is not a supported dependency manifest")
+    if os.path.lexists(target):
+        fail("retirement target must be absent from the working tree")
+
+    # The audit root may contain several repositories. Find the target's real
+    # repository, including when its containing directory was also deleted.
+    directory = target.parent
+    while not directory.exists() and directory != root:
+        directory = directory.parent
+    if not shutil.which("git"):
+        fail("Git is required to prove a committed manifest deletion")
+    # Repository/object overrides must not redirect proof to another checkout.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+    def git(*args, cwd=directory):
+        result = subprocess.run(["git", "--no-replace-objects", "--literal-pathspecs", "-C", str(cwd), *args],
+                                capture_output=True, env=environment)
+        if result.returncode:
+            fail("Git could not prove the requested committed manifest deletion")
+        return result.stdout
+
+    repo = Path(os.fsdecode(git("rev-parse", "--show-toplevel")).strip()).resolve(strict=True)
+    try:
+        git_name = target.relative_to(repo).as_posix()
+    except ValueError:
+        fail("retirement target is outside its Git repository")
+    graft_path = resolve_path(os.fsdecode(git("rev-parse", "--git-path", "info/grafts", cwd=repo)).strip(), repo)
+    if graft_path.exists() and graft_path.stat().st_size:
+        fail("Git grafts can alter commit ancestry; retirement requires unmodified history")
+    head = git("rev-parse", "--verify", "HEAD^{commit}", cwd=repo).decode().strip()
+    verified = git("rev-parse", "--verify", commit + "^{commit}", cwd=repo).decode().strip()
+    if verified != commit:
+        fail("retirement requires an exact commit object")
+    git("merge-base", "--is-ancestor", commit, head, cwd=repo)
+    parents = git("rev-list", "--parents", "-n", "1", commit, cwd=repo).decode().split()
+    if len(parents) != 2:
+        fail("retirement requires a deletion commit with exactly one parent")
+    parent = parents[1]
+    prior = git("ls-tree", "-z", parent, "--", git_name, cwd=repo).split(b"\0")
+    if len(prior) != 2 or not prior[0]:
+        fail("manifest did not exist in the deletion commit's parent")
+    metadata, prior_name = prior[0].split(b"\t", 1)
+    mode, kind, blob = metadata.split()
+    if mode not in {b"100644", b"100755"} or kind != b"blob" or os.fsdecode(prior_name) != git_name:
+        fail("deletion proof must name the exact regular manifest file")
+    if (git("ls-tree", "-z", commit, "--", git_name, cwd=repo)
+            or git("ls-tree", "-z", head, "--", git_name, cwd=repo)
+            or git("ls-files", "-z", "--", git_name, cwd=repo)):
+        fail("manifest must be deleted in the supplied commit, HEAD, and index")
+    prior_hash = hashlib.sha256(git("cat-file", "blob", blob.decode(), cwd=repo)).hexdigest()
+    updated = dict(previous)
+    updated["required"] = [entry for entry in previous["required"] if entry != relative]
+    # A live include or lockfile still requires its source, even with consent.
+    if relative in inventory(root, updated)["required"]:
+        fail("manifest remains required by a tracked file, include, or lockfile")
+    updated["files"] = dict(previous.get("files", {}))
+    updated["files"].pop(relative, None)
+    receipt = {"file": relative, "repository": str(repo), "deletionCommit": commit,
+               "head": head, "reason": reason, "approvedAt": now(), "previousFileHash": prior_hash}
+    updated["retirements"] = [*previous.get("retirements", []), receipt]
+    updated.update(status="pending", generation=secrets.token_hex(16))
+    updated.pop("checkedAt", None)
+    write_json(state_path(root), updated)
+    print(f"Retired stale manifest record for {relative}; no dependency checks recorded. Run check-versions.sh for a fresh online audit before dependency work.")
+
+
 def main():
     command = sys.argv[1]
     if command == "startup-invalidate":
@@ -599,8 +739,17 @@ def main():
                 print(f"{package}\t{selected}")
         return
     root = resolve_path(sys.argv[2]).resolve(strict=True)
+    with state_lock(root):
+        project_command(command, root)
+
+
+def project_command(command, root):
+    # The caller holds the lock from the first read through every state write.
     path = state_path(root)
     previous = read_json(path, {})
+    if command == "retire":
+        retire_manifest(root, previous, sys.argv[3:])
+        return
     if command in {"recovery-allowed", "approve"}:
         target, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")
         if not in_scope(Path(relative)) and relative not in inventory(root, previous)["required"]:
@@ -650,6 +799,8 @@ def main():
         if previous.get("status") != "pending" or previous.get("generation") != started.get("generation") or any(started.get(key) != snapshot[key] for key in snapshot):
             fail("project manifests changed while the audit ran; rerun check-versions.sh")
         snapshot.update(status="complete", generation=started["generation"], checkedAt=now(), session=os.environ.get("VS_SESSION_ID") or previous.get("session", ""))
+        if "retirements" in previous:
+            snapshot["retirements"] = previous["retirements"]
         write_json(path, snapshot)
     elif command in {"gate", "covers"}:
         age = now() - previous.get("checkedAt", 0)

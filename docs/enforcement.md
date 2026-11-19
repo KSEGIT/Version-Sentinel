@@ -43,9 +43,21 @@ Stop dependency work and ask Daniel whether to create or repair the specific man
 bash <plugin-root>/scripts/recover-manifest.sh approve package.json --user-confirmed 'Daniel approved recreating this file from the reviewed contents'
 ```
 
-This command records the caller's explicit attestation of user consent. It does not contact the user, create files, or prove that a conversation occurred. Agents must call it only after actual approval. Consent is limited to that project, path, current missing/invalid state, and 24 hours. Valid files cannot be replaced through recovery approval. Deletion and moving a required manifest away remain blocked.
+This command records the caller's explicit attestation of user consent. It does not contact the user, create files, or prove that a conversation occurred. Agents must call it only after actual approval. Consent is limited to that project, path, current missing/invalid state, and 24 hours. Valid files cannot be replaced through recovery approval. Deletion and moving a required manifest away remain blocked. A previously committed deletion can use the separate retirement flow below after explicit user approval.
 
 Verify and record each proposed registry dependency before writing the approved recovery contents. Recovery permits that specific write while the audit is blocked. Then rerun the audit before other dependency work. Replacing an invalid file still requires the agreed contents; approval is not permission for destructive reconstruction.
+
+## Retiring a manifest already deleted in Git
+
+Use retirement only after Daniel confirms that a specific previously required manifest was deliberately deleted. Inspect the deletion and agree on the reason first. From the audited project directory, run:
+
+```bash
+bash <plugin-root>/scripts/retire-manifest.sh path/to/requirements-old.txt --deleted-by FULL_COMMIT_ID --user-confirmed 'Daniel approved retiring this deliberately deleted manifest'
+```
+
+This command records the caller's attestation of actual user consent; it does not contact the user or prove that a conversation occurred. The command requires an existing project-bound required-path record and a real Git repository containing that path. It verifies that the full commit ID names a single-parent commit that deleted the exact regular file, that the commit is an ancestor of the current HEAD, and that the file is absent from HEAD, the index, and the working tree. Uncommitted deletions, unrelated commits, merge commits, Git graft ancestry overrides, existing files, live requirements includes, and lockfiles that still require the source manifest cannot authorize retirement.
+
+Retirement removes only that stale required-path record and records its path, repository, deletion commit, current HEAD, previous file SHA-256, reason, and consent timestamp in the audit state. It invalidates the audit and any in-flight generation. It does not create dependency checks or successful audit evidence. All other required paths stay required. Run a fresh online `check-versions.sh` audit before dependency work; failed lookups still block. A recreated manifest is discovered and audited normally, including a previously required include beyond the normal discovery depth; its later deletion blocks again. Project-state commands share a transaction lock so concurrent retirements, audit begin/complete, and startup invalidation preserve receipts and required paths. Retirement is not a permanent ignore rule and never authorizes deleting a file.
 
 ## Hook coverage and limits
 
