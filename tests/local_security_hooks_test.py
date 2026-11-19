@@ -161,6 +161,13 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertEqual(self.state.read_bytes(), before)
 
     def test_local_manifest_removal_does_not_lookup_saved_reconciliation_settings(self):
+        if os.name != 'nt':
+            # Native Windows roots already contain backslashes. Include a
+            # literal one on POSIX too so the setup exercises escaped JSON.
+            escaped_project = self.root / r'project\fixture'
+            self.project.rename(escaped_project)
+            self.project = escaped_project
+            self.state = self.project / '.version-sentinel/security.json'
         manifest = {'name': 'local-fixture', 'dependencies': {'local-fixture': '1.0.0'}}
         (self.project / 'package.json').write_text(json.dumps(manifest))
         (self.project / 'package-lock.json').write_text(json.dumps({
@@ -170,7 +177,14 @@ class LocalSecurityHookTests(unittest.TestCase):
         before = self.evidence()
         begin = self.invoke('audit-state.sh', 'begin', str(self.project))
         self.assertEqual(begin.returncode, 0, begin.stderr)
-        complete = self.invoke('audit-state.sh', 'complete', str(self.project), begin.stdout)
+        self.assertIn('\\\\', begin.stdout)
+        # This seeds fixture evidence; shell transport is not under test here.
+        # A native Python -> Git Bash -> Python argv round trip can unescape
+        # Windows paths in this JSON token. Keep the setup Python-to-Python.
+        complete = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/project-state.py'),
+                                   'complete', str(self.project), begin.stdout],
+                                  cwd=self.project, env=self.environment, text=True,
+                                  capture_output=True, timeout=5, check=False)
         self.assertEqual(complete.returncode, 0, complete.stderr)
         payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
             'file_path': 'package.json', 'content': '{"name":"local-fixture","dependencies":{}}'}})
