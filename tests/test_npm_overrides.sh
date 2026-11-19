@@ -44,7 +44,7 @@ class Overrides(unittest.TestCase):
             self.assertEqual(self.deps({"overrides": {"foo": value}}), [("foo", state.UNPINNED)])
 
     def test_unsupported_shapes_fail_closed(self):
-        for overrides in [{"foo": {".": "1.0.0"}}, {"foo@^1": "2.0.0"},
+        for overrides in [{"foo": {".": "1.0.0"}}, {"foo@": "2.0.0"},
                           {"foo": False}, {"foo": "$missing"}, {"foo": "$"},
                           {"bad/name": "1.0.0"}, {"foo bar": "1.0.0"}, {"foo": "npm:"}]:
             with self.subTest(overrides=overrides), self.assertRaises(ValueError):

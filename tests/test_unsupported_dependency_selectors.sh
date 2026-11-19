@@ -19,7 +19,7 @@ probe() {
 for content in \
   '{"dependencies":{},"overrides":{"body-parser":{".":"99.99.99"}}}' \
   '{"dependencies":{},"resolutions":{"body-parser":"99.99.99"}}' \
-  '{"dependencies":{},"pnpm":{"overrides":{"body-parser":"99.99.99"}}}' \
+  '{"dependencies":{},"pnpm":{"overrides":{"body-parser":{".":"99.99.99"}}}}' \
   '{"dependencies":{},"catalog":{"body-parser":"99.99.99"}}' \
   '{"dependencies":{},"catalogs":{"default":{"body-parser":"99.99.99"}}}' \
   '{"dependencies":{},"pnpm":{"packageExtensions":{"express@*":{"dependencies":{"body-parser":"99.99.99"}}}}}'; do
