@@ -2,19 +2,24 @@
 # Exercise the public command against real temporary Git repositories.
 set -eu
 VS_RETIRE_TEST_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export VS_RETIRE_TEST_ROOT
-python3 - <<'PY'
+# Pass the root through argv so Git Bash maps it for native Windows Python.
+python3 - "$VS_RETIRE_TEST_ROOT" <<'PY'
 import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
 import tempfile
 import unittest
 
-PLUGIN = Path(os.environ['VS_RETIRE_TEST_ROOT'])
+PLUGIN = Path(sys.argv.pop())
+# Native CreateProcess may select the WSL launcher for bare "bash" before PATH.
+BASH = shutil.which('bash')
+assert BASH is not None, 'Git Bash is required for the retirement fixture'
+BASH = str(Path(BASH).resolve())
 
 class ManifestRetirement(unittest.TestCase):
     def setUp(self):
@@ -25,7 +30,7 @@ class ManifestRetirement(unittest.TestCase):
         self.repo.mkdir(parents=True)
         self.file = 'work/project/requirements-seed.txt'
         self.target = self.root / self.file
-        self.target.write_text('# deliberately retired\n')
+        self.target.write_bytes(b'# deliberately retired\n')
         (self.repo / 'package.json').write_text('{"dependencies":{"lodash":"4.17.21"}}')
         self.git('init', '-q')
         self.git('config', 'user.email', 'fixture@example.invalid')
@@ -33,7 +38,8 @@ class ManifestRetirement(unittest.TestCase):
         self.git('add', '.')
         self.git('commit', '-qm', 'initial')
         self.initial = self.git('rev-parse', 'HEAD').stdout.strip()
-        self.state('begin')
+        started = self.state('begin')
+        self.assertEqual(0, started.returncode, started.stdout + started.stderr)
         self.git('rm', '-q', 'requirements-seed.txt')
         self.git('commit', '-qm', 'deliberately retire seed requirements')
         self.deleted = self.git('rev-parse', 'HEAD').stdout.strip()
@@ -42,12 +48,12 @@ class ManifestRetirement(unittest.TestCase):
         return subprocess.run(['git', '-C', str(self.repo), *args], capture_output=True, text=True, check=check)
 
     def state(self, *args):
-        return subprocess.run(['bash', str(PLUGIN / 'scripts/audit-state.sh'), args[0], str(self.root), *args[1:]], capture_output=True, text=True)
+        return subprocess.run([BASH, (PLUGIN / 'scripts/audit-state.sh').as_posix(), args[0], str(self.root), *args[1:]], capture_output=True, text=True)
 
     def retire(self, *args):
         if not args:
             args = (self.file, '--deleted-by', self.deleted, '--user-confirmed', 'Daniel approved this committed deletion')
-        return subprocess.run(['bash', str(PLUGIN / 'scripts/retire-manifest.sh'), *args], cwd=self.root, capture_output=True, text=True)
+        return subprocess.run([BASH, (PLUGIN / 'scripts/retire-manifest.sh').as_posix(), *args], cwd=self.root, capture_output=True, text=True)
 
     def read_state(self):
         return json.loads((self.root / '.version-sentinel/audit.json').read_text())
@@ -62,10 +68,10 @@ class ManifestRetirement(unittest.TestCase):
         bindir = self.root / 'bin'
         bindir.mkdir(exist_ok=True)
         curl = bindir / 'curl'
-        curl.write_text('#!/usr/bin/env bash\n' + ('exit 7\n' if fail else 'printf \'%s\\n\' \'{"name":"lodash","dist-tags":{"latest":"4.17.21"},"versions":{"4.17.21":{}}}\'\n'))
+        curl.write_bytes(('#!/usr/bin/env bash\n' + ('exit 7\n' if fail else 'printf \'%s\\n\' \'{"name":"lodash","dist-tags":{"latest":"4.17.21"},"versions":{"4.17.21":{}}}\'\n')).encode())
         curl.chmod(0o755)
         env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'], VS_ETAG_DISABLE='1', VS_REGISTRY_RETRIES='1', VS_REGISTRY_RETRY_DELAY='0')
-        return subprocess.run(['bash', str(PLUGIN / 'scripts/check-versions.sh')], cwd=self.root, env=env, capture_output=True, text=True)
+        return subprocess.run([BASH, (PLUGIN / 'scripts/check-versions.sh').as_posix()], cwd=self.root, env=env, capture_output=True, text=True)
 
     def test_committed_retirement_keeps_other_paths_and_requires_fresh_online_audit(self):
         old_generation = self.read_state()['generation']
