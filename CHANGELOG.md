@@ -2,6 +2,49 @@
 
 All notable changes to version-sentinel.
 
+## [0.7.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.6.1...version-sentinel-v0.7.0) (2026-11-19)
+
+
+### Features
+
+* add default npm audit and OSV security providers ([74a3739](https://github.com/KSEGIT/Version-Sentinel/commit/74a3739ccd84ef8cd4e789fad14fa32e93fde696))
+* check proposed npm lock versions with OSV ([32f730a](https://github.com/KSEGIT/Version-Sentinel/commit/32f730ad9a7b1f523096115ecaade59fe6f550a8))
+* enforce default npm audit and OSV security checks ([0d6d064](https://github.com/KSEGIT/Version-Sentinel/commit/0d6d064ce60b5d309a049a1ee92a1367050f5796))
+* enforce npm security checks across dependency hooks ([bec353e](https://github.com/KSEGIT/Version-Sentinel/commit/bec353e0a2e1b8ae4c1bc27999bc946f171b26d0))
+* retire approved manifests with Git deletion proof ([6ac8329](https://github.com/KSEGIT/Version-Sentinel/commit/6ac8329e09dd0621850ff238f37625027ff79dee))
+* retire approved manifests with Git deletion proof ([fc5bcf0](https://github.com/KSEGIT/Version-Sentinel/commit/fc5bcf0a2c3b3a0401a4953424ec4f041f2ec826))
+
+
+### Bug Fixes
+
+* align saved provider and freshness policies ([cf3cde9](https://github.com/KSEGIT/Version-Sentinel/commit/cf3cde9cbe1b05a5d741123d2da20b141dce9210))
+* bind security scans to captured inputs and validate severity counts ([7e72ac4](https://github.com/KSEGIT/Version-Sentinel/commit/7e72ac4c7dc94ee099cbf895f2160250a4054b68))
+* fail closed on incomplete npm graphs and preserve findings ([a5df37a](https://github.com/KSEGIT/Version-Sentinel/commit/a5df37a129f6bbb3535807632e69d39ca4fd49f4))
+* honor disabled OSV in local hook checks ([e2ba48c](https://github.com/KSEGIT/Version-Sentinel/commit/e2ba48ca5bd146fba941f1277a1bf3ce44bb1fe2))
+* honor saved provider settings outside hook processes ([44730a7](https://github.com/KSEGIT/Version-Sentinel/commit/44730a7a91e13c65598809bb2e45146a0ceb6c9a))
+* inspect npm snapshots after raw shell writes ([1a7caff](https://github.com/KSEGIT/Version-Sentinel/commit/1a7caff33e7eca33d2ce0b85fde36d3957f6f64c))
+* keep hook security checks local ([a5f022e](https://github.com/KSEGIT/Version-Sentinel/commit/a5f022e0bf2788fac73a70c483509d6af5a4203d))
+* keep security hooks advisory across hosts ([f1da781](https://github.com/KSEGIT/Version-Sentinel/commit/f1da7816ce12792219c6583f25e471423e6a1774))
+* limit reconciliation authority to pending lock changes ([27c1c25](https://github.com/KSEGIT/Version-Sentinel/commit/27c1c25cd5588a89e4827e5c582b9e67422687ef))
+* make dependency hooks warning-only ([182ae8d](https://github.com/KSEGIT/Version-Sentinel/commit/182ae8d3405601a79d507150849153f6fda551db))
+* make dependency hooks warning-only ([44acf70](https://github.com/KSEGIT/Version-Sentinel/commit/44acf70639f9a969a2fbec7e7dcde5899a1df451))
+* parse Poetry constraints and package overrides ([0d07756](https://github.com/KSEGIT/Version-Sentinel/commit/0d077564ee21c66cb7031c59862cc9951b037a58))
+* parse Poetry multiple-constraint dependencies ([cbcf399](https://github.com/KSEGIT/Version-Sentinel/commit/cbcf3995339e648d1f755c2b58781252a05d53d3))
+* patch basic-ftp site development dependency ([f28ca24](https://github.com/KSEGIT/Version-Sentinel/commit/f28ca247489e84006f862d6097d800f2e4a49070))
+* preserve advisory diagnostics and scan all shell mutations ([8a381e3](https://github.com/KSEGIT/Version-Sentinel/commit/8a381e39587f2c58c4fcdd30db2515d1d31d5f10))
+* preserve approved manifests during npm lock serialization ([fa39a54](https://github.com/KSEGIT/Version-Sentinel/commit/fa39a54599a8ba749b80ba5c9264a9293a090095))
+* preserve retirement proof across concurrent audits ([af33b58](https://github.com/KSEGIT/Version-Sentinel/commit/af33b58f0fbcad2792c9abbf15f5c427d07e8edb))
+* reconcile approved npm manifest transitions safely ([c267dc2](https://github.com/KSEGIT/Version-Sentinel/commit/c267dc25bc2b235a70a0b6b7db1a5b9f820628c5))
+* require current audits before direct lock changes ([274d44e](https://github.com/KSEGIT/Version-Sentinel/commit/274d44ecbcca34ab719f15d1277672d4535858dd))
+* resolve pnpm override references correctly ([dd963f9](https://github.com/KSEGIT/Version-Sentinel/commit/dd963f98e3d4290fd604e360bad51b98b85d5c58))
+* resolve release metadata and audit guidance review ([3982e7f](https://github.com/KSEGIT/Version-Sentinel/commit/3982e7f76d1e84fb2fc6aff9263fab8510a92869))
+* retain findings when final security evidence is rejected ([459fcba](https://github.com/KSEGIT/Version-Sentinel/commit/459fcbaa967ba440c226a6553beae8f48f53d0bf))
+* retain successful advisory check diagnostics ([34f7ff2](https://github.com/KSEGIT/Version-Sentinel/commit/34f7ff225a2cb874f524a2f19125e89958238dde))
+* revoke security evidence before settings resolution ([07a2538](https://github.com/KSEGIT/Version-Sentinel/commit/07a25383345df36032cbd76e48242d21fe9419fe))
+* separate npm reconciliation prefixes on Windows ([2de30ce](https://github.com/KSEGIT/Version-Sentinel/commit/2de30ce62eb4b89e573bac1d3493694c72388aa7))
+* skip host settings lookup for non-npm projects ([14d7e8a](https://github.com/KSEGIT/Version-Sentinel/commit/14d7e8af4888a75f019e923a30205a87a9752415))
+* track pnpm and qualified npm overrides ([f531980](https://github.com/KSEGIT/Version-Sentinel/commit/f531980826c21e3336125054d732852ba4f01e76))
+
 ## [0.6.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.6.0...version-sentinel-v0.6.1) (2026-11-15)
 
 
