@@ -42,3 +42,15 @@ Explicit audits use npm audit and OSV by default for public npm lockfile v2/v3 p
 Public tool hooks only check local cached security evidence. They never contact providers or launch the saved-settings CLI. Candidate versions without a current security check produce a warning. Run `bash <plugin-root>/scripts/security-check.sh audit <project-root>` explicitly to refresh security evidence; this is optional and does not gate authorized work. Low and moderate findings remain visible as advisory text.
 
 The explicit `reconcile-npm-lock.sh` helper can regenerate a lockfile without install scripts and scan it before replacement. Its Git/project/settings evidence and validation errors apply to that explicit command, not permission to continue other work. See [the privacy policy](https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md) for upstream package-name disclosures and local evidence storage.
+
+## Optional cleanup of a manifest deleted in Git
+
+An explicit audit can retain a required-path entry after a deliberate committed deletion. The optional `retire-manifest.sh` command removes that stale audit entry and saves a receipt. It is not needed to continue dependency work.
+
+When the user has authorized that metadata cleanup, run from the affected project:
+
+```bash
+bash <plugin-root>/scripts/retire-manifest.sh path/to/requirements-old.txt --deleted-by FULL_COMMIT_ID --user-confirmed 'Actual user-approved reason'
+```
+
+The flag records an attestation of actual consent; it does not obtain consent. The command verifies an exact regular-file deletion by a single-parent ancestor Git commit, absence from HEAD/index/working tree, and that no live include or lockfile still requires the manifest. It rejects forged ancestry and unproven deletions. It removes only that stale entry, records Git/content/reason details, and invalidates audit evidence. Recreated manifests are discovered normally. A transaction lock preserves receipts and required paths across concurrent audit updates. Explicit audit failures remain truthful diagnostics, and public hooks continue to warn and allow work.

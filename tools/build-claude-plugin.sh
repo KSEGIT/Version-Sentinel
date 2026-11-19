@@ -60,6 +60,7 @@ scripts/security-check.sh
 scripts/lib/security.py
 scripts/lib/security-settings.py
 scripts/lib/security-post.py
+scripts/retire-manifest.sh
 scripts/session-start.sh
 scripts/vs-record.sh
 commands/vs-record.md
