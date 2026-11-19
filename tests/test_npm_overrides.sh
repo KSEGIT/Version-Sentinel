@@ -73,10 +73,10 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 cd "$VS_TMPDIR" || exit 1
 registry_fixture_setup
 printf '%s\n' '{"dependencies":{"lodash":"4.17.21"},"overrides":{"lodash":"$lodash","other":"4.17.21"}}' > package.json
-before=$(shasum package.json)
+before=$(file_sha256 package.json) || exit 1
 result=$(bash "$SCRIPTS/check-versions.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'existing flat overrides audit automatically'
-assert_eq "$before" "$(shasum package.json)" 'automatic handling preserves the manifest'
+assert_eq "$before" "$(file_sha256 package.json)" 'automatic handling preserves the manifest'
 probe() {
   jq -nc --arg path "$VS_TMPDIR/package.json" --arg content "$1" '{tool_name:"Write",tool_input:{file_path:$path,content:$content}}' \
     | bash "$SCRIPTS/detect-manifest-edit.sh" 2>&1

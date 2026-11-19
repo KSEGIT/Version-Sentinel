@@ -7,7 +7,7 @@
             "type": "command",
             "name": "version-sentinel-startup-audit",
             "command": "bash \"${extensionPath}${/}scripts${/}session-start.sh\" --gemini",
-            "timeout": 120000,
+            "timeout": 180000,
             "description": "Run mandatory online dependency audit; dependency gates enforce completion"
           }
         ]
@@ -21,7 +21,7 @@
             "type": "command",
             "name": "version-sentinel-manifest-edit",
             "command": "bash \"${extensionPath}${/}scripts${/}detect-manifest-edit.sh\"",
-            "timeout": 60000,
+            "timeout": 180000,
             "description": "Block dependency-manifest edits without a recorded version check"
           }
         ]
@@ -33,7 +33,7 @@
             "type": "command",
             "name": "version-sentinel-install-cmd",
             "command": "bash \"${extensionPath}${/}scripts${/}detect-install-cmd.sh\"",
-            "timeout": 60000,
+            "timeout": 180000,
             "description": "Block package-install commands without a recorded version check"
           }
         ]
@@ -41,14 +41,14 @@
     ],
     "AfterTool": [
       {
-        "matcher": "run_shell_command",
+        "matcher": "run_shell_command|write_file|replace",
         "hooks": [
           {
             "type": "command",
             "name": "version-sentinel-auto-record",
             "command": "bash \"${extensionPath}${/}scripts${/}auto-record.sh\"",
-            "timeout": 60000,
-            "description": "Auto-record version check after a successful install command"
+            "timeout": 180000,
+            "description": "Scan changed npm dependency state without creating version verification records"
           }
         ]
       }

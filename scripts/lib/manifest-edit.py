@@ -14,9 +14,11 @@ import subprocess
 import sys
 
 from path_helpers import bash_script_path, resolve_path
+import npm_reconcile
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 UNPINNED = "__version_sentinel_unpinned__"
+NPM_LOCKFILES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"}
 
 
 class Blocked(Exception):
@@ -46,7 +48,8 @@ def text(value, label):
 
 def relevant(root, name):
     # Write/Edit can follow a symlink whose basename hides the manifest.
-    return ecosystem(name) or ecosystem(resolve_path(name, root))
+    resolved = resolve_path(name, root)
+    return ecosystem(name) or ecosystem(resolved) or Path(name).name in NPM_LOCKFILES or resolved.name in NPM_LOCKFILES
 
 
 def run(args, root, content=None):
@@ -58,7 +61,7 @@ def run(args, root, content=None):
         raise Blocked("bash is required to inspect manifest edits.")
     command = [str(Path(executable).resolve()), *args[1:]]
     return subprocess.run(command, cwd=root, input=content, capture_output=True,
-                          text=True, timeout=30, check=False)
+                          text=True, timeout=180, check=False)
 
 
 def state(action, root, *args, content=None):
@@ -243,10 +246,36 @@ def fingerprint(root, path, content):
     return result.stdout
 
 
+def diagnostics(result):
+    # Advisory findings use stdout; transport and validation failures use stderr.
+    # Keep both channels so blocking hooks retain IDs, links and severity.
+    return "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+
+
 def inspect(root, proposed):
     errors = []
     checked_audit = None
+    eligible_reconciliation = []
     for path, before, after in proposed:
+        if path.name in NPM_LOCKFILES:
+            if before == after:
+                continue
+            if checked_audit is None:
+                checked_audit = state("gate", root, root)
+            if checked_audit.returncode:
+                try:
+                    npm_reconcile.match_lock(root, path, after)
+                except (ValueError, OSError, KeyError, TypeError) as error:
+                    errors.append((diagnostics(checked_audit) or "Complete the mandatory current audit before npm lockfile changes.") + "\n" + str(error))
+                    continue
+            result = run(["bash", bash_script_path(SCRIPTS / "security-check.sh"),
+                          "proposed-lock", str(root), str(path)], root, after)
+            if result.returncode:
+                errors.append(diagnostics(result) or f"Cannot verify proposed npm lockfile: {path}")
+            else:
+                sys.stdout.write(result.stdout)
+                sys.stderr.write(result.stderr)
+            continue
         before_validation = state("validate-content", root, path, content=before) if before is not None else None
         valid_before = before_validation is not None and before_validation.returncode == 0
         if before_validation is not None and "Unsupported dependency-selector" in before_validation.stderr:
@@ -278,6 +307,8 @@ def inspect(root, proposed):
                 covered = state("covers", root, root, path)
                 if covered.returncode:
                     errors.append(covered.stderr.strip() or f"Manifest was not audited: {path}")
+        if ecosystem(path) == "npm" and valid_before and not recovery and checked_audit is not None and checked_audit.returncode == 0:
+            eligible_reconciliation.append((path, before, after))
         # Keep each raw declaration's intent, so a selector-only edit still
         # needs verification when its parsed intended version is unchanged.
         changed = {(pkg, version) for pkg, version, _ in post_intents - pre_intents}
@@ -289,9 +320,13 @@ def inspect(root, proposed):
                 continue
             record = run(["bash", bash_script_path(SCRIPTS / "check-sidecar.sh"), eco, pkg, version], root)
             if record.returncode:
-                errors.append(record.stderr.strip() or f"No online verification for {pkg}@{version}.")
+                errors.append(diagnostics(record) or f"No online verification for {pkg}@{version}.")
+            else:
+                sys.stdout.write(record.stdout)
+                sys.stderr.write(record.stderr)
     if errors:
         raise Blocked("\n---\n".join(dict.fromkeys(errors)))
+    npm_reconcile.authorize(root, proposed, eligible_reconciliation)
 
 
 def main():

@@ -39,6 +39,10 @@ jobs:
         if: runner.os == 'Windows'
         run: bash tests/integration/native-hook-boundary.sh
 
+      - name: Check real npm lock reconciliation first (windows)
+        if: runner.os == 'Windows'
+        run: python3 tests/npm_reconcile_test.py ReconciliationTests.test_real_scriptless_lock_regeneration_after_approved_removal -v
+
       - name: Run tests
         run: bash tests/run.sh
 

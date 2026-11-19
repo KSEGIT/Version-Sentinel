@@ -39,6 +39,7 @@ scripts/lib/install-context.py
 scripts/lib/json.sh
 scripts/lib/lockfile.sh
 scripts/lib/manifest-edit.py
+scripts/lib/npm_reconcile.py
 scripts/lib/options.sh
 scripts/lib/parse-install-cmd.sh
 scripts/lib/parse-manifest.sh
@@ -50,6 +51,11 @@ scripts/lib/retry.sh
 scripts/lib/sidecar.sh
 scripts/prereq-check.sh
 scripts/recover-manifest.sh
+scripts/reconcile-npm-lock.sh
+scripts/security-check.sh
+scripts/lib/security.py
+scripts/lib/security-settings.py
+scripts/lib/security-post.py
 scripts/retire-manifest.sh
 scripts/session-start.sh
 scripts/vs-record.sh

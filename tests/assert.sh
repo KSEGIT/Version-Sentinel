@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Shared assertions. Source this from each test script.
 set -u
+# Legacy suites mock registry versions only. Security-specific suites explicitly
+# enable providers and provide advisory fixtures; product defaults stay enabled.
+export VS_SECURITY_NPM_AUDIT="${VS_SECURITY_NPM_AUDIT:-0}"
+export VS_SECURITY_OSV="${VS_SECURITY_OSV:-0}"
 
 VS_TEST_FAILED=0
 VS_TEST_NAME="${VS_TEST_NAME:-unnamed}"
@@ -34,6 +38,11 @@ assert_file_exists() {
   if [[ ! -f "$1" ]]; then
     _fail "$2: file missing: $1"
   fi
+}
+
+# Python is already required by the suite and is available on every CI host.
+file_sha256() {
+  python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$1"
 }
 
 finish_test() {

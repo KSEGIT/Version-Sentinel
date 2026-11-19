@@ -33,22 +33,28 @@ crates.io, and NuGet. Those services process requests under their own privacy
 policies. The coding-agent host can also process prompts, files, and tool output
 under the host provider's terms and privacy policy.
 
-The verifier uses public endpoints without package-registry authentication.
-Its curl requests ignore default curl configuration files, so those files cannot
-add credentials or extra request destinations. No registry account or API key is
-required.
+Version lookups use public endpoints without package-registry authentication.
+Those curl requests ignore default curl configuration files. The separate npm
+security check runs `npm audit`, which sends the dependency tree to npm's
+configured registry and can use registry credentials from npm configuration.
+OSV checks send npm package names and exact versions to the public OSV API;
+this can disclose private package names present in a proposed change or lockfile.
+OSV does not require an API key. Both security providers are enabled by default
+and can be disabled independently; see the security settings in
+docs/enforcement.md.
 
 ## Data retention and deletion
 
 Version Sentinel has no maintainer-operated data store. Users control local
 records and can delete `.version-sentinel/checks.json` at any time. To remove
-all Version Sentinel local data, delete `.version-sentinel/checks.json` and
-`.version-sentinel/.etag-cache/`.
+all project-local Version Sentinel data, delete the `.version-sentinel/`
+directory, including check records, caches, audit and security evidence.
 
 ## Security
 
-Version Sentinel is designed to read public registry metadata and write local
-check records. No software can be guaranteed secure. Users should review the
+Version Sentinel reads registry and advisory metadata and writes local check
+records. Security evidence also stores project paths, manifest/lockfile hashes,
+provider settings, scan time and advisory findings. No software can be guaranteed secure. Users should review the
 source code and use the plugin only in environments they trust.
 
 ## Children

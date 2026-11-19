@@ -23,6 +23,9 @@ BASH = str(Path(BASH).resolve())
 
 class ManifestRetirement(unittest.TestCase):
     def setUp(self):
+        # This fixture exercises Git retirement and version-registry evidence;
+        # advisory-provider coverage has its own lockfile-backed fixtures.
+        self.environment = dict(os.environ, VS_SECURITY_NPM_AUDIT='0', VS_SECURITY_OSV='0')
         self.tmp = tempfile.TemporaryDirectory(prefix='vs-retirement-')
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -48,7 +51,7 @@ class ManifestRetirement(unittest.TestCase):
         return subprocess.run(['git', '-C', str(self.repo), *args], capture_output=True, text=True, check=check)
 
     def state(self, *args):
-        return subprocess.run([BASH, (PLUGIN / 'scripts/audit-state.sh').as_posix(), args[0], str(self.root), *args[1:]], capture_output=True, text=True)
+        return subprocess.run([BASH, (PLUGIN / 'scripts/audit-state.sh').as_posix(), args[0], str(self.root), *args[1:]], env=self.environment, capture_output=True, text=True)
 
     def retire(self, *args):
         if not args:
@@ -70,7 +73,7 @@ class ManifestRetirement(unittest.TestCase):
         curl = bindir / 'curl'
         curl.write_bytes(('#!/usr/bin/env bash\n' + ('exit 7\n' if fail else 'printf \'%s\\n\' \'{"name":"lodash","dist-tags":{"latest":"4.17.21"},"versions":{"4.17.21":{}}}\'\n')).encode())
         curl.chmod(0o755)
-        env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'], VS_ETAG_DISABLE='1', VS_REGISTRY_RETRIES='1', VS_REGISTRY_RETRY_DELAY='0')
+        env = dict(self.environment, PATH=str(bindir) + os.pathsep + os.environ['PATH'], VS_ETAG_DISABLE='1', VS_REGISTRY_RETRIES='1', VS_REGISTRY_RETRY_DELAY='0')
         return subprocess.run([BASH, (PLUGIN / 'scripts/check-versions.sh').as_posix()], cwd=self.root, env=env, capture_output=True, text=True)
 
     def test_committed_retirement_keeps_other_paths_and_requires_fresh_online_audit(self):

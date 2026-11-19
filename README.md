@@ -99,7 +99,7 @@ For marketplace listings and submission status per platform (what's ready, what 
 
 ## How it works
 
-SessionStart performs a mandatory online dependency audit. Missing or invalid manifests block dependency work until the user confirms recovery. Audit and online version evidence are enforced separately. See [enforcement and recovery](docs/enforcement.md) for commands, scan scope, and limits.
+SessionStart performs a mandatory online dependency audit. npm projects also run npm audit and OSV security checks, both enabled by default. High/critical advisories and unknown/incomplete enabled checks block dependency work. Missing or invalid manifests block dependency work until the user confirms recovery. Audit and online version evidence are enforced separately. See [enforcement and recovery](docs/enforcement.md) for commands, scan scope, and limits.
 
 1. Claude tries to add/bump a dep (`Edit package.json`, `npm install X@Y`, ...)
 2. PreToolUse hook fires, exits 2 with stderr:
@@ -147,10 +147,10 @@ Claude Code only — relies on the PreToolUse hook API exposed by the CLI.
 Startup audits contact upstream registries. Package recording makes a separate online check. Fresh checks can be reused for the same project/package/version during the configured freshness window; file changes still require another audit.
 
 **Can I use this for private / internal registries?**
-The current verifier supports the public canonical registries only. A justification does not bypass online verification.
+Version verification uses the public canonical registries only. npm audit uses npm's configured registry and authentication. OSV receives npm package names and exact versions. Review the [security settings and data disclosure](docs/enforcement.md#npm-security-checks) before checking private packages. A justification does not bypass online verification or security policy.
 
 **Why not just run `npm audit` / `pip-audit`?**
-Those are post-hoc. `version-sentinel` refuses the write in the first place, until version evidence is present. This is not a vulnerability scanner or a complete sandbox for arbitrary file writes.
+Version Sentinel now runs npm audit and OSV alongside version verification. OSV checks proposed exact npm versions before supported dependency changes; both enabled providers scan the resolved package-lock tree, including transitive dependencies. A clean advisory scan means no known matching findings, not proof that a package is safe or exploitable. Other ecosystems still receive version checks only.
 
 **Does it support Go modules, Gradle, Maven, composer, gems?**
 Not in v0.1. See `docs/roadmap.md`.
