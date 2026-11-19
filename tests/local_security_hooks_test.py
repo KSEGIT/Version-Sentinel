@@ -111,6 +111,24 @@ class LocalSecurityHookTests(unittest.TestCase):
             self.assert_no_external_calls()
             self.assertEqual(self.state.read_bytes(), before)
 
+    def test_local_proposals_honor_disabled_osv_without_external_calls_or_new_evidence(self):
+        before = self.evidence()
+        for prefix in ('VS_', 'CLAUDE_PLUGIN_OPTION_'):
+            for npm_audit in ('false', 'true'):
+                with self.subTest(option_source=prefix, npm_audit=npm_audit):
+                    self.environment[prefix + 'SECURITY_OSV'] = 'false'
+                    self.environment[prefix + 'SECURITY_NPM_AUDIT'] = npm_audit
+                    for arguments in (('proposed', str(self.project), 'local-fixture', '1.0.0'),
+                                      ('proposed-lock', str(self.project), str(self.project / 'package-lock.json'))):
+                        result = self.invoke('security-check.sh', *arguments, payload='{}')
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertIn('disabled', result.stdout)
+                        self.assertEqual(result.stderr, '')
+                        self.assert_no_external_calls()
+                        self.assertEqual(self.state.read_bytes(), before)
+            self.environment.pop(prefix + 'SECURITY_OSV')
+            self.environment.pop(prefix + 'SECURITY_NPM_AUDIT')
+
     def test_local_post_check_does_not_rescan_changed_tree(self):
         before = self.evidence()
         (self.project / 'package.json').write_text('{"name":"changed"}')
