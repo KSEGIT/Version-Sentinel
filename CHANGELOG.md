@@ -2,6 +2,23 @@
 
 All notable changes to version-sentinel.
 
+## [0.6.1](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.6.0...version-sentinel-v0.6.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* accept parenthesized Python version selectors ([#44](https://github.com/KSEGIT/Version-Sentinel/issues/44)) ([f98e6ac](https://github.com/KSEGIT/Version-Sentinel/commit/f98e6ac22ff4f8b910e5a69ed446edacbb55a1e9))
+* audit flat npm overrides and direct references ([#46](https://github.com/KSEGIT/Version-Sentinel/issues/46)) ([7b3f11c](https://github.com/KSEGIT/Version-Sentinel/commit/7b3f11c48622ef0bcbd2b59807711de2ec82d8cd))
+* audit nested requirements includes beyond discovery depth ([#43](https://github.com/KSEGIT/Version-Sentinel/issues/43)) ([b8728c5](https://github.com/KSEGIT/Version-Sentinel/commit/b8728c5117139a3d3315dbc129672fa6fc575524))
+* bind manual audits to the Codex session ([#45](https://github.com/KSEGIT/Version-Sentinel/issues/45)) ([34e5da0](https://github.com/KSEGIT/Version-Sentinel/commit/34e5da0eaecab4e12255ac125bf8485e66452e1d))
+* isolate and publish the Claude directory package ([a1e27e9](https://github.com/KSEGIT/Version-Sentinel/commit/a1e27e96b5b68f0edd6dd50f43d53597cb7a89f4))
+* isolate Claude package and generate it on releases ([5230374](https://github.com/KSEGIT/Version-Sentinel/commit/5230374321cdbceb81ceee77f7d8e140c4ff43a4))
+* make Claude package checks portable and complete ([0da44e0](https://github.com/KSEGIT/Version-Sentinel/commit/0da44e0b6babcb90a137dea222d6ab78d319cddd))
+* map audit paths for native Windows Python ([a6158a5](https://github.com/KSEGIT/Version-Sentinel/commit/a6158a5ebb0626463939895eeca47ec89507c1f7))
+* scope startup audits to the current dependency project ([#42](https://github.com/KSEGIT/Version-Sentinel/issues/42)) ([62f5a88](https://github.com/KSEGIT/Version-Sentinel/commit/62f5a88b309d10cd9ffdd052b1609040f71eb953))
+* show startup audit recovery instructions ([6a1e30e](https://github.com/KSEGIT/Version-Sentinel/commit/6a1e30ef27d0f15a8bb96b549f5a615ce767bd85))
+* show startup audit recovery instructions ([c965241](https://github.com/KSEGIT/Version-Sentinel/commit/c965241fa0ae7bbd7f61b5ae9163dd035874c709))
+
 ## [0.6.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.5.0...version-sentinel-v0.6.0) (2026-11-04)
 
 

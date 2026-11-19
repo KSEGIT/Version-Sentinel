@@ -24,7 +24,7 @@ Record a successful check from the project directory:
 bash <plugin-root>/scripts/vs-record.sh <ecosystem> <pkg> <version> <source-url-or-intentional:reason>
 ```
 
-Use a canonical `https://` source you actually consulted, or `intentional:<reason>` for a deliberate older pin. The recorder makes its own online check. Report failures truthfully; do not claim verification when it failed. Exact versions make checks reproducible, but floating versions and versionless installs remain allowed.
+Use a canonical `https://` source you actually consulted when the version is the registry's latest. Use `intentional:<reason>` for any other version, including a prerelease or an older pin. The recorder makes its own online check. Report failures truthfully; do not claim verification when it failed. Exact versions make checks reproducible, but floating versions and versionless installs remain allowed.
 
 ## Audits and limitations
 

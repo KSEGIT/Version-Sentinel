@@ -18,7 +18,7 @@ version-sentinel skill explains advisory checks and truthful reporting.
 
 Hooks return status 0 for every result. Audit failures, parser limits, and missing
 manifests do not require a pause or a recovery-consent command.
-Read [the advisory guide](docs/enforcement.md) for supported operations and
+Read [the advisory guide](https://github.com/KSEGIT/Version-Sentinel/blob/main/docs/enforcement.md) for supported operations and
 limits. The package includes readable scripts for each hook and command.
 
 ## Privacy
