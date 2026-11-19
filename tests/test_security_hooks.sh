@@ -54,23 +54,23 @@ assert_exit_code 2 "$status" 'intentional pins cannot waive advisory findings'
 assert_contains "$(cat "$SECURITY_CALLS" 2>/dev/null)" "proposed $VS_TEST_CANONICAL_ROOT lodash 4.17.21" 'exact candidate reaches security engine'
 
 # Manifest proposal failures must retain provider findings written to stdout.
-result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"4.17.20\"}}"}}' | SECURITY_FAIL_ACTION=proposed bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"4.17.20\"}}"}}' | SECURITY_FAIL_ACTION=proposed bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'manifest proposal blocks advisory finding'
 assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'manifest proposal preserves advisory diagnostics'
 
 # Allowed proposals must also retain their nonblocking provider diagnostics.
-result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"^4.17.21\"}}"}}' | SECURITY_WARN_ACTION=proposed bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"^4.17.21\"}}"}}' | SECURITY_WARN_ACTION=proposed bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'nonblocking manifest advisories permit an otherwise verified candidate'
 assert_contains "$result" 'GHSA-fixture-low LOW https://osv.dev/vulnerability/GHSA-fixture-low affected <2.0.0 fixed 2.0.0 provider osv' 'allowed manifest retains complete stdout advisory'
 assert_contains "$result" 'GHSA-fixture-moderate MODERATE https://osv.dev/vulnerability/GHSA-fixture-moderate affected <3.0.0 fixed 3.0.0 provider npm-audit' 'allowed manifest retains complete stderr advisory'
-result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_WARN_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_WARN_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'nonblocking lock advisories permit an otherwise verified proposal'
 assert_contains "$result" 'GHSA-fixture-low LOW https://osv.dev/vulnerability/GHSA-fixture-low affected <2.0.0 fixed 2.0.0 provider osv' 'allowed lock retains complete stdout advisory'
 assert_contains "$result" 'GHSA-fixture-moderate MODERATE https://osv.dev/vulnerability/GHSA-fixture-moderate affected <3.0.0 fixed 3.0.0 provider npm-audit' 'allowed lock retains complete stderr advisory'
 
 # Lockfiles are relevant before direct writes, including patch post-images.
 : > "$SECURITY_CALLS"
-result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_FAIL_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}' | SECURITY_FAIL_ACTION=proposed-lock bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'direct lock write blocks failed proposal scan'
 assert_contains "$result" 'GHSA-fixture HIGH https://osv.dev/vulnerability/GHSA-fixture' 'lock proposal preserves advisory diagnostics'
 assert_contains "$(cat "$SECURITY_CALLS")" "proposed-lock $VS_TEST_CANONICAL_ROOT" 'lock post-image reaches security engine'
@@ -78,7 +78,7 @@ assert_contains "$(cat "$SECURITY_CALLS")" "proposed-lock $VS_TEST_CANONICAL_ROO
 # A proposed lock check cannot replace mandatory current project evidence.
 lock_payload='{"tool_name":"Write","tool_input":{"file_path":"package-lock.json","content":"{\"lockfileVersion\":3,\"packages\":{}}"}}'
 mv .version-sentinel/audit.json "$VS_TMPDIR/current-audit.json"
-result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'direct lock write blocks missing current startup audit'
 cp "$VS_TMPDIR/current-audit.json" .version-sentinel/audit.json
 python3 - <<'PYTIME'
@@ -89,12 +89,12 @@ data = json.loads(path.read_text())
 data['checkedAt'] = 1
 path.write_text(json.dumps(data))
 PYTIME
-result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'direct lock write blocks stale startup audit'
 cp "$VS_TMPDIR/current-audit.json" .version-sentinel/audit.json
-result=$(printf '%s\n' "$lock_payload" | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' "$lock_payload" | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'direct lock write blocks failed current security gate'
-result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/detect-manifest-edit.sh" 2>&1); status=$?
+result=$(printf '%s\n' "$lock_payload" | bash "$VS_TMPDIR/scripts/validate-detect-manifest-edit.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'current audit and clean proposed lock allow direct write'
 # Network proposal checks receive the full hook budget without waiting in tests.
 python3 - "$VS_TMPDIR/scripts/lib" <<'PYTIMEOUT'
@@ -115,48 +115,48 @@ assert_exit_code 0 "$?" 'proposal subprocess uses 180 second hook budget'
 
 # Post hooks must skip unrelated tools, scan changed npm state, and never record.
 : > "$SECURITY_CALLS"
-printf '%s\n' '{"tool_name":"Read","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Read","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_eq '' "$(cat "$SECURITY_CALLS")" 'read tool does not scan'
-printf '%s\n' '{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}' | bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_eq '' "$(cat "$SECURITY_CALLS")" 'unrelated edit does not scan'
 cp .version-sentinel/checks.json "$VS_TMPDIR/checks-before"
-printf '%s\n' '{"tool_name":"Edit","tool_input":{"file_path":"package-lock.json"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Edit","tool_input":{"file_path":"package-lock.json"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" 'changed lock triggers scan'
 cmp -s .version-sentinel/checks.json "$VS_TMPDIR/checks-before"
 assert_exit_code 0 "$?" 'post scan never creates version verification'
 : > "$SECURITY_CALLS"
-printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"npm install lodash@4.17.21"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"npm install lodash@4.17.21"}}' | bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_contains "$(cat "$SECURITY_CALLS")" "gate $VS_TEST_CANONICAL_ROOT" 'successful package command checks current security state'
 if [[ "$(cat "$SECURITY_CALLS")" == *"audit "* ]]; then _fail 'current security evidence avoids repeat network'; fi
-printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json"}}' | SECURITY_FAIL_ACTION=audit bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json"}}' | SECURITY_FAIL_ACTION=audit bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_exit_code 0 "$?" 'current security evidence skips redundant audit'
 # Changed-state audit failures remain visible and block further dependency work.
 : > "$SECURITY_CALLS"
-result=$(printf '%s\n' '{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-auto-record.sh" 2>&1); status=$?
 assert_exit_code 0 "$status" 'patch triggers a replacement security scan'
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" 'patch lock header is relevant'
 for carrier in patch input command; do
   : > "$SECURITY_CALLS"
-  result=$(jq -nc --arg key "$carrier" --arg patch $'*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch' '{tool_name:"apply_patch",tool_input:{($key):$patch}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
+  result=$(jq -nc --arg key "$carrier" --arg patch $'*** Begin Patch\n*** Update File: package-lock.json\n@@\n*** End Patch' '{tool_name:"apply_patch",tool_input:{($key):$patch}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-auto-record.sh" 2>&1); status=$?
   assert_exit_code 0 "$status" "accepted $carrier patch carrier reaches post scan"
   assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" "$carrier patch carrier scans changed tree"
 done
 mkdir -p child
 : > "$SECURITY_CALLS"
-printf '%s\n' '{"tool_name":"exec_command","tool_input":{"command":"npm install lodash@4.17.21","workdir":"child"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"exec_command","tool_input":{"command":"npm install lodash@4.17.21","workdir":"child"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT/child" 'post command uses actual workdir'
 # Raw shell writes and heredocs also inspect the actual project snapshot.
 : > "$SECURITY_CALLS"
-printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"printf data > package-lock.json"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"printf data > package-lock.json"}}' | SECURITY_FAIL_ACTION=gate bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_contains "$(cat "$SECURITY_CALLS")" "audit $VS_TEST_CANONICAL_ROOT" 'raw shell mutation uses actual project snapshot'
 : > "$SECURITY_CALLS"
-printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"cat > out <<EOF\nnpm install lodash@4.17.21\nEOF"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh"
+printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"cat > out <<EOF\nnpm install lodash@4.17.21\nEOF"}}' | bash "$VS_TMPDIR/scripts/validate-auto-record.sh"
 assert_exit_code 0 "$?" 'unsupported command parsing still checks unchanged snapshot without false install failure'
 assert_contains "$(cat "$SECURITY_CALLS")" "gate $VS_TEST_CANONICAL_ROOT" 'heredoc fallback checks actual project'
 # Make both gate and audit fail to show provider errors are not swallowed.
 sed 's/if \[\[ "$1" == "${SECURITY_FAIL_ACTION:-}" \]\]; then/if [[ "$1" == gate || "$1" == audit ]]; then/' "$VS_TMPDIR/scripts/security-check.sh" > "$VS_TMPDIR/failing-security"
 cp "$VS_TMPDIR/failing-security" "$VS_TMPDIR/scripts/security-check.sh"
-result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/auto-record.sh" 2>&1); status=$?
+result=$(printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"package.json"}}' | bash "$VS_TMPDIR/scripts/validate-auto-record.sh" 2>&1); status=$?
 assert_exit_code 2 "$status" 'failed post scan reports blocking status'
 assert_contains "$result" 'security unknown/incomplete' 'provider diagnostic remains visible'
 # Claude post-shell dispatch must run for raw writes without manager keywords.

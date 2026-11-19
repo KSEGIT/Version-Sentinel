@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Retained PostToolUse entry point: scan changed npm state, never record versions.
-set -u
-DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-source "$DIR/lib/options.sh"
-if [[ "${VS_DISABLE:-0}" == 1 ]]; then exit 0; fi
-if ! command -v python3 >/dev/null 2>&1; then
-  echo 'BLOCKED: version-sentinel. python3 is required to check changed security state.' >&2
-  exit 2
+# Public PostToolUse hook: cached security diagnostics never stop authorized work.
+DIR="${BASH_SOURCE[0]%/*}"
+export VS_HOOK_LOCAL_ONLY=1
+case "${VS_DISABLE:-${CLAUDE_PLUGIN_OPTION_DISABLE:-0}}" in 1|true|TRUE|True) exit 0 ;; esac
+if source "$DIR/lib/advisory-hook.sh"; then
+  vs_advisory_hook "$DIR/validate-auto-record.sh" 'changed npm security state' --event PostToolUse "$@"
+else
+  printf '%s\n' '{"systemMessage":"WARNING: Version Sentinel hook is unavailable. Work may continue."}'
 fi
-python3 "$DIR/lib/security-post.py"
-status=$?
-[[ "$status" -eq 0 ]] || exit 2
+exit 0

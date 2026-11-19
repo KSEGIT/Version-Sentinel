@@ -53,6 +53,11 @@ echo "[3/4] Retry edit (expect exit 0)"
 echo "$input" | bash "$SCRIPT_DIR/scripts/detect-manifest-edit.sh" >/tmp/smoke2_$$.err
 rc=$?
 [[ "$rc" -eq 0 ]] || { echo "FAIL: expected exit 0 after record, got $rc"; cat /tmp/smoke2_$$.err; exit 1; }
+[[ ! -s /tmp/smoke2_$$.err ]] || { echo "FAIL: recorded edit still warns with security providers disabled"; cat /tmp/smoke2_$$.err; exit 1; }
+# Also prove the recorded edit itself is verifiable through the explicit tool.
+echo "$input" | bash "$SCRIPT_DIR/scripts/validate-detect-manifest-edit.sh" >/tmp/smoke2_$$.err 2>&1
+rc=$?
+[[ "$rc" -eq 0 ]] || { echo "FAIL: recorded edit did not validate, got $rc"; cat /tmp/smoke2_$$.err; exit 1; }
 echo "  OK"
 
 # --- 4. Bash install cmd without record → block ---

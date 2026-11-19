@@ -16,7 +16,7 @@ assert_advisory() {
     _fail "$label contains blocking instructions: $output"
   fi
 }
-for script in detect-manifest-edit detect-install-cmd session-start; do
+for script in detect-manifest-edit detect-install-cmd auto-record session-start; do
   output=$(printf 'invalid json' | bash "$ROOT/scripts/$script.sh" 2>&1); status=$?
   assert_advisory "$output" "$status" "$script malformed input"
 done
@@ -38,6 +38,9 @@ output=$(printf '{}' | bash "$VS_TMPDIR/broken-scripts/detect-install-cmd.sh"); 
 assert_advisory "$output" "$status" 'unexpected validator control output'
 printf '%s' "$output" | jq -e 'has("continue") | not' >/dev/null
 assert_exit_code 0 "$?" 'validator cannot forward lifecycle control fields'
+printf '%s\n' '#!/usr/bin/env bash' 'echo "BLOCKED: version-sentinel. BLOCKED: version-sentinel. Nested validation failed." >&2' 'exit 2' > "$VS_TMPDIR/broken-scripts/validate-detect-install-cmd.sh"
+output=$(printf '{}' | bash "$VS_TMPDIR/broken-scripts/detect-install-cmd.sh"); status=$?
+assert_advisory "$output" "$status" 'nested strict failure'
 for mode in '' --gemini --copilot; do
   output=$(printf 'invalid json' | bash "$ROOT/scripts/session-start.sh" "$mode" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_advisory "$output" "$status" "startup $mode"
@@ -56,10 +59,12 @@ output=$(printf '{}' | bash "$ROOT/scripts/session-start.sh" 2>&1); status=$?
 assert_advisory "$output" "$status" 'invalid requirements startup audit'
 assert_contains "$output" 'optional' 'startup explains optional manual audit'
 mkdir "$VS_TMPDIR/no-tools"
-output=$(PATH="$VS_TMPDIR/no-tools" /bin/bash "$ROOT/scripts/detect-install-cmd.sh" <<< '{}' 2>"$VS_TMPDIR/missing-tools.err"); status=$?
-assert_advisory "$output" "$status" 'missing prerequisites'
-printf '%s' "$output" | jq -e '.systemMessage | contains("WARNING")' >/dev/null
-assert_exit_code 0 "$?" 'missing prerequisites still emits visible JSON'
+for script in detect-install-cmd auto-record; do
+  output=$(PATH="$VS_TMPDIR/no-tools" /bin/bash "$ROOT/scripts/$script.sh" <<< '{}' 2>"$VS_TMPDIR/missing-tools.err"); status=$?
+  assert_advisory "$output" "$status" "$script missing prerequisites"
+  printf '%s' "$output" | jq -e '.systemMessage | contains("WARNING")' >/dev/null
+  assert_exit_code 0 "$?" "$script missing prerequisites still emits visible JSON"
+done
 rm "$VS_TMPDIR/broken-scripts/lib/advisory-hook.sh"
 output=$(printf '{}' | bash "$VS_TMPDIR/broken-scripts/detect-install-cmd.sh" 2>"$VS_TMPDIR/missing-helper.err"); status=$?
 assert_advisory "$output" "$status" 'missing advisory runtime'

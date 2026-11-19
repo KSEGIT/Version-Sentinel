@@ -73,9 +73,12 @@ rm -f .version-sentinel/checks.json
 input=$(substitute "$FIXTURES/payloads/codex-apply-patch-patch-only.json")
 result=$(echo "$input" | bash "$DETECT_EDIT" 2>&1; echo "exit=$?")
 assert_contains "$result" "exit=0" "codex apply_patch patch-only: warns without record"
+assert_contains "$result" "WARNING" "codex patch-only emits warning before record"
 record_lodash
 result=$(echo "$input" | bash "$DETECT_EDIT" 2>&1; echo "exit=$?")
-assert_contains "$result" "exit=0" "codex patch-only passes after online record and audit"
+assert_eq "exit=0" "$result" "codex patch-only is silent after online record with providers disabled"
+result=$(echo "$input" | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1); status=$?
+assert_exit_code 0 "$status" "codex patch-only validates after online record and audit"
 rm -f .version-sentinel/checks.json
 
 # --- Kimi Bash install (same name as Claude) → block, then allowed ---

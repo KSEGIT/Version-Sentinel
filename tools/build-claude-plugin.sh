@@ -28,6 +28,7 @@ files = '''
 hooks/hooks.json
 scripts/audit-state.sh
 scripts/auto-record.sh
+scripts/validate-auto-record.sh
 scripts/check-sidecar.sh
 scripts/check-versions.sh
 scripts/detect-install-cmd.sh
