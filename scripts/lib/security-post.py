@@ -84,6 +84,12 @@ def main():
         # snapshot must be replaced by a scan; failed scans remain blocked.
         gate = subprocess.run([*args, "gate", str(target)], cwd=target,
                               capture_output=True, text=True, timeout=30, check=False)
+        if os.environ.get("VS_HOOK_LOCAL_ONLY") == "1":
+            sys.stdout.write(gate.stdout)
+            sys.stderr.write(gate.stderr)
+            if gate.returncode:
+                raise ValueError("local security evidence is missing, stale or changed; run an explicit security audit for current findings")
+            continue
         if gate.returncode:
             result = subprocess.run([*args, "audit", str(target)], cwd=target,
                                     timeout=120, check=False)
