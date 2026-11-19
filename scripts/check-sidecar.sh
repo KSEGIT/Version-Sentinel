@@ -33,10 +33,19 @@ for prerequisite in jq python3; do
   fi
 done
 project_root=$(cd "${VS_PROJECT_ROOT:-$PWD}" && pwd -P) || exit 2
+# Security policy applies even to intentional older version pins.
+if [[ "$ecosystem" == npm ]]; then
+  bash "$(dirname "$0")/security-check.sh" proposed "$project_root" "$pkg" "$version" || exit 2
+fi
 path=$(sidecar_path "$project_root")
 registry_endpoint=$(registry_url "$ecosystem" "$pkg") || exit 2
 
-if coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
+if [[ "${VS_HOOK_LOCAL_ONLY:-0}" == 1 ]]; then
+  # A public hook must not wait for an in-flight recorder or its lock.
+  if sidecar_find_verified "$path" "$ecosystem" "$pkg" "$version" "$window_hours" "$project_root" "$registry_endpoint"; then
+    exit 0
+  fi
+elif coalesce_acquire "$coal_dir" "$ecosystem" "$pkg" "$version"; then
   # We acquired the lock — we're the primary checker
   if sidecar_find_verified "$path" "$ecosystem" "$pkg" "$version" "$window_hours" "$project_root" "$registry_endpoint"; then
     coalesce_release "$coal_dir" "$ecosystem" "$pkg" "$version"
