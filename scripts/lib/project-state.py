@@ -203,7 +203,7 @@ def dependencies(path, content, intents=False):
         data = mapping(json.loads(content, object_pairs_hook=unique_object), "package.json")
         reject_resolver_sections(data, ("resolutions", "catalog", "catalogs", "packageExtensions"), "npm")
         pnpm = mapping(data.get("pnpm", {}), "pnpm")
-        reject_resolver_sections(pnpm, ("overrides", "catalog", "catalogs", "packageExtensions"), "pnpm")
+        reject_resolver_sections(pnpm, ("catalog", "catalogs", "packageExtensions"), "pnpm")
         for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
             for name, raw in mapping(data.get(section, {}), section).items():
                 if not isinstance(raw, str) or not name or any(c.isspace() for c in name):
@@ -217,32 +217,51 @@ def dependencies(path, content, intents=False):
                 selected = version(raw, npm=True)
                 if selected is not None:
                     emit(name, selected, selector, f"{section}.{declaration}")
-        # Interpret only shapes whose full selector intent we can retain. Other
-        # npm override forms stay blocked instead of being silently ignored.
-        for name, raw in mapping(data.get("overrides", {}), "npm.overrides").items():
-            if not re.fullmatch(r"(?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*", name) or not isinstance(raw, str):
-                fail(f"Unsupported dependency-selector construct: npm.overrides.{name}. Only flat package-name keys with string values are tracked; nested/version-qualified overrides remain blocked.")
-            selector = {"override": raw}
-            if raw.startswith("$"):
-                reference = raw[1:]
-                for section in ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies"):
-                    resolved = data.get(section, {}).get(reference)
-                    if resolved:
-                        selector.update(reference=reference, source=section, resolved=resolved)
-                        raw = resolved
-                        break
-                else:
-                    fail(f"Unsupported dependency-selector reference: npm.overrides.{name} cannot resolve {raw} to a direct dependency.")
-            if raw.startswith("npm:"):
-                match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
-                if not match:
-                    fail(f"unsupported npm alias {raw}")
-                package, raw = match.group(1), match.group(2) or ""
-            else:
-                package = name
-            selected = version(raw, npm=True)
-            if selected is not None:
-                emit(package, selected, selector, f"overrides.{name}")
+        # Keep override keys in the location so version-qualified rules remain
+        # distinct even when they resolve to the same registry package/version.
+        def package_overrides(table, location, qualified=False):
+            name_pattern = r"((?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*)"
+            if qualified:
+                name_pattern += r"(?:@([^@/\n]+))?"
+            for name, raw in mapping(table, location).items():
+                target = re.fullmatch(name_pattern, name)
+                if (not target or not isinstance(raw, str)
+                        or (qualified and target.group(2) is not None and not target.group(2).strip())
+                        or (location == "pnpm.overrides" and raw == "-")):
+                    fail(f"Unsupported dependency-selector construct: {location}.{name}. Only flat package keys with string replacements are tracked; npm keys may include version selectors. Nested, parent, and deletion forms remain blocked.")
+                package = target.group(1)
+                selector = {"override": raw}
+                if raw.startswith("$"):
+                    reference = raw[1:]
+                    pnpm_reference = location == "pnpm.overrides"
+                    if pnpm_reference:
+                        # PNPM merges dev, runtime, then optional declarations;
+                        # peer dependencies do not supply version references.
+                        sections = ("optionalDependencies", "dependencies", "devDependencies")
+                    else:
+                        sections = ("devDependencies", "optionalDependencies", "dependencies", "peerDependencies")
+                    for section in sections:
+                        available = data.get(section, {})
+                        resolved = available.get(reference)
+                        if resolved or (pnpm_reference and reference in available):
+                            break
+                    else:
+                        resolved = None
+                    if not resolved:
+                        fail(f"Unsupported dependency-selector reference: {location}.{name} cannot resolve {raw} to a direct dependency.")
+                    selector.update(reference=reference, source=section, resolved=resolved)
+                    raw = resolved
+                if raw.startswith("npm:"):
+                    match = re.fullmatch(r"(@[^/@]+/[^@]+|[^/@]+)(?:@(.+))?", raw[4:])
+                    if not match:
+                        fail(f"unsupported npm alias {raw}")
+                    package, raw = match.group(1), match.group(2) or ""
+                selected = version(raw, npm=True)
+                if selected is not None:
+                    emit(package, selected, selector, f"{location}.{name}")
+
+        package_overrides(data.get("overrides", {}), "overrides", qualified=True)
+        package_overrides(pnpm.get("overrides", {}), "pnpm.overrides")
     elif eco == "pip":
         # Continuations and hashes are normal pip syntax. Includes are checked
         # against project inventory separately, never fetched or reconstructed.
@@ -317,17 +336,24 @@ def dependencies(path, content, intents=False):
                 for name, spec in mapping(table, "Poetry dependencies").items():
                     if name == "python":
                         continue
-                    if isinstance(spec, dict):
-                        if any(k in spec for k in ("path", "git", "url")):
-                            continue
-                        raw = spec.get("version", "")
-                    elif isinstance(spec, str):
-                        raw = spec
+                    if isinstance(spec, list):
+                        if not spec or not all(isinstance(item, dict) for item in spec):
+                            fail(f"unsupported Poetry dependency {name}: expected a nonempty array of tables")
+                        specs = spec
                     else:
-                        fail(f"unsupported Poetry dependency {name}")
-                    selected = version(raw)
-                    if selected is not None:
-                        emit(name, selected, spec, f"{location}.{name}")
+                        specs = [spec]
+                    for item in specs:
+                        if isinstance(item, dict):
+                            if any(k in item for k in ("path", "git", "url")):
+                                continue
+                            raw = item.get("version", "")
+                        elif isinstance(item, str):
+                            raw = item
+                        else:
+                            fail(f"unsupported Poetry dependency {name}")
+                        selected = version(raw)
+                        if selected is not None:
+                            emit(name, selected, item, f"{location}.{name}")
 
             poetry_table(poetry.get("dependencies", {}), "tool.poetry.dependencies")
             poetry_table(poetry.get("dev-dependencies", {}), "tool.poetry.dev-dependencies")
@@ -383,6 +409,8 @@ def dependency_fingerprint(path, content):
     if eco == "npm":
         data = json.loads(content)
         relevant = {key: data[key] for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides") if key in data}
+        if "overrides" in data.get("pnpm", {}):
+            relevant["pnpm"] = {"overrides": data["pnpm"]["overrides"]}
     elif eco in {"cargo", "pyproject"}:
         data = tomllib.loads(content)
         if eco == "cargo":
