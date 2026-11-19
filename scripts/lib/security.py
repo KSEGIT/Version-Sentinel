@@ -571,6 +571,8 @@ def run(args):
             if not config['osv']:
                 print('security osv: disabled; proposed-lock security coverage disabled. npm-audit covers only the currently resolved tree.')
                 return 0
+            if os.environ.get('VS_HOOK_LOCAL_ONLY') == '1':
+                raise ValueError('local hook mode does not query advisory providers for proposed changes. Run an explicit security audit after the changes.')
             path = resolve_path(args[2], root)
             relative = path.relative_to(root)
             if path.name != 'package-lock.json' or len(relative.parts) > 4 or EXCLUDED.intersection(relative.parts):
@@ -588,6 +590,8 @@ def run(args):
         if not config['osv']:
             print('security osv: disabled; proposed-version security coverage disabled. npm-audit covers only the currently resolved tree.')
             return 0
+        if os.environ.get('VS_HOOK_LOCAL_ONLY') == '1':
+            raise ValueError('local hook mode does not query advisory providers for proposed changes. Run an explicit security audit after the changes.')
         found = deduplicate(osv_findings([{'name': package, 'version': version}]))
         status = 'blocked' if blocked(found) else 'complete'
         report({'status': status, 'providers': {'osv': 'complete', 'npm-audit': 'resolved-tree only; not a proposed-version check'}, 'findings': found})
