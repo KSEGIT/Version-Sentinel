@@ -32,7 +32,8 @@ project = load('reconcile_project_state', 'project-state.py')
 
 def config():
     # Match the shell entrypoint even when an explicit command is outside hooks.
-    load('reconcile_saved_settings', 'security-settings.py').apply_saved_settings()
+    if os.environ.get('VS_HOOK_LOCAL_ONLY') != '1':
+        load('reconcile_saved_settings', 'security-settings.py').apply_saved_settings()
     return security.settings()
 
 

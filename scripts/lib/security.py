@@ -546,6 +546,10 @@ def gate(root, config):
     if not path.exists():
         raise ValueError('Security audit evidence missing; run bash scripts/check-versions.sh in this project')
     previous = object_value(parse_json(path.read_text(encoding='utf-8')), 'security evidence')
+    if os.environ.get('VS_HOOK_LOCAL_ONLY') == '1' and previous.get('root') == str(root) and previous.get('findings'):
+        print('security: cached advisory findings; run an explicit audit to refresh this report.')
+        for item in previous['findings']:
+            print('security finding: ' + json.dumps(item, sort_keys=True))
     age = now() - previous.get('checkedAt', 0)
     if previous.get('status') not in {'complete', 'not-applicable'} or not 0 <= age <= config['window_hours'] * 3600 or any(previous.get(key) != current[key] for key in current):
         raise ValueError('Security audit evidence missing, failed, expired, or project/settings changed; run bash scripts/check-versions.sh')
