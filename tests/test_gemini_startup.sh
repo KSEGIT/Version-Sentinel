@@ -7,7 +7,8 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 cd "$VS_TMPDIR" || exit 1
 printf '%s\n' '-r other.txt' > requirements.txt
 for source in startup resume clear; do
-  output=$(jq -nc --arg source "$source" '{source:$source}' | bash "$ROOT/scripts/session-start.sh" --gemini); status=$?
+  input=$(jq -nc --arg source "$source" '{source:$source}')
+  output=$(bash "$ROOT/scripts/session-start.sh" --gemini <<< "$input"); status=$?
   assert_exit_code 0 "$status" "Gemini $source continues"
   printf '%s' "$output" | jq -e '.systemMessage and (.hookSpecificOutput.additionalContext | contains("optional"))' >/dev/null
   assert_exit_code 0 "$?" "Gemini $source has valid optional-audit context"
@@ -19,7 +20,12 @@ printf '%s\n' '#!/usr/bin/env bash' 'touch "$AUDIT_STARTED"' 'sleep 30' > "$VS_T
 AUDIT_STARTED="$VS_TMPDIR/audit-started" python3 - "$VS_TMPDIR/scripts/session-start.sh" <<'PY'
 import subprocess
 import sys
-subprocess.run(['bash', sys.argv[1], '--gemini'], input='{}', text=True, capture_output=True, timeout=2, check=True)
+import shutil
+from pathlib import Path
+bash = shutil.which('bash')
+if bash is None:
+    raise RuntimeError('Git Bash executable is required for the startup probe')
+subprocess.run([str(Path(bash).resolve()), Path(sys.argv[1]).as_posix(), '--gemini'], input='{}', text=True, capture_output=True, timeout=2, check=True)
 PY
 assert_exit_code 0 "$?" 'startup finishes before host timeout despite slow audit command'
 if [[ -f "$VS_TMPDIR/audit-started" ]]; then _fail 'startup invoked online audit'; fi
