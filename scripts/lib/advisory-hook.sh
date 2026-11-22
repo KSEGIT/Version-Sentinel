@@ -86,12 +86,22 @@ vs_advisory_hook() {
           ;;
       esac
     done <<< "$diagnostics"
-    warning="WARNING: Version Sentinel could not verify the $label. Work may continue. Run check-versions.sh for audit details or vs-record.sh to record an online version check."
-    if [[ "$status" -eq 0 ]]; then
-      warning="WARNING: Version Sentinel reported security findings for the $label. Work may continue."
-    fi
     if [[ -n "$reason" ]]; then
-      warning="WARNING: Version Sentinel: $reason. Work may continue. Run check-versions.sh for audit details or vs-record.sh to record an online version check."
+      warning="WARNING: Version Sentinel: $reason. Work may continue."
+    elif [[ "$status" -eq 0 ]]; then
+      warning="WARNING: Version Sentinel reported security findings for the $label. Work may continue."
+    else
+      warning="WARNING: Version Sentinel could not verify the $label. Work may continue."
+    fi
+    if [[ "$status" -ne 0 || -n "$reason" ]]; then
+      case "$diagnostics" in
+        *'dependency audit'*|*'Dependency manifest'*|*'Required dependency manifest'*|*'Required manifest'*|*'required manifest'*|*'was not included in the successful audit'*|*'Security unknown/incomplete'*|*'security evidence is missing'*)
+          warning+=' Use /vs-refresh for project audit and security evidence.' ;;
+        *'No fresh successful online version check'*|*'No explicit registry version was provided'*)
+          warning+=' Use /vs-record for an individual package check.' ;;
+        *)
+          warning+=' Use /vs-refresh for project audit and security evidence, or /vs-record for an individual package check.' ;;
+      esac
     fi
     if [[ -n "$findings" ]]; then warning+=$'\n'"${findings%$'\n'}"; fi
     if ! vs_warning_seen "$validator" "$payload_file" "$output" "$diagnostics" "$warning"; then

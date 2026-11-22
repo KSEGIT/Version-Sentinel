@@ -23,6 +23,8 @@ done
 output=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"npm install lodash"}}' |
   bash "$ROOT/scripts/detect-install-cmd.sh" 2>&1); status=$?
 assert_advisory "$output" "$status" 'unchecked install'
+assert_contains "$output" '/vs-refresh' 'tool warning recommends the project refresh command'
+[[ "$output" != *'/vs-record'* ]] || _fail 'missing project evidence calls for a project refresh'
 printf '%s' "$output" | jq -e '.systemMessage | contains("WARNING")' >/dev/null 2>&1
 assert_exit_code 0 "$?" 'tool warning is visible in stdout JSON'
 output=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"99.0.0\"}}"}}' |
@@ -44,6 +46,7 @@ assert_advisory "$output" "$status" 'nested strict failure'
 for mode in '' --gemini --copilot; do
   output=$(printf 'invalid json' | bash "$ROOT/scripts/session-start.sh" "$mode" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_advisory "$output" "$status" "startup $mode"
+  assert_contains "$output" '/vs-refresh' "startup $mode recommends the project refresh command"
   printf '%s' "$output" | jq -e '.systemMessage and .hookSpecificOutput.additionalContext' >/dev/null
   assert_exit_code 0 "$?" "startup $mode emits valid warning JSON"
 done

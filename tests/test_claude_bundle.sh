@@ -34,6 +34,7 @@ agents = {p.relative_to(root) for p in (root / 'agents').glob('*.md')}
 expected = runtime | commands | agents | {Path(p) for p in (
     '.claude-plugin/plugin.json', 'hooks/hooks.json',
     'skills/version-sentinel/SKILL.md', 'skills/audit-dependencies/SKILL.md',
+    'skills/vs-refresh/SKILL.md', 'skills/check-versions/SKILL.md', 'skills/vs-record/SKILL.md',
     'LICENSE', 'PRIVACY.md',
     'docs/enforcement.md', 'README.md')}
 actual = {p.relative_to(bundle) for p in bundle.rglob('*') if p.is_file()}
@@ -47,10 +48,11 @@ assert len(readme.split()) >= 40, 'package README is too short for the directory
 assert not re.search(r'!\[|<img|curl.*\|.*(?:sh|bash)|wget.*\|.*(?:sh|bash)', readme)
 
 manifest = json.loads((bundle / '.claude-plugin/plugin.json').read_text())
+assert './commands/vs-refresh.md' in manifest['commands'], 'refresh command is not registered'
 for field in ('commands', 'agents'):
     for path in manifest[field]:
         assert (bundle / path).is_file(), f'{field}: {path}'
-for skill in ('version-sentinel', 'audit-dependencies'):
+for skill in ('version-sentinel', 'audit-dependencies', 'vs-refresh', 'check-versions', 'vs-record'):
     assert (bundle / manifest['skills'] / skill / 'SKILL.md').is_file(), skill
 hooks = json.loads((bundle / 'hooks/hooks.json').read_text())['hooks']
 for groups in hooks.values():
@@ -78,7 +80,8 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN" VS_DISABLE=0
 
 run_package_command() {
   local file="$1" command
-  command=$(sed -n 's/^!\(bash .*\)$/\1/p' "$PLUGIN/$file")
+  command=$(sed -n 's/^!\{0,1\}\(bash .*\)$/\1/p' "$PLUGIN/$file")
+  [[ -n "$command" ]] || return 1
   command="${command//\$ARGUMENTS/npm lodash 4.17.21 https:\/\/www.npmjs.com\/package\/lodash}"
   (cd "$PROJECT" && bash -c "$command")
 }
@@ -93,6 +96,10 @@ output=$(run_package_command commands/check-versions.md 2>&1)
 status=$?
 assert_exit_code 0 "$status" "shipped audit command executes: $output"
 assert_contains "$output" "lodash" "shipped audit reports the project package"
+output=$(run_package_command commands/vs-refresh.md 2>&1)
+status=$?
+assert_exit_code 0 "$status" "shipped refresh command executes: $output"
+assert_contains "$output" "expires" "shipped refresh reports evidence expiry"
 hook_command=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$PLUGIN/hooks/hooks.json")
 output=$(cd "$PROJECT" && printf '{"cwd":"%s","session_id":"bundle-fixture"}\n' "$PROJECT" | bash -c "$hook_command" 2>&1)
 status=$?

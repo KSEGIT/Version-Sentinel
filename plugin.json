@@ -23,7 +23,8 @@
   ],
   "commands": [
     "./commands/vs-record.md",
-    "./commands/check-versions.md"
+    "./commands/check-versions.md",
+    "./commands/vs-refresh.md"
   ],
   "userConfig": {
     "disable": {

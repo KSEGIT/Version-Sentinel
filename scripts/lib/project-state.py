@@ -629,6 +629,22 @@ def now():
     return dt.datetime.strptime(override, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp() if override else dt.datetime.now(dt.timezone.utc).timestamp()
 
 
+def audit_freshness_seconds():
+    return float(os.environ.get("VS_WINDOW_HOURS", "24")) * 3600
+
+
+def report_audit_evidence(timestamp):
+    checked_at = dt.datetime.fromtimestamp(timestamp, dt.timezone.utc)
+    try:
+        expires = checked_at + dt.timedelta(seconds=audit_freshness_seconds())
+    except (ValueError, OverflowError):
+        print("Version Sentinel could not calculate project audit expiry from VS_WINDOW_HOURS.", file=sys.stderr)
+        return
+    checked_text = checked_at.isoformat().replace("+00:00", "Z")
+    expiry_text = expires.isoformat().replace("+00:00", "Z")
+    print(f"Version Sentinel project audit evidence checked at {checked_text} and expires {expiry_text}.")
+
+
 def ensure_manifests(root, snapshot):
     if not snapshot["required"]:
         fail("Required dependency manifest is missing. Ask Daniel whether to create/recreate the intended manifest before dependency work; do not guess dependencies. After consent run recover-manifest.sh approve FILE --user-confirmed REASON.")
@@ -816,9 +832,11 @@ def project_command(command, root):
         if "retirements" in previous:
             snapshot["retirements"] = previous["retirements"]
         write_json(path, snapshot)
+        if sys.argv[4:] == ["--report-evidence"]:
+            report_audit_evidence(snapshot["checkedAt"])
     elif command in {"gate", "covers"}:
         age = now() - previous.get("checkedAt", 0)
-        window = float(os.environ.get("VS_WINDOW_HOURS", "24")) * 3600
+        window = audit_freshness_seconds()
         session = os.environ.get("VS_SESSION_ID", "")
         if previous.get("status") != "complete" or not 0 <= age <= window or any(previous.get(key) != snapshot[key] for key in snapshot) or (session and previous.get("session") != session):
             fail("Startup dependency audit is missing, failed, expired, or project files changed. Run bash scripts/check-versions.sh in this project before dependency work. Reading files and requesting recovery consent remain allowed.")
