@@ -1,4 +1,4 @@
-> Historical record: the blocking behavior and probes below describe an older release. Current hooks are warning-only and always allow tool calls. These old steps are not current instructions. See [the advisory workflow](enforcement.md).
+> Historical record: the blocking behavior and probes below describe an older release. Current hooks are warning-only and always allow tool calls. These old steps are not current instructions. See [the advisory workflow](enforcement.md) and [current real-CLI integration tests](cli-integration.md).
 
 > Historical platform observations below predate mandatory audit enforcement. Current workflow and limits: [enforcement.md](enforcement.md). Installed cache activation must be tested separately after normal plugin update and trust.
 
