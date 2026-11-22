@@ -837,8 +837,8 @@ def project_command(command, root):
     elif command in {"gate", "covers"}:
         age = now() - previous.get("checkedAt", 0)
         window = audit_freshness_seconds()
-        session = os.environ.get("VS_SESSION_ID", "")
-        if previous.get("status") != "complete" or not 0 <= age <= window or any(previous.get(key) != snapshot[key] for key in snapshot) or (session and previous.get("session") != session):
+        if (previous.get("status") != "complete" or not 0 <= age <= window
+                or any(previous.get(key) != snapshot[key] for key in snapshot)):
             fail("Startup dependency audit is missing, failed, expired, or project files changed. Run bash scripts/check-versions.sh in this project before dependency work. Reading files and requesting recovery consent remain allowed.")
         if command == "covers":
             _, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")

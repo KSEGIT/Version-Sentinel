@@ -84,7 +84,7 @@ assert_contains "$result" 'version-sentinel: mandatory online dependency audit c
 VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
 assert_exit_code 0 "$?" "startup evidence matches current session"
 VS_SESSION_ID=session-two bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1
-assert_exit_code 2 "$?" "another session cannot reuse startup evidence"
+assert_exit_code 0 "$?" "another session can reuse fresh startup evidence for the project"
 # Without a host identity, a manual retry preserves the recorded startup session.
 CODEX_THREAD_ID= bash "$ROOT/scripts/check-versions.sh" >/dev/null 2>&1
 VS_SESSION_ID=session-one bash "$ROOT/scripts/audit-state.sh" gate "$PWD" >/dev/null 2>&1

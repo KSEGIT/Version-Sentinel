@@ -9,6 +9,7 @@ trap 'rm -rf "$VS_TMPDIR"' EXIT
 registry_fixture_setup
 export VS_DISABLE=0 VS_NOW_OVERRIDE=2026-11-22T22:15:00Z
 unset VS_WINDOW_HOURS CLAUDE_PLUGIN_OPTION_WINDOW_HOURS
+unset VS_SESSION_ID CODEX_THREAD_ID
 
 project="$VS_TMPDIR/project with spaces"
 mkdir -p "$project"
@@ -43,6 +44,7 @@ assert_contains "$output" 'checked at 2026-11-22T22:15:00Z' 'refresh reports che
 assert_contains "$output" 'expires 2026-11-23T22:15:00Z' 'default expiry uses 24 hours'
 state=.version-sentinel/audit.json
 assert_eq complete "$(jq -r .status "$state")" 'caller project contains successful audit evidence'
+assert_eq '' "$(jq -r .session "$state")" 'refresh succeeds without a shell session ID'
 python3 -c 'import json, pathlib, sys; assert pathlib.Path(json.loads(pathlib.Path(sys.argv[1]).read_text())["root"]) == pathlib.Path.cwd().resolve()' "$state"
 assert_exit_code 0 "$?" 'evidence belongs to the actual project'
 jq -e '.checkedAt == 1795385700' "$state" >/dev/null
@@ -51,7 +53,12 @@ assert_eq "$manifest" "$(cat package.json)" 'refresh preserves the dependency ve
 assert_eq complete "$(jq -r .status .version-sentinel/security.json)" 'security evidence stays separate'
 [[ ! -e .version-sentinel/checks.json ]] || _fail 'project refresh must not record individual package checks'
 
-payload='{"tool_name":"Bash","tool_input":{"command":"npm install lodash@4.17.20"}}'
+payload='{"tool_name":"Bash","session_id":"host-session","tool_input":{"command":"npm run verify"}}'
+output=$(VS_SECURITY_NPM_AUDIT=1 bash "$ROOT/scripts/detect-install-cmd.sh" <<< "$payload")
+assert_exit_code 0 "$?" 'named host session can use project audit evidence'
+[[ "$output" != *'/vs-refresh'* ]] || _fail "valid refresh must not prompt another refresh in the host session: $output"
+
+payload='{"tool_name":"Bash","session_id":"host-session","tool_input":{"command":"npm install lodash@4.17.20"}}'
 output=$(VS_SECURITY_NPM_AUDIT=1 bash "$ROOT/scripts/detect-install-cmd.sh" <<< "$payload")
 assert_exit_code 0 "$?" 'package warning allows the install'
 assert_contains "$output" '/vs-record' 'missing individual check recommends the recorder'

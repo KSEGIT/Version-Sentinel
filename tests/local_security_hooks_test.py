@@ -87,6 +87,17 @@ class LocalSecurityHookTests(unittest.TestCase):
     def assert_no_external_calls(self):
         self.assertFalse(self.calls.exists(), self.calls.read_text() if self.calls.exists() else '')
 
+    def complete_project_audit(self):
+        begin = self.invoke('audit-state.sh', 'begin', str(self.project))
+        self.assertEqual(begin.returncode, 0, begin.stderr)
+        # Keep the fixture snapshot in native Python argv on Windows.
+        complete = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/project-state.py'),
+                                   'complete', str(self.project), begin.stdout],
+                                  cwd=self.project, env=self.environment, text=True,
+                                  capture_output=True, timeout=5, check=False)
+        self.assertEqual(complete.returncode, 0, complete.stderr)
+        return begin.stdout
+
     def test_local_audit_without_evidence_reports_unknown_without_creating_evidence(self):
         result = self.invoke('security-check.sh', 'audit', str(self.project))
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
@@ -110,6 +121,29 @@ class LocalSecurityHookTests(unittest.TestCase):
             self.assertIn('local', (result.stdout + result.stderr).lower())
             self.assert_no_external_calls()
             self.assertEqual(self.state.read_bytes(), before)
+
+    def test_candidate_warning_suggests_refresh_after_changes(self):
+        self.evidence()
+        self.complete_project_audit()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': 'npm install local-fixture@1.0.0'}})
+        candidate = self.invoke('detect-install-cmd.sh', payload=payload)
+        self.assertEqual(candidate.returncode, 0, candidate.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(candidate.stdout)['systemMessage']
+        self.assertIn('local hook mode does not query advisory providers for proposed changes', message)
+        self.assertIn('/vs-refresh after dependency changes', message)
+        self.assertIn('resolved tree', message)
+        self.assertNotIn('/vs-record', message)
+
+        self.state.unlink()
+        missing = self.invoke('detect-install-cmd.sh', payload=payload)
+        self.assertEqual(missing.returncode, 0, missing.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(missing.stdout)['systemMessage']
+        self.assertIn('Security audit evidence missing', message)
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertNotIn('after dependency changes', message)
 
     def test_local_proposals_honor_disabled_osv_without_external_calls_or_new_evidence(self):
         before = self.evidence()
@@ -175,17 +209,7 @@ class LocalSecurityHookTests(unittest.TestCase):
                 '': manifest, 'node_modules/local-fixture': {'version': '1.0.0',
                     'resolved': 'https://registry.npmjs.org/local-fixture/-/local-fixture-1.0.0.tgz'}}}))
         before = self.evidence()
-        begin = self.invoke('audit-state.sh', 'begin', str(self.project))
-        self.assertEqual(begin.returncode, 0, begin.stderr)
-        self.assertIn('\\\\', begin.stdout)
-        # This seeds fixture evidence; shell transport is not under test here.
-        # A native Python -> Git Bash -> Python argv round trip can unescape
-        # Windows paths in this JSON token. Keep the setup Python-to-Python.
-        complete = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/project-state.py'),
-                                   'complete', str(self.project), begin.stdout],
-                                  cwd=self.project, env=self.environment, text=True,
-                                  capture_output=True, timeout=5, check=False)
-        self.assertEqual(complete.returncode, 0, complete.stderr)
+        self.assertIn('\\\\', self.complete_project_audit())
         payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
             'file_path': 'package.json', 'content': '{"name":"local-fixture","dependencies":{}}'}})
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/manifest-edit.py')],

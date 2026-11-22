@@ -95,6 +95,8 @@ vs_advisory_hook() {
     fi
     if [[ "$status" -ne 0 || -n "$reason" ]]; then
       case "$diagnostics" in
+        *'local hook mode does not query advisory providers for proposed changes'*)
+          warning+=' Use /vs-refresh after dependency changes to audit the resolved tree.' ;;
         *'dependency audit'*|*'Dependency manifest'*|*'Required dependency manifest'*|*'Required manifest'*|*'required manifest'*|*'was not included in the successful audit'*|*'Security unknown/incomplete'*|*'security evidence is missing'*)
           warning+=' Use /vs-refresh for project audit and security evidence.' ;;
         *'No fresh successful online version check'*|*'No explicit registry version was provided'*)
