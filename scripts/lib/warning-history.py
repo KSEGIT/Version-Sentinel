@@ -146,13 +146,12 @@ def warning_seen(validator, payload, diagnostic):
                 project["write_json"](path, history)
             return False
         previous, diagnostics = history.get(scope, (None, []))
-        if previous != current:
-            diagnostics = []
         # Full diagnostics can differ even when the compact warning does not.
+        # Compare the latest warning so a returning diagnostic is shown again.
         diagnostic = hashlib.sha256(diagnostic).hexdigest()
-        if diagnostic in diagnostics:
+        if previous == current and diagnostics and diagnostics[-1] == diagnostic:
             return True
-        history[scope] = (current, (diagnostics + [diagnostic])[-MAX_DIAGNOSTICS:])
+        history[scope] = (current, [diagnostic])
         if len(history) > MAX_SCOPES:
             del history[next(iter(history))]
         project["write_json"](path, history)

@@ -137,6 +137,12 @@ class WarningDedupTests(unittest.TestCase):
         self.assert_warning(self.hook(INSTALL, "cd 'other project' && npm test", project=self.root))
         self.assertEqual(self.hook(INSTALL, 'npm run test', project=alternate), '')
 
+    def test_nested_read_preserves_parent_project_warning(self):
+        (self.project / 'scripts').mkdir()
+        self.assert_warning(self.hook(command='cd scripts && cat ../package.json'))
+        self.assertEqual(self.hook(command='cat package.json'), '')
+        self.assertEqual(self.hook(command='cd scripts && ls'), '')
+
     def test_unrelated_proposed_installs_and_edits_each_warn(self):
         for command in ('npm install lodash@4.17.21', 'npm install express@4.19.2'):
             self.assert_warning(self.hook(INSTALL, command))
@@ -222,6 +228,8 @@ class WarningDedupTests(unittest.TestCase):
         self.assertIn('GHSA-old', self.assert_warning(self.hook(scripts=scripts, FINDING='GHSA-old')))
         self.assertEqual(self.hook(scripts=scripts, FINDING='GHSA-old'), '')
         self.assertIn('GHSA-new', self.assert_warning(self.hook(scripts=scripts, FINDING='GHSA-new')))
+        self.assertIn('GHSA-old', self.assert_warning(self.hook(scripts=scripts, FINDING='GHSA-old')))
+        self.assertEqual(self.hook(scripts=scripts, FINDING='GHSA-old'), '')
 
     def test_first_and_duplicate_warnings_make_no_network_request(self):
         guard = self.root / 'no-network'

@@ -30,9 +30,14 @@ def npm_paths(value, root):
 
 
 def shell_roots(base, command, contexts, leading_directory):
-    # Shell programs can write npm files without naming a package manager.
-    # A literal cd selects the directory even for those commands.
-    roots = {leading_directory(base, command)}
+    # A literal cd can select a separate project. Within a project's ordinary
+    # subdirectories the base still owns the snapshot, including ../ paths.
+    effective = leading_directory(base, command)
+    if effective != base and effective.is_relative_to(base):
+        boundaries = NPM_FILES | {".git", ".version-sentinel/security.json"}
+        if not any((effective / name).exists() for name in boundaries):
+            effective = base
+    roots = {effective}
     roots.update(resolve_path(context["root"]) for context in contexts
                  if any(Path(p).name == "package.json" for p in context["required"]))
     return roots
