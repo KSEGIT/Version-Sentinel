@@ -94,16 +94,22 @@ vs_advisory_hook() {
       warning="WARNING: Version Sentinel could not verify the $label. Work may continue."
     fi
     if [[ "$status" -ne 0 || -n "$reason" ]]; then
+      local candidate_diagnostic='local hook mode does not query advisory providers for proposed changes'
+      local project_refresh=' Use /vs-refresh for project audit and security evidence.'
       case "$diagnostics" in
-        *'local hook mode does not query advisory providers for proposed changes'*)
-          warning+=' Use /vs-refresh after dependency changes to audit the resolved tree.' ;;
-        *'dependency audit'*|*'Dependency manifest'*|*'Required dependency manifest'*|*'Required manifest'*|*'required manifest'*|*'was not included in the successful audit'*|*'Security unknown/incomplete'*|*'security evidence is missing'*)
-          warning+=' Use /vs-refresh for project audit and security evidence.' ;;
+        *'dependency audit'*|*'Dependency manifest'*|*'Required dependency manifest'*|*'Required manifest'*|*'required manifest'*|*'was not included in the successful audit'*|*'Security audit evidence missing'*|*'security evidence is missing'*)
+          warning+="$project_refresh" ;;
+        *"$candidate_diagnostic"*) ;; # The candidate action is added below.
+        *'Security unknown/incomplete'*)
+          warning+="$project_refresh" ;;
         *'No fresh successful online version check'*|*'No explicit registry version was provided'*)
           warning+=' Use /vs-record for an individual package check.' ;;
         *)
           warning+=' Use /vs-refresh for project audit and security evidence, or /vs-record for an individual package check.' ;;
       esac
+      if [[ "$diagnostics" == *"$candidate_diagnostic"* ]]; then
+        warning+=' Use /vs-refresh after dependency changes to audit the resolved tree.'
+      fi
     fi
     if [[ -n "$findings" ]]; then warning+=$'\n'"${findings%$'\n'}"; fi
     if ! vs_warning_seen "$validator" "$payload_file" "$output" "$diagnostics" "$warning"; then

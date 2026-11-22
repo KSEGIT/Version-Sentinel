@@ -145,6 +145,20 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertIn('/vs-refresh for project audit and security evidence', message)
         self.assertNotIn('after dependency changes', message)
 
+    def test_manifest_warning_reports_both_refresh_times(self):
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
+            'file_path': 'package.json',
+            'content': json.dumps({'dependencies': {'local-fixture': '1.0.0'}}),
+        }})
+        result = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(result.stdout)['systemMessage']
+        self.assertIn('Work may continue', message)
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertIn('/vs-refresh after dependency changes to audit the resolved tree', message)
+        self.assertNotIn('/vs-record', message)
+
     def test_local_proposals_honor_disabled_osv_without_external_calls_or_new_evidence(self):
         before = self.evidence()
         for prefix in ('VS_', 'CLAUDE_PLUGIN_OPTION_'):
