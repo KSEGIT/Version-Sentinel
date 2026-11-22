@@ -134,6 +134,7 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertIn('local hook mode does not query advisory providers for proposed changes', message)
         self.assertIn('/vs-refresh after dependency changes', message)
         self.assertIn('resolved tree', message)
+        self.assertNotIn('/vs-refresh for project audit', message)
         self.assertNotIn('/vs-record', message)
 
         self.state.unlink()
@@ -144,6 +145,7 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertIn('Security audit evidence missing', message)
         self.assertIn('/vs-refresh for project audit and security evidence', message)
         self.assertNotIn('after dependency changes', message)
+        self.assertNotIn('/vs-record', message)
 
     def test_manifest_warning_reports_both_refresh_times(self):
         payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
@@ -158,6 +160,35 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertIn('/vs-refresh for project audit and security evidence', message)
         self.assertIn('/vs-refresh after dependency changes to audit the resolved tree', message)
         self.assertNotIn('/vs-record', message)
+
+    def test_manifest_warning_reports_project_and_package_actions(self):
+        (self.project / 'requirements.txt').touch()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
+            'file_path': 'requirements.txt', 'content': 'examplepkg==1.0.0\n',
+        }})
+        validation = self.invoke('validate-detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(validation.returncode, 2, validation.stderr)
+        self.assertIn('Startup dependency audit', validation.stderr)
+        self.assertIn('No fresh successful online version check', validation.stderr)
+
+        result = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        message = json.loads(result.stdout)['systemMessage']
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertIn('/vs-record for an individual package check', message)
+        self.assertNotIn('after dependency changes', message)
+
+        duplicate = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual((duplicate.returncode, duplicate.stdout, duplicate.stderr), (0, '', ''))
+
+        self.evidence()
+        self.complete_project_audit()
+        package_only = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(package_only.returncode, 0, package_only.stderr)
+        message = json.loads(package_only.stdout)['systemMessage']
+        self.assertIn('/vs-record for an individual package check', message)
+        self.assertNotIn('/vs-refresh', message)
+        self.assert_no_external_calls()
 
     def test_local_proposals_honor_disabled_osv_without_external_calls_or_new_evidence(self):
         before = self.evidence()

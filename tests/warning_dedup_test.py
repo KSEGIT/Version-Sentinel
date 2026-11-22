@@ -143,6 +143,36 @@ class WarningDedupTests(unittest.TestCase):
         self.assertEqual(self.hook(command='cat package.json'), '')
         self.assertEqual(self.hook(command='cd scripts && ls'), '')
 
+    def test_literal_cd_into_nested_worktree_shares_its_warning(self):
+        self.security_evidence()
+        (self.project / '.worktrees').mkdir()
+        worktree = self.make_project('project/.worktrees/topic')
+        (worktree / '.git').write_text('gitdir: ../../.git/worktrees/topic\n')
+        (worktree / 'src').mkdir()
+        command = 'cd .worktrees/topic/src && ls'
+
+        message = self.assert_warning(self.hook(command=command))
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.hook(command=command), '')
+        self.assertEqual(self.hook(project=worktree), '')
+        self.assertEqual(self.hook(), '')
+
+        (self.project / 'package.json').write_text('{"name":"outer-changed"}')
+        self.assert_warning(self.hook())
+        self.assertEqual(self.hook(command=command), '')
+
+    def test_absolute_cd_into_another_projects_child_shares_its_warning(self):
+        alternate = self.make_project('other project')
+        source = alternate / 'src'
+        source.mkdir()
+        command = f"cd '{source.as_posix()}' && ls"
+
+        message = self.assert_warning(self.hook(command=command))
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.hook(project=alternate), '')
+        self.assert_warning(self.hook())
+        self.assertEqual(self.hook(command=command), '')
+
     def test_unrelated_proposed_installs_and_edits_each_warn(self):
         for command in ('npm install lodash@4.17.21', 'npm install express@4.19.2'):
             self.assert_warning(self.hook(INSTALL, command))
