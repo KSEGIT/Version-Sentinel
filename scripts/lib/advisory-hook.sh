@@ -20,23 +20,41 @@ print(json.dumps(result))
   printf '%s\n' '{"systemMessage":"WARNING: Version Sentinel verification is unavailable. Work may continue."}'
 }
 
+vs_warning_seen() {
+  local validator="$1" payload_file="$2" helper="${BASH_SOURCE[0]%/*}/warning-history.py"
+  shift 2
+  command -v python3 >/dev/null 2>&1 || return 1
+  if command -v cygpath >/dev/null 2>&1; then
+    helper=$(cygpath -C UTF8 -a -m -- "$helper") || return 1
+    helper="${helper%$'\r'}"
+  fi
+  # Send large findings on stdin, since argv has short per-argument limits.
+  { printf '%s\0' "$@" | python3 "$helper" "${validator##*/}" "$payload_file"; } 2>/dev/null
+}
+
 vs_advisory_hook() {
   local validator="$1" label="$2" output status warning line reason='' error_file diagnostics mode
-  local event=PreToolUse findings='' unexpected_output=0
+  local event=PreToolUse findings='' unexpected_output=0 scratch payload_file
   shift 2
   if [[ "${1:-}" == --event ]]; then
     event="${2:-PreToolUse}"
     shift 2
   fi
   mode="${1:-}"
-  error_file=$(mktemp 2>/dev/null) || {
+  scratch=$(mktemp -d 2>/dev/null) || {
     vs_advisory_message 'WARNING: Version Sentinel could not prepare verification. Work may continue.' "$mode" "$event"
     return 0
   }
-  output=$(bash "$validator" "$@" 2>"$error_file")
+  payload_file="$scratch/input"
+  error_file="$scratch/error"
+  if ! cat 2>/dev/null >"$payload_file"; then
+    rm -rf -- "$scratch"
+    vs_advisory_message 'WARNING: Version Sentinel could not read verification input. Work may continue.' "$mode" "$event"
+    return 0
+  fi
+  output=$(bash "$validator" "$@" <"$payload_file" 2>"$error_file")
   status=$?
   diagnostics=$(<"$error_file")
-  rm -f "$error_file"
   # Findings are plain text inside our own JSON, never host lifecycle fields.
   # Ignore informational provider summaries, but warn on unexpected stdout.
   while IFS= read -r line; do
@@ -76,7 +94,12 @@ vs_advisory_hook() {
       warning="WARNING: Version Sentinel: $reason. Work may continue. Run check-versions.sh for audit details or vs-record.sh to record an online version check."
     fi
     if [[ -n "$findings" ]]; then warning+=$'\n'"${findings%$'\n'}"; fi
-    vs_advisory_message "$warning" "$mode" "$event"
+    if ! vs_warning_seen "$validator" "$payload_file" "$output" "$diagnostics" "$warning"; then
+      vs_advisory_message "$warning" "$mode" "$event"
+    fi
+  else
+    vs_warning_seen "$validator" "$payload_file" '' '' '' || true
   fi
+  rm -rf -- "$scratch"
   return 0
 }

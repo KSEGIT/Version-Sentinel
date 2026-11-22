@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import xml.etree.ElementTree as ET
 
@@ -446,19 +447,32 @@ def state_path(root):
 
 
 @contextmanager
-def state_lock(root):
+def state_lock(root, lock_path=None, *, timeout=None):
     """Serialize project transactions; kernel locks release if a process exits."""
-    lock_path = state_path(root).with_suffix(".lock")
+    if lock_path is None:
+        lock_path = state_path(root).with_suffix(".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # Keep this file: unlinking it could let waiters lock different inodes.
     with lock_path.open("a+b") as handle:
         if os.name == "nt":
             import msvcrt
             handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            flags = msvcrt.LK_LOCK if timeout is None else msvcrt.LK_NBLCK
         else:
             import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            flags = fcntl.LOCK_EX if timeout is None else fcntl.LOCK_EX | fcntl.LOCK_NB
+        deadline = time.monotonic() + timeout if timeout is not None else None
+        while True:
+            try:
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), flags, 1)
+                else:
+                    fcntl.flock(handle.fileno(), flags)
+                break
+            except OSError:
+                if deadline is None or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
         try:
             yield
         finally:
@@ -483,7 +497,7 @@ def write_json(path, data):
     ignore = path.parent / ".gitignore"
     if not ignore.exists():
         ignore.write_text("*\n!.gitignore\n")
-    fd, temporary = tempfile.mkstemp(prefix=".audit-", dir=path.parent)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.stem}-", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as handle:
             json.dump(data, handle, sort_keys=True)
@@ -548,14 +562,14 @@ def in_scope(relative):
     return len(relative.parts) <= 4 and not EXCLUDED.intersection(relative.parts)
 
 
-def inventory(root, previous):
+def inventory(root, previous, extra_files=()):
     found = set()
     for directory, dirs, files in os.walk(root, followlinks=False):
         relative = Path(directory).relative_to(root)
         dirs[:] = [d for d in dirs if in_scope(relative / d) and len((relative / d).parts) < 4]
         for name in files:
             rel = relative / name
-            if in_scope(rel) and (ecosystem(name) or name in LOCKFILES):
+            if in_scope(rel) and (ecosystem(name) or name in LOCKFILES or name in extra_files):
                 _, safe = usable_path(root, rel)
                 found.add(safe)
     required = {name for name in found if ecosystem(name)}

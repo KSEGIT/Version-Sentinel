@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Rescan changed npm state after supported mutation tools; never record checks."""
-import importlib.util
 import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import subprocess
 import sys
@@ -29,6 +29,15 @@ def npm_paths(value, root):
     return False
 
 
+def shell_roots(base, command, contexts, leading_directory):
+    # Shell programs can write npm files without naming a package manager.
+    # A literal cd selects the directory even for those commands.
+    roots = {leading_directory(base, command)}
+    roots.update(resolve_path(context["root"]) for context in contexts
+                 if any(Path(p).name == "package.json" for p in context["required"]))
+    return roots
+
+
 def main():
     raw = sys.stdin.read()
     if not raw.strip():
@@ -45,34 +54,17 @@ def main():
     root = resolve_path(payload.get("cwd", os.getcwd()))
     roots = set()
     if tool in SHELL_TOOLS:
-        if not isinstance(data, dict):
-            raise ValueError("PostToolUse command input must be an object")
-        overrides = [data[k] for k in ("workdir", "dir_path", "cwd") if data.get(k) is not None]
-        if any(not isinstance(v, str) for v in overrides) or len(set(overrides)) > 1:
-            raise ValueError("conflicting PostToolUse command directories")
-        if overrides:
-            root = resolve_path(overrides[0], root)
+        parser = runpy.run_path(str(SCRIPTS / "lib/install-context.py"))
+        root = parser["payload_root"](payload)
         command = data.get("command", data.get("cmd", ""))
         if not isinstance(command, str):
             raise ValueError("PostToolUse command must be text")
-        # Reuse the same conservative literal-directory parser as PreToolUse.
-        spec = importlib.util.spec_from_file_location("install_context", SCRIPTS / "lib/install-context.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        # Shell programs can write locks without naming a package manager.
-        # Inspect the current root snapshot after every shell tool; a current
-        # snapshot (or a project without npm files) performs no network request.
-        roots.add(root)
         try:
-            contexts = module.contexts(str(root), command)
+            contexts = parser["contexts"](str(root), command)
+            roots = shell_roots(root, command, contexts, parser["leading_directory"])
         except ValueError:
-            # PreToolUse rejects unsupported dependency commands. After a tool
-            # has run we inspect actual files instead of interpreting shell
-            # syntax or treating a heredoc's package text as an installation.
-            contexts = []
-        for context in contexts:
-            if any(Path(p).name == "package.json" for p in context["required"]):
-                roots.add(resolve_path(context["root"]))
+            # After unsupported shell syntax, inspect the known workdir.
+            roots = {root}
     elif npm_paths(data, root):
         roots.add(root)
     bash = shutil.which("bash")

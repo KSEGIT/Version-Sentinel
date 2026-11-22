@@ -105,13 +105,46 @@ def remove_redirections(command):
     return output, False
 
 
-def contexts(base, command):
+def shell_tokens(command):
     command, unsupported_redirection = remove_redirections(command)
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     lexer.commenters = "#"
-    tokens = list(lexer)
+    return list(lexer), unsupported_redirection
+
+
+def payload_root(payload):
+    base = payload.get("cwd", str(Path.cwd()))
+    data = payload.get("tool_input", {})
+    if not isinstance(base, str) or not isinstance(data, dict):
+        raise ValueError("malformed command project context")
+    overrides = [data[k] for k in ("workdir", "dir_path", "cwd") if k in data and data[k] is not None]
+    if any(not isinstance(v, str) for v in overrides) or len(set(overrides)) > 1:
+        raise ValueError("malformed or conflicting command directory overrides")
+    return literal_path(resolve_path(base), overrides[0]) if overrides else resolve_path(base)
+
+
+def leading_directory(base, command):
+    # Limit inference to leading literal directory changes. The caller can
+    # still check the base after an unsupported shell construct.
+    tokens, unsupported = shell_tokens(command)
+    if not tokens or tokens[0] != "cd":
+        return base
+    if unsupported or any(token in {"||", ";", "|", "&", "(", ")", "\n"} for token in tokens):
+        raise ValueError("cannot determine the shell command directory")
+    while tokens and tokens[0] == "cd":
+        if len(tokens) < 2 or (len(tokens) > 2 and tokens[2] != "&&"):
+            raise ValueError("cannot determine the shell command directory")
+        base = literal_path(base, tokens[1])
+        tokens = tokens[3:]
+    if any(current == "&&" and next_word == "cd" for current, next_word in zip(tokens, tokens[1:])):
+        raise ValueError("cannot determine the shell command directory")
+    return base
+
+
+def contexts(base, command):
+    tokens, unsupported_redirection = shell_tokens(command)
     has_operation = any(Path(w).name in OPERATIONS and (
         any(t in OPERATIONS[Path(w).name] or "$" in t or "`" in t for t in tokens[i + 1:])
         or Path(w).name == "yarn") for i, w in enumerate(tokens))
@@ -243,15 +276,7 @@ def contexts(base, command):
 if __name__ == "__main__":
     try:
         if sys.argv[1] == "--payload-root":
-            payload = json.load(sys.stdin)
-            base = payload.get("cwd", str(Path.cwd()))
-            data = payload.get("tool_input", {})
-            if not isinstance(base, str) or not isinstance(data, dict):
-                raise ValueError("malformed command project context")
-            overrides = [data[k] for k in ("workdir", "dir_path", "cwd") if k in data and data[k] is not None]
-            if any(not isinstance(v, str) for v in overrides) or len(set(overrides)) > 1:
-                raise ValueError("malformed or conflicting command directory overrides")
-            print(literal_path(resolve_path(base), overrides[0]) if overrides else resolve_path(base))
+            print(payload_root(json.load(sys.stdin)))
         else:
             print(json.dumps(contexts(sys.argv[1], sys.argv[2])))
     except (ValueError, OSError, IndexError) as exc:
