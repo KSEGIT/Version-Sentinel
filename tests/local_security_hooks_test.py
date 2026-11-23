@@ -220,6 +220,41 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assert_no_external_calls()
         self.assertEqual(self.state.read_bytes(), before)
 
+    def test_local_post_resolves_directory_after_dependency_parse_failure(self):
+        before = self.evidence()
+        alternate = self.root / 'other project'
+        alternate.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copyfile(self.project / name, alternate / name)
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': "cd '../other project' && npm update"}})
+
+        result = self.invoke('auto-record.sh', payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertFalse((alternate / '.version-sentinel/security.json').exists())
+        self.assert_no_external_calls()
+
+    def test_local_post_keeps_workdir_when_directory_inference_also_fails(self):
+        before = self.evidence()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': 'cd "$UNKNOWN_PROJECT" && npm update'}})
+        result = self.invoke('auto-record.sh', payload=payload)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+
+        (self.project / 'package.json').write_text('{"name":"changed"}')
+        result = self.invoke('auto-record.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing, failed, expired, or project/settings changed', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assert_no_external_calls()
+
     def test_local_post_displays_cached_findings_without_claiming_a_fresh_scan(self):
         self.evidence()
         evidence = json.loads(self.state.read_text())

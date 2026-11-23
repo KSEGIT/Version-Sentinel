@@ -70,8 +70,12 @@ def main():
             contexts = parser["contexts"](str(root), command)
             roots = shell_roots(root, command, contexts, parser["leading_directory"])
         except ValueError:
-            # After unsupported shell syntax, inspect the known workdir.
-            roots = {root}
+            # Dependency syntax can fail even when a literal cd is resolvable.
+            try:
+                roots = shell_roots(root, command, [], parser["leading_directory"])
+            except ValueError:
+                # Keep the known workdir when directory inference also fails.
+                roots = {root}
     elif npm_paths(data, root):
         roots.add(root)
     bash = shutil.which("bash")
