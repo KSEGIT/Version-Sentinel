@@ -16,6 +16,14 @@ Notes: Matches `plugin.json` (`version-sentinel`) and the GitHub repo. Contains 
 
 ---
 
+## Website URL
+
+```
+https://ksegit.github.io/Version-Sentinel/
+```
+
+---
+
 ## Plugin description
 
 ### Short (≈180 chars)

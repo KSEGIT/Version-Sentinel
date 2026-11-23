@@ -14,7 +14,7 @@
     "name": "Daniel Kiska",
     "url": "https://github.com/KSEGIT"
   },
-  "homepage": "https://github.com/KSEGIT/Version-Sentinel#readme",
+  "homepage": "https://ksegit.github.io/Version-Sentinel/",
   "license": "MIT",
   "skills": "./skills/",
   "commands": "./platforms/kimi/commands/",
@@ -45,6 +45,7 @@
     }
   ],
   "interface": {
+    "websiteURL": "https://ksegit.github.io/Version-Sentinel/",
     "displayName": "Version Sentinel",
     "shortDescription": "Warns about dependency version checks and recommends upstream verification. Never blocks tools."
   }

@@ -42,7 +42,7 @@ Mention this honestly in the release notes so reviewers are not surprised.
   as an open-source multi-agent plugin (Claude Code, Kimi Code, Copilot, Gemini
   CLI, Codex, z.ai) under MIT.
 - **Category:** Developer tools
-- **Website URL:** https://github.com/KSEGIT/Version-Sentinel
+- **Website URL:** https://ksegit.github.io/Version-Sentinel/
 - **Support URL:** https://github.com/KSEGIT/Version-Sentinel/issues
 - **Privacy URL:** https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md
 - **Terms URL:** https://github.com/KSEGIT/Version-Sentinel/blob/main/TERMS.md

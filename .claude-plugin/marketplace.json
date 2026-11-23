@@ -11,6 +11,7 @@
     {
       "name": "version-sentinel",
       "source": "./",
+      "homepage": "https://ksegit.github.io/Version-Sentinel/",
       "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
       "category": "security",
       "keywords": [

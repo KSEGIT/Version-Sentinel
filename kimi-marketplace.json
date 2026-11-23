@@ -4,6 +4,7 @@
     {
       "id": "version-sentinel",
       "displayName": "Version Sentinel",
+      "homepage": "https://ksegit.github.io/Version-Sentinel/",
       "source": "https://github.com/KSEGIT/Version-Sentinel"
     }
   ]
