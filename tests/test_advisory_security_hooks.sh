@@ -54,6 +54,8 @@ for failed in 0 1; do
     assert_exit_code 0 "$?" "post hook has no lifecycle control fields ($failed $mode)"
     if [[ "$mode" == --gemini ]]; then
       printf '%s' "$output" | jq -e 'has("hookSpecificOutput") | not' >/dev/null 2>&1
+    elif [[ "$mode" == --copilot ]]; then
+      printf '%s' "$output" | jq -e '.additionalContext == .systemMessage and .hookSpecificOutput.hookEventName == "PostToolUse" and .hookSpecificOutput.additionalContext == .systemMessage' >/dev/null 2>&1
     else
       printf '%s' "$output" | jq -e '.hookSpecificOutput.hookEventName == "PostToolUse" and .hookSpecificOutput.additionalContext == .systemMessage' >/dev/null 2>&1
     fi

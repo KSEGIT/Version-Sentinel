@@ -9,8 +9,9 @@ import sys
 mode, event = sys.argv[1:]
 message = sys.stdin.read()
 result = {"systemMessage": message}
-if mode != "--gemini":
+if mode == "--copilot":
     result["additionalContext"] = message
+if mode != "--gemini":
     result["hookSpecificOutput"] = {"hookEventName": event, "additionalContext": message}
 print(json.dumps(result))
 ' "$mode" "$event"

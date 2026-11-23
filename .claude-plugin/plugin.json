@@ -1,6 +1,6 @@
 {
   "name": "version-sentinel",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
   "author": {
     "name": "Daniel Kiska",
@@ -30,7 +30,7 @@
     "disable": {
       "type": "boolean",
       "title": "Turn off Version Sentinel (kill switch)",
-      "description": "Default: false \u2014 advisory warnings are active. Set true to suppress hook warnings. Hooks never block tools even when enabled. VS_DISABLE in your shell overrides this setting.",
+      "description": "Default: false — advisory warnings are active. Set true to suppress hook warnings. Hooks never block tools even when enabled. VS_DISABLE in your shell overrides this setting.",
       "default": false
     },
     "window_hours": {
