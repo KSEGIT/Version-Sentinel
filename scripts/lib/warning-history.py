@@ -75,8 +75,11 @@ def dependency_state(roots, required, project):
     checks_root = os.environ.get("VS_PROJECT_ROOT")
     for root in sorted(roots):
         directory = root / ".version-sentinel"
+        audit_path = directory / "audit.json"
+        if audit_path.exists() and not audit_path.is_file():
+            raise ValueError("warning state requires regular files")
         try:
-            previous = project["read_json"](directory / "audit.json", {})
+            previous = project["read_json"](audit_path, {})
         except ValueError:
             # Invalid audit bytes still distinguish the observed evidence.
             previous = {}
