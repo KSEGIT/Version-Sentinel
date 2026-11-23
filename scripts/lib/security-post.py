@@ -32,7 +32,10 @@ def npm_paths(value, root):
 def shell_roots(base, command, contexts, leading_directory):
     # A literal cd can select a separate project, even from its source folder.
     # Inside the base, stop at the base if no closer boundary owns the snapshot.
-    effective = leading_directory(base, command)
+    try:
+        effective = leading_directory(base, command)
+    except ValueError:
+        effective = base
     if effective != base:
         boundaries = NPM_FILES | {".git", ".version-sentinel/security.json"}
         for directory in (effective, *effective.parents):
