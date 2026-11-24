@@ -92,9 +92,6 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 project_root=$(printf '%s' "$input" | python3 "$DIR/lib/install-context.py" --payload-root) || exit 2
 contexts=$(python3 "$DIR/lib/install-context.py" "$project_root" "$cmd") || exit 2
-# Keep session-bound startup evidence usable across the platform's payloads.
-VS_SESSION_ID=$(echo "$input" | vs_jq -r '.session_id // empty')
-export VS_SESSION_ID
 context_count=$(echo "$contexts" | vs_jq 'length') || exit 2
 if [[ ! "$context_count" =~ ^[0-9]+$ ]]; then
   echo "BLOCKED: version-sentinel. Cannot read dependency command contexts." >&2; exit 2

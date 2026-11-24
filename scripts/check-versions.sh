@@ -3,7 +3,12 @@
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib/options.sh"
-if [[ "${VS_DISABLE:-0}" == 1 ]]; then exit 0; fi
+if [[ "${VS_DISABLE:-0}" == 1 ]]; then
+  if [[ "${1:-}" == --report-evidence ]]; then
+    echo 'Version Sentinel refresh skipped because Version Sentinel is disabled.'
+  fi
+  exit 0
+fi
 # Manual Codex commands receive the thread ID, while hooks set VS_SESSION_ID.
 if [[ -z "${VS_SESSION_ID:-}" && -n "${CODEX_THREAD_ID:-}" ]]; then
   export VS_SESSION_ID="$CODEX_THREAD_ID"
@@ -72,5 +77,7 @@ if [[ "$failed" != 0 ]]; then
   exit 2
 fi
 bash "$DIR/security-check.sh" audit "$PWD" || exit 2
-bash "$DIR/audit-state.sh" complete "$PWD" "$snapshot" || exit 2
+complete_args=(complete "$PWD" "$snapshot")
+if [[ "${1:-}" == --report-evidence ]]; then complete_args+=(--report-evidence); fi
+bash "$DIR/audit-state.sh" "${complete_args[@]}" || exit 2
 echo 'version-sentinel: mandatory online dependency audit completed; no dependency versions changed.'

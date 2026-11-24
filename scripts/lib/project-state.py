@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import xml.etree.ElementTree as ET
 
@@ -446,19 +447,32 @@ def state_path(root):
 
 
 @contextmanager
-def state_lock(root):
+def state_lock(root, lock_path=None, *, timeout=None):
     """Serialize project transactions; kernel locks release if a process exits."""
-    lock_path = state_path(root).with_suffix(".lock")
+    if lock_path is None:
+        lock_path = state_path(root).with_suffix(".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # Keep this file: unlinking it could let waiters lock different inodes.
     with lock_path.open("a+b") as handle:
         if os.name == "nt":
             import msvcrt
             handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            flags = msvcrt.LK_LOCK if timeout is None else msvcrt.LK_NBLCK
         else:
             import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            flags = fcntl.LOCK_EX if timeout is None else fcntl.LOCK_EX | fcntl.LOCK_NB
+        deadline = time.monotonic() + timeout if timeout is not None else None
+        while True:
+            try:
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), flags, 1)
+                else:
+                    fcntl.flock(handle.fileno(), flags)
+                break
+            except OSError:
+                if deadline is None or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
         try:
             yield
         finally:
@@ -483,7 +497,7 @@ def write_json(path, data):
     ignore = path.parent / ".gitignore"
     if not ignore.exists():
         ignore.write_text("*\n!.gitignore\n")
-    fd, temporary = tempfile.mkstemp(prefix=".audit-", dir=path.parent)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.stem}-", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as handle:
             json.dump(data, handle, sort_keys=True)
@@ -548,14 +562,14 @@ def in_scope(relative):
     return len(relative.parts) <= 4 and not EXCLUDED.intersection(relative.parts)
 
 
-def inventory(root, previous):
+def inventory(root, previous, extra_files=()):
     found = set()
     for directory, dirs, files in os.walk(root, followlinks=False):
         relative = Path(directory).relative_to(root)
         dirs[:] = [d for d in dirs if in_scope(relative / d) and len((relative / d).parts) < 4]
         for name in files:
             rel = relative / name
-            if in_scope(rel) and (ecosystem(name) or name in LOCKFILES):
+            if in_scope(rel) and (ecosystem(name) or name in LOCKFILES or name in extra_files):
                 _, safe = usable_path(root, rel)
                 found.add(safe)
     required = {name for name in found if ecosystem(name)}
@@ -613,6 +627,22 @@ def inventory(root, previous):
 def now():
     override = os.environ.get("VS_NOW_OVERRIDE")
     return dt.datetime.strptime(override, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp() if override else dt.datetime.now(dt.timezone.utc).timestamp()
+
+
+def audit_freshness_seconds():
+    return float(os.environ.get("VS_WINDOW_HOURS", "24")) * 3600
+
+
+def report_audit_evidence(timestamp):
+    checked_at = dt.datetime.fromtimestamp(timestamp, dt.timezone.utc)
+    try:
+        expires = checked_at + dt.timedelta(seconds=audit_freshness_seconds())
+    except (ValueError, OverflowError):
+        print("Version Sentinel could not calculate project audit expiry from VS_WINDOW_HOURS.", file=sys.stderr)
+        return
+    checked_text = checked_at.isoformat().replace("+00:00", "Z")
+    expiry_text = expires.isoformat().replace("+00:00", "Z")
+    print(f"Version Sentinel project audit evidence checked at {checked_text} and expires {expiry_text}.")
 
 
 def ensure_manifests(root, snapshot):
@@ -802,11 +832,13 @@ def project_command(command, root):
         if "retirements" in previous:
             snapshot["retirements"] = previous["retirements"]
         write_json(path, snapshot)
+        if sys.argv[4:] == ["--report-evidence"]:
+            report_audit_evidence(snapshot["checkedAt"])
     elif command in {"gate", "covers"}:
         age = now() - previous.get("checkedAt", 0)
-        window = float(os.environ.get("VS_WINDOW_HOURS", "24")) * 3600
-        session = os.environ.get("VS_SESSION_ID", "")
-        if previous.get("status") != "complete" or not 0 <= age <= window or any(previous.get(key) != snapshot[key] for key in snapshot) or (session and previous.get("session") != session):
+        window = audit_freshness_seconds()
+        if (previous.get("status") != "complete" or not 0 <= age <= window
+                or any(previous.get(key) != snapshot[key] for key in snapshot)):
             fail("Startup dependency audit is missing, failed, expired, or project files changed. Run bash scripts/check-versions.sh in this project before dependency work. Reading files and requesting recovery consent remain allowed.")
         if command == "covers":
             _, relative = usable_path(root, sys.argv[3], allow_deep=ecosystem(sys.argv[3]) == "pip")
