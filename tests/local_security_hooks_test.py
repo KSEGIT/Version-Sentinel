@@ -133,6 +133,9 @@ class LocalSecurityHookTests(unittest.TestCase):
         message = json.loads(candidate.stdout)['systemMessage']
         self.assertIn('local hook mode does not query advisory providers for proposed changes', message)
         self.assertIn('/vs-refresh after dependency changes', message)
+        self.assertIn('/version-sentinel:vs-refresh', message)
+        self.assertIn('$version-sentinel:vs-refresh', message)
+        self.assertIn('Copilot CLI/Zed: vs-refresh skill', message)
         self.assertIn('resolved tree', message)
         self.assertNotIn('/vs-refresh for project audit', message)
         self.assertNotIn('/vs-record', message)
@@ -253,6 +256,25 @@ class LocalSecurityHookTests(unittest.TestCase):
         message = json.loads(result.stdout or '{}').get('systemMessage', '')
         self.assertIn('Security audit evidence missing, failed, expired, or project/settings changed', message)
         self.assertEqual(self.state.read_bytes(), before)
+        self.assert_no_external_calls()
+
+    def test_local_post_keeps_install_project_when_a_later_cd_is_unsupported(self):
+        before = self.evidence()
+        alternate = self.root / 'other project'
+        alternate.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copyfile(self.project / name, alternate / name)
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': "cd '../other project' && npm install lodash@4.17.21 && cd ../project"}})
+
+        result = self.invoke('auto-record.sh', payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertFalse((alternate / '.version-sentinel/security.json').exists())
         self.assert_no_external_calls()
 
     def test_local_post_displays_cached_findings_without_claiming_a_fresh_scan(self):

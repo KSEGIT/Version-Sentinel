@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -195,6 +196,23 @@ class WarningDedupTests(unittest.TestCase):
         for _ in range(2):
             self.assert_warning(self.hook())
         self.assertTrue(path.is_dir())
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO files are not available')
+    def test_fifo_audit_keeps_warning_visible_without_waiting_for_a_writer(self):
+        audit = self.project / '.version-sentinel/audit.json'
+        audit.parent.mkdir()
+        os.mkfifo(audit)
+        payload = self.root / 'payload.json'
+        payload.write_text(json.dumps({'cwd': str(self.project), 'tool_name': 'exec_command',
+                                       'tool_input': {'command': 'ls'}}))
+        helper = subprocess.run([sys.executable, str(SCRIPTS / 'lib/warning-history.py'),
+                                 'validate-auto-record.sh', str(payload)],
+                                input=b'output\0diagnostic\0WARNING\0', capture_output=True,
+                                env=self.environment, timeout=3, check=False)
+        self.assertEqual(helper.returncode, 1, helper.stderr)
+        for _ in range(2):
+            self.assert_warning(self.hook(timeout=4))
+        self.assertFalse((self.project / HISTORY).exists())
 
     def test_unsupported_payload_keeps_warnings_visible(self):
         for _ in range(2):

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Strict validators remain useful for CLI/CI; hook output has no denial authority.
+vs_action_hint() {
+  printf ' (Claude/Kimi: /version-sentinel:%s; Codex: $version-sentinel:%s skill; Copilot CLI/Zed: %s skill)' "$1" "$1" "$1"
+}
+
 vs_advisory_message() {
   local warning="$1" mode="${2:-}" event="${3:-PreToolUse}"
   if command -v python3 >/dev/null 2>&1; then
@@ -107,16 +111,19 @@ vs_advisory_hook() {
         esac
       done <<< "$diagnostics"
       if [[ "$current_audit" -eq 1 ]]; then
-        guidance+=' Use /vs-refresh for project audit and security evidence.'
+        guidance+=" Use /vs-refresh for project audit and security evidence$(vs_action_hint vs-refresh)."
       fi
       if [[ "$diagnostics" == *"$candidate_diagnostic"* ]]; then
-        guidance+=' Use /vs-refresh after dependency changes to audit the resolved tree.'
+        guidance+=" Use /vs-refresh after dependency changes to audit the resolved tree$(vs_action_hint vs-refresh)."
       fi
       case "$diagnostics" in
         *'No fresh successful online version check'*|*'No explicit registry version was provided'*)
-          guidance+=' Use /vs-record for an individual package check.' ;;
+          guidance+=" Use /vs-record for an individual package check$(vs_action_hint vs-record)." ;;
       esac
-      warning+="${guidance:- Use /vs-refresh for project audit and security evidence, or /vs-record for an individual package check.}"
+      if [[ -z "$guidance" ]]; then
+        guidance=" Use /vs-refresh for project audit and security evidence$(vs_action_hint vs-refresh), or /vs-record for an individual package check$(vs_action_hint vs-record)."
+      fi
+      warning+="$guidance"
     fi
     if [[ -n "$findings" ]]; then warning+=$'\n'"${findings%$'\n'}"; fi
     if ! vs_warning_seen "$validator" "$payload_file" "$output" "$diagnostics" "$warning"; then

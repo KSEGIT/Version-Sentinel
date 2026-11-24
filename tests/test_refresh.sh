@@ -62,6 +62,9 @@ payload='{"tool_name":"Bash","session_id":"host-session","tool_input":{"command"
 output=$(VS_SECURITY_NPM_AUDIT=1 bash "$ROOT/scripts/detect-install-cmd.sh" <<< "$payload")
 assert_exit_code 0 "$?" 'package warning allows the install'
 assert_contains "$output" '/vs-record' 'missing individual check recommends the recorder'
+assert_contains "$output" '/version-sentinel:vs-record' 'package warning names the Claude/Kimi recorder'
+assert_contains "$output" '$version-sentinel:vs-record' 'package warning names the Codex recorder skill'
+assert_contains "$output" 'Copilot CLI/Zed: vs-record skill' 'package warning names the other recorder skill'
 [[ "$output" != *'/vs-refresh'* ]] || _fail 'missing package evidence calls for an individual check'
 rm .version-sentinel/security.json
 output=$(VS_SECURITY_NPM_AUDIT=1 bash "$ROOT/scripts/detect-install-cmd.sh" <<< "$payload")
