@@ -17,6 +17,6 @@ Record that a dependency version has been verified. Run after a web search or re
 - `/vs-record pip requests 2.31.0 https://pypi.org/project/requests/`
 - `/vs-record csproj Serilog 3.1.1 "intentional: CVE lock pending audit"`
 
-Use the terminal tool to run `bash scripts/vs-record.sh` with the arguments the user supplied, exactly as given. When the fourth argument is an intentional-pin reason, pass it as ONE quoted argument preserving the "intentional: <reason>" format. Relay the script's output verbatim to the user. If the script fails, show its stderr and do not retry with modified arguments unless the user asks.
+Use the terminal from the affected project directory. Resolve the installed Version Sentinel root, or use the root of the Version Sentinel source checkout that supplied this prompt. Run `bash "<absolute-version-sentinel-root>/scripts/vs-record.sh"` with the arguments the user supplied, exactly as given. When the fourth argument is an intentional-pin reason, pass it as ONE quoted argument preserving the "intentional: <reason>" format. Relay the script's output verbatim to the user. If the script fails, show its stderr and do not retry with modified arguments unless the user asks.
 
 The script performs an online upstream lookup and checks that the exact version exists. An older pin requires a nonempty intentional reason as well as a successful online check. A fabricated URL, stale offline cache, or post-install record cannot pass.

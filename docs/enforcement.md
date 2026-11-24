@@ -4,22 +4,26 @@ Version Sentinel warns about dependency evidence. It never blocks tools or instr
 
 ## Recommended workflow
 
-From the actual project directory, use the installed plugin's bundled scripts:
+Use `/vs-refresh` to refresh project audit evidence and run the configured security checks. The command prints the saved project audit timestamp and its expiry in UTC. It uses `VS_WINDOW_HOURS` or `CLAUDE_PLUGIN_OPTION_WINDOW_HOURS` when the shell has it, with a default of 24 hours. Security checks apply their own settings and save separate evidence. `/check-versions` remains available for the standard audit report. `/vs-record` checks one package version. [Host command names](../README.md#commands)
+
+For terminal use, keep the affected project as the working directory and run the bundled scripts by absolute path.
 
 ```bash
-bash <plugin-root>/scripts/check-versions.sh
+bash <plugin-root>/scripts/vs-refresh.sh
 bash <plugin-root>/scripts/vs-record.sh npm lodash 4.17.21 'intentional: compatibility with the current application'
 ```
 
 An audit compares declared versions with public upstream releases. `DRIFT` reports a newer release without changing dependencies. The recorder makes its own HTTPS upstream request to verify the intended version exists. Older pins need a reason for a successful record. Failed lookups, URL-only legacy records, offline cache, and post-install records must not be presented as successful online checks. Private registries are outside this verifier's scope.
 
-Use `audit-dependencies` or `/check-versions` after a startup warning when useful. Report the command's diagnostic and continue authorized work. Warnings never require exact-version rewrites, splitting shell calls, disabling hooks, waiting for connectivity, or asking permission to continue.
+Use `/vs-refresh` after a startup warning when useful. Report the exit status and diagnostics. The optional refresh only reports new evidence after a successful audit. Continue authorized work after any result.
 
-Direct `check-versions.sh`, `vs-record.sh`, and `validate-*.sh` commands can return nonzero to report invalid data, missing manifests, or failed registry requests. CI may use that status. These command results do not create an agent permission gate. Hook adapters convert such findings into warnings and always allow the tool call.
+Direct audit, recorder, and validation commands can return nonzero to report invalid data, missing manifests, or failed registry requests. CI may use that status. Hook adapters report such findings as warnings and always allow the tool call.
 
 ## Evidence and scan scope
 
-Checks live in `.version-sentinel/checks.json`; audit state lives in `.version-sentinel/audit.json`. State includes the canonical project path, timestamps, manifest/lockfile hashes, and session identity when available. Fresh checks can be reused for the same project, package, and version during the configured window (24 hours by default). Changed files or expired evidence can produce another warning. Do not edit state to claim success.
+Package checks live in `.version-sentinel/checks.json`, project audit state in `audit.json`, and security findings in `security.json`. Fresh project audit evidence applies across sessions when the canonical project path and dependency files match. The state keeps the session ID for reference when available. Fresh package checks can be reused for the same project, package, and version during the configured window.
+
+Tool hooks keep a local warning history. A project and each worktree get their own history. A warning can return when the files, evidence, settings, or diagnostic change, or after a successful check. Hooks also show warnings when they cannot read or save warning history. The history supplies no audit or package evidence.
 
 Discovery covers four directory levels and excludes generated/vendor/state directories such as `.git`, `.worktrees`, `node_modules`, `target`, `.venv`, `venv`, `.version-sentinel`, and `__pycache__`. Supported requirements includes can extend beyond discovery depth, within the canonical project root. Deeper unreferenced projects need their own audit for complete reporting. Startup gives optional audit guidance without scanning manifests or contacting registries. A direct audit reports when it finds no supported manifest.
 
@@ -39,7 +43,7 @@ Updating source does not reload an installed plugin or change an existing sessio
 
 Explicit audits use npm audit and OSV by default for public npm lockfile v2/v3 projects. Each provider can be disabled separately with the `security_npm_audit` or `security_osv` plugin setting, or `VS_SECURITY_NPM_AUDIT=0` or `VS_SECURITY_OSV=0`. Findings retain provider attribution, severity, advisory IDs, and links. Missing, stale, or incomplete evidence is reported truthfully.
 
-Public tool hooks only check local cached security evidence. They never contact providers or launch the saved-settings CLI. Candidate versions without a current security check produce a warning. Run `bash <plugin-root>/scripts/security-check.sh audit <project-root>` explicitly to refresh security evidence; this is optional and does not gate authorized work. Low and moderate findings remain visible as advisory text.
+Public tool hooks only check local cached security evidence. They make no provider requests and do not launch the saved-settings CLI. A proposed change can produce a warning even when the resolved tree has current evidence. Use `/vs-refresh` after dependency changes to audit the resolved tree with the configured security checks. Low and moderate findings remain visible as advisory text.
 
 The explicit `reconcile-npm-lock.sh` helper can regenerate a lockfile without install scripts and scan it before replacement. Its Git/project/settings evidence and validation errors apply to that explicit command, not permission to continue other work. See [the privacy policy](https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md) for upstream package-name disclosures and local evidence storage.
 

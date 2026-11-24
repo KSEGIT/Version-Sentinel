@@ -87,6 +87,17 @@ class LocalSecurityHookTests(unittest.TestCase):
     def assert_no_external_calls(self):
         self.assertFalse(self.calls.exists(), self.calls.read_text() if self.calls.exists() else '')
 
+    def complete_project_audit(self):
+        begin = self.invoke('audit-state.sh', 'begin', str(self.project))
+        self.assertEqual(begin.returncode, 0, begin.stderr)
+        # Keep the fixture snapshot in native Python argv on Windows.
+        complete = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/project-state.py'),
+                                   'complete', str(self.project), begin.stdout],
+                                  cwd=self.project, env=self.environment, text=True,
+                                  capture_output=True, timeout=5, check=False)
+        self.assertEqual(complete.returncode, 0, complete.stderr)
+        return begin.stdout
+
     def test_local_audit_without_evidence_reports_unknown_without_creating_evidence(self):
         result = self.invoke('security-check.sh', 'audit', str(self.project))
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
@@ -110,6 +121,77 @@ class LocalSecurityHookTests(unittest.TestCase):
             self.assertIn('local', (result.stdout + result.stderr).lower())
             self.assert_no_external_calls()
             self.assertEqual(self.state.read_bytes(), before)
+
+    def test_candidate_warning_suggests_refresh_after_changes(self):
+        self.evidence()
+        self.complete_project_audit()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': 'npm install local-fixture@1.0.0'}})
+        candidate = self.invoke('detect-install-cmd.sh', payload=payload)
+        self.assertEqual(candidate.returncode, 0, candidate.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(candidate.stdout)['systemMessage']
+        self.assertIn('local hook mode does not query advisory providers for proposed changes', message)
+        self.assertIn('/vs-refresh after dependency changes', message)
+        self.assertIn('/version-sentinel:vs-refresh', message)
+        self.assertIn('$version-sentinel:vs-refresh', message)
+        self.assertIn('Copilot CLI/Zed: vs-refresh skill', message)
+        self.assertIn('resolved tree', message)
+        self.assertNotIn('/vs-refresh for project audit', message)
+        self.assertNotIn('/vs-record', message)
+
+        self.state.unlink()
+        missing = self.invoke('detect-install-cmd.sh', payload=payload)
+        self.assertEqual(missing.returncode, 0, missing.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(missing.stdout)['systemMessage']
+        self.assertIn('Security audit evidence missing', message)
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertNotIn('after dependency changes', message)
+        self.assertNotIn('/vs-record', message)
+
+    def test_manifest_warning_reports_both_refresh_times(self):
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
+            'file_path': 'package.json',
+            'content': json.dumps({'dependencies': {'local-fixture': '1.0.0'}}),
+        }})
+        result = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_no_external_calls()
+        message = json.loads(result.stdout)['systemMessage']
+        self.assertIn('Work may continue', message)
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertIn('/vs-refresh after dependency changes to audit the resolved tree', message)
+        self.assertNotIn('/vs-record', message)
+
+    def test_manifest_warning_reports_project_and_package_actions(self):
+        (self.project / 'requirements.txt').touch()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
+            'file_path': 'requirements.txt', 'content': 'examplepkg==1.0.0\n',
+        }})
+        validation = self.invoke('validate-detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(validation.returncode, 2, validation.stderr)
+        self.assertIn('Startup dependency audit', validation.stderr)
+        self.assertIn('No fresh successful online version check', validation.stderr)
+
+        result = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        message = json.loads(result.stdout)['systemMessage']
+        self.assertIn('/vs-refresh for project audit and security evidence', message)
+        self.assertIn('/vs-record for an individual package check', message)
+        self.assertNotIn('after dependency changes', message)
+
+        duplicate = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual((duplicate.returncode, duplicate.stdout, duplicate.stderr), (0, '', ''))
+
+        self.evidence()
+        self.complete_project_audit()
+        package_only = self.invoke('detect-manifest-edit.sh', payload=payload)
+        self.assertEqual(package_only.returncode, 0, package_only.stderr)
+        message = json.loads(package_only.stdout)['systemMessage']
+        self.assertIn('/vs-record for an individual package check', message)
+        self.assertNotIn('/vs-refresh', message)
+        self.assert_no_external_calls()
 
     def test_local_proposals_honor_disabled_osv_without_external_calls_or_new_evidence(self):
         before = self.evidence()
@@ -140,6 +222,60 @@ class LocalSecurityHookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assert_no_external_calls()
         self.assertEqual(self.state.read_bytes(), before)
+
+    def test_local_post_resolves_directory_after_dependency_parse_failure(self):
+        before = self.evidence()
+        alternate = self.root / 'other project'
+        alternate.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copyfile(self.project / name, alternate / name)
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': "cd '../other project' && npm update"}})
+
+        result = self.invoke('auto-record.sh', payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertFalse((alternate / '.version-sentinel/security.json').exists())
+        self.assert_no_external_calls()
+
+    def test_local_post_keeps_workdir_when_directory_inference_also_fails(self):
+        before = self.evidence()
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': 'cd "$UNKNOWN_PROJECT" && npm update'}})
+        result = self.invoke('auto-record.sh', payload=payload)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+
+        (self.project / 'package.json').write_text('{"name":"changed"}')
+        result = self.invoke('auto-record.sh', payload=payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing, failed, expired, or project/settings changed', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assert_no_external_calls()
+
+    def test_local_post_keeps_install_project_when_a_later_cd_is_unsupported(self):
+        before = self.evidence()
+        alternate = self.root / 'other project'
+        alternate.mkdir()
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copyfile(self.project / name, alternate / name)
+        payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Bash',
+                              'tool_input': {'command': "cd '../other project' && npm install lodash@4.17.21 && cd ../project"}})
+
+        result = self.invoke('auto-record.sh', payload=payload)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        message = json.loads(result.stdout or '{}').get('systemMessage', '')
+        self.assertIn('Security audit evidence missing', message)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertFalse((alternate / '.version-sentinel/security.json').exists())
+        self.assert_no_external_calls()
 
     def test_local_post_displays_cached_findings_without_claiming_a_fresh_scan(self):
         self.evidence()
@@ -175,17 +311,7 @@ class LocalSecurityHookTests(unittest.TestCase):
                 '': manifest, 'node_modules/local-fixture': {'version': '1.0.0',
                     'resolved': 'https://registry.npmjs.org/local-fixture/-/local-fixture-1.0.0.tgz'}}}))
         before = self.evidence()
-        begin = self.invoke('audit-state.sh', 'begin', str(self.project))
-        self.assertEqual(begin.returncode, 0, begin.stderr)
-        self.assertIn('\\\\', begin.stdout)
-        # This seeds fixture evidence; shell transport is not under test here.
-        # A native Python -> Git Bash -> Python argv round trip can unescape
-        # Windows paths in this JSON token. Keep the setup Python-to-Python.
-        complete = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/project-state.py'),
-                                   'complete', str(self.project), begin.stdout],
-                                  cwd=self.project, env=self.environment, text=True,
-                                  capture_output=True, timeout=5, check=False)
-        self.assertEqual(complete.returncode, 0, complete.stderr)
+        self.assertIn('\\\\', self.complete_project_audit())
         payload = json.dumps({'cwd': str(self.project), 'tool_name': 'Write', 'tool_input': {
             'file_path': 'package.json', 'content': '{"name":"local-fixture","dependencies":{}}'}})
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/lib/manifest-edit.py')],

@@ -1,0 +1,11 @@
+description = "Refresh Version Sentinel project audit and security evidence"
+prompt = """
+Use the affected project directory as dir_path for run_shell_command. Run the
+refresh script from the installed extension:
+
+  bash "${extensionPath}/scripts/vs-refresh.sh"
+
+Report the exit status, findings, and the project audit expiry if it was
+printed. Report a skipped or failed audit as such. Keep the user's authorized
+work moving. Use /vs-record to record an individual package check.
+"""

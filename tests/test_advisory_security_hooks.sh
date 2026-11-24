@@ -33,7 +33,10 @@ payload='{"tool_name":"Write","tool_input":{"file_path":"package-lock.json"}}'
 for failed in 0 1; do
   for mode in '' --gemini --copilot; do
     : > "$SECURITY_CALLS"
-    output=$(printf '%s' "$payload" | SECURITY_FIXTURE_FAIL="$failed" bash "$VS_TMPDIR/scripts/auto-record.sh" "$mode" 2>"$VS_TMPDIR/stderr"); status=$?
+    fixture="$VS_TMPDIR/project/$failed/${mode:-default}"
+    mkdir -p "$fixture"
+    output=$(cd "$fixture" &&
+      printf '%s' "$payload" | SECURITY_FIXTURE_FAIL="$failed" bash "$VS_TMPDIR/scripts/auto-record.sh" "$mode" 2>"$VS_TMPDIR/stderr"); status=$?
     assert_exit_code 0 "$status" "post hook continues ($failed $mode)"
     assert_eq '' "$(cat "$VS_TMPDIR/stderr")" "post diagnostics stay in warning JSON ($failed $mode)"
     printf '%s' "$output" | jq -e '

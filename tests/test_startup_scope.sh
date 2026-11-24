@@ -55,9 +55,9 @@ for target in empty project; do
   assert_exit_code 0 "$?" "$target payload startup preserves launch evidence"
 done
 VS_SESSION_ID=target-session bash "$ROOT/scripts/audit-state.sh" gate "$VS_TMPDIR/project" >/dev/null 2>&1
-assert_exit_code 0 "$?" 'target project gets session-bound audit evidence'
+assert_exit_code 0 "$?" 'target project gets current audit evidence'
 VS_SESSION_ID=other-session bash "$ROOT/scripts/audit-state.sh" gate "$VS_TMPDIR/project" >/dev/null 2>&1
-assert_exit_code 2 "$?" 'target audit rejects another session'
+assert_exit_code 0 "$?" 'another session can reuse the target project audit'
 
 # Missing startup prerequisites revoke target evidence before failing, even
 # when jq is unavailable to read cwd. Launch evidence must remain unchanged.

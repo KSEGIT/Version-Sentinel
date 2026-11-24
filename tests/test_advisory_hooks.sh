@@ -16,6 +16,12 @@ assert_advisory() {
     _fail "$label contains blocking instructions: $output"
   fi
 }
+assert_action_names() {
+  local output="$1" action="$2" label="$3"
+  assert_contains "$output" "/version-sentinel:$action" "$label names the Claude/Kimi command"
+  assert_contains "$output" "\$version-sentinel:$action" "$label names the Codex skill"
+  assert_contains "$output" "Copilot CLI/Zed: $action skill" "$label names the other skill entry"
+}
 for script in detect-manifest-edit detect-install-cmd auto-record session-start; do
   output=$(printf 'invalid json' | bash "$ROOT/scripts/$script.sh" 2>&1); status=$?
   assert_advisory "$output" "$status" "$script malformed input"
@@ -23,6 +29,9 @@ done
 output=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"npm install lodash"}}' |
   bash "$ROOT/scripts/detect-install-cmd.sh" 2>&1); status=$?
 assert_advisory "$output" "$status" 'unchecked install'
+assert_contains "$output" '/vs-refresh' 'tool warning recommends the project refresh command'
+assert_action_names "$output" vs-refresh 'project warning'
+[[ "$output" != *'/vs-record'* ]] || _fail 'missing project evidence calls for a project refresh'
 printf '%s' "$output" | jq -e '.systemMessage | contains("WARNING")' >/dev/null 2>&1
 assert_exit_code 0 "$?" 'tool warning is visible in stdout JSON'
 output=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"package.json","content":"{\"dependencies\":{\"lodash\":\"99.0.0\"}}"}}' |
@@ -41,9 +50,13 @@ assert_exit_code 0 "$?" 'validator cannot forward lifecycle control fields'
 printf '%s\n' '#!/usr/bin/env bash' 'echo "BLOCKED: version-sentinel. BLOCKED: version-sentinel. Nested validation failed." >&2' 'exit 2' > "$VS_TMPDIR/broken-scripts/validate-detect-install-cmd.sh"
 output=$(printf '{}' | bash "$VS_TMPDIR/broken-scripts/detect-install-cmd.sh"); status=$?
 assert_advisory "$output" "$status" 'nested strict failure'
+assert_action_names "$output" vs-refresh 'fallback warning'
+assert_action_names "$output" vs-record 'fallback warning'
 for mode in '' --gemini --copilot; do
   output=$(printf 'invalid json' | bash "$ROOT/scripts/session-start.sh" "$mode" 2>"$VS_TMPDIR/startup.err"); status=$?
   assert_advisory "$output" "$status" "startup $mode"
+  assert_contains "$output" '/vs-refresh' "startup $mode recommends the project refresh command"
+  assert_action_names "$output" vs-refresh "startup $mode"
   printf '%s' "$output" | jq -e '.systemMessage and .hookSpecificOutput.additionalContext' >/dev/null
   assert_exit_code 0 "$?" "startup $mode emits valid warning JSON"
 done

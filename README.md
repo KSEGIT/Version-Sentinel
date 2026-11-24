@@ -83,7 +83,7 @@ plugin.json, .claude-plugin/   Claude Code plugin + marketplace metadata
 kimi.plugin.json, platforms/kimi/  Kimi Code plugin manifest + adapter
 gemini-extension.json, GEMINI.md   Gemini CLI extension manifest + context
 platforms/gemini/setup.sh        Gemini hook activation (run inside the installed extension)
-commands/*.toml                Gemini CLI slash commands (/vs-record, /check-versions)
+commands/*.toml                Gemini CLI slash commands
 .codex-plugin/                 OpenAI Codex plugin metadata
 .github/hooks|agents|prompts/  GitHub Copilot hooks, agents, prompts
 .agents/skills/                Cross-tool skills (Copilot, Zed, ...)
@@ -99,20 +99,29 @@ For marketplace listings and submission status per platform (what's ready, what 
 
 ## How it works
 
-SessionStart suggests an optional explicit dependency audit without making registry requests. All hooks return status 0, even for failed audits, missing prerequisites, parser limits, and missing or invalid manifests. Continue authorized work and report any limits. No recovery-consent ritual is needed. See [the advisory workflow](docs/enforcement.md).
+SessionStart suggests `/vs-refresh` and makes no registry requests. Tool hooks warn once per unchanged project state and diagnostic. Changes to dependency files, evidence, settings, or findings can trigger another warning. All hooks return status 0. Continue authorized work and report any limits. [Advisory workflow](docs/enforcement.md)
 
 1. An agent tries to change a dependency or run an install.
 2. The hook reports missing or stale evidence as a warning and allows the call.
 3. The agent can verify the intended version on its upstream registry and use `/vs-record` to save evidence.
 4. If verification fails, report that result truthfully and continue the user's authorized task. Preserve valid manifests and overrides when the parser cannot understand them.
 
-Direct audit and recorder commands can still return nonzero for validation failures or CI. Their status does not prohibit other work.
+Direct audit and recorder commands can return nonzero for validation failures or CI. These results are advisory.
 
 ## Commands
 
-- `/vs-record <ecosystem> <pkg> <version> <source>` — record a version check
-- `/check-versions` — audit manifests against upstream registries
-- `audit-dependencies` skill — run the installed audit from the current project when useful, report its result, and continue authorized work.
+- `/vs-refresh` runs an online project audit and the configured security checks. It reports when saved project audit evidence expires.
+- `/check-versions` runs the same audit with the standard report.
+- `/vs-record <ecosystem> <pkg> <version> <source>` records an online check for one package.
+
+| Host | How to invoke refresh |
+|------|-----------------------|
+| Claude Code, Kimi Code | `/version-sentinel:vs-refresh`. Use the same prefix for `check-versions` and `vs-record`. |
+| Gemini CLI, GitHub Copilot in VS Code | `/vs-refresh` |
+| Codex | Select the `vs-refresh` skill from the `$` picker. The plugin skill is tagged `$version-sentinel:vs-refresh`. |
+| GitHub Copilot CLI, Zed | Use the `vs-refresh` skill. Select the matching entry when the host shows a qualified name. |
+
+The three named skills ship in `skills/` and are mirrored in `.agents/skills/` for workspace discovery. In a terminal, run `bash <version-sentinel-root>/scripts/vs-refresh.sh` from the project directory.
 
 ## Older pins and offline failures
 
@@ -164,6 +173,6 @@ MIT — see [LICENSE](./LICENSE).
 
 Explicit audits use npm audit and OSV by default for public npm lockfile v2/v3 projects. Each provider can be disabled separately with the `security_npm_audit` or `security_osv` plugin setting, or `VS_SECURITY_NPM_AUDIT=0` or `VS_SECURITY_OSV=0`. Findings retain provider attribution, severity, advisory IDs, and links. Missing, stale, or incomplete evidence is reported truthfully.
 
-Public tool hooks only check local cached security evidence. They never contact providers or launch the saved-settings CLI. Candidate versions without a current security check produce a warning. Run `bash <plugin-root>/scripts/security-check.sh audit <project-root>` explicitly to refresh security evidence; this is optional and does not gate authorized work. Low and moderate findings remain visible as advisory text.
+Public tool hooks only check local cached security evidence. They make no provider requests and do not launch the saved-settings CLI. A proposed change can produce a warning even when the resolved tree has current evidence. Use `/vs-refresh` after dependency changes to audit the resolved tree with the configured security checks. Low and moderate findings remain visible as advisory text.
 
 The explicit `reconcile-npm-lock.sh` helper can regenerate a lockfile without install scripts and scan it before replacement. Its Git/project/settings evidence and validation errors apply to that explicit command, not permission to continue other work. See [the privacy policy](https://github.com/KSEGIT/Version-Sentinel/blob/main/PRIVACY.md) for upstream package-name disclosures and local evidence storage.

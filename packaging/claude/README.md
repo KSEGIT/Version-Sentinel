@@ -9,12 +9,12 @@ block tools. It supports npm, Python, Cargo, and NuGet manifests.
 Install Bash, jq, curl, and Python 3.11 or later on your PATH. On Windows, use
 Git Bash and install Python separately. Registry checks require internet access.
 
-## Use
+## Commands
 
 The startup hook suggests an optional audit and makes no registry requests. For dependency work,
 consider verifying its version and using `/version-sentinel:vs-record` to save the check.
-Use `/version-sentinel:check-versions` to run another audit. The included
-version-sentinel skill explains advisory checks and truthful reporting.
+Use `/version-sentinel:vs-refresh` to run an audit and show when the project audit evidence
+expires. `/version-sentinel:check-versions` remains available for the standard audit report.
 
 Hooks return status 0 for every result. Audit failures, parser limits, and missing
 manifests do not require a pause or a recovery-consent command.

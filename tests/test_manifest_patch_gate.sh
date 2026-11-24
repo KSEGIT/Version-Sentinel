@@ -106,7 +106,8 @@ assert_contains "$result" "exit=2" "symlink alias cannot hide a registry manifes
 
 result=$(jq -nc '{session_id:"new-session",tool_name:"Write",tool_input:{file_path:"package.json",content:"{\"dependencies\":{\"lodash\":\"4.17.21\",\"other\":\"1.0.0\"}}"}}' \
   | bash "$SCRIPTS/validate-detect-manifest-edit.sh" 2>&1; echo "exit=$?")
-assert_contains "$result" "Startup dependency audit" "hook session identity reaches audit gate"
+assert_contains "$result" "No fresh successful online version check" "new session still detects missing package evidence"
+[[ "$result" != *'Startup dependency audit'* ]] || _fail "new session must reuse fresh project evidence: $result"
 
 # The unchanged baseline must stay usable, while an extra addition must not
 # conceal another dependency's selector-only change.
