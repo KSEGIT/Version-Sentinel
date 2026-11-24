@@ -1,6 +1,6 @@
 {
   "name": "version-sentinel",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Warns about dependency version checks and recommends upstream verification. Never blocks tools.",
   "author": {
     "name": "Daniel Kiska",
