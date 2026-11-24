@@ -2,6 +2,21 @@
 
 All notable changes to version-sentinel.
 
+## [0.8.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.7.0...version-sentinel-v0.8.0) (2026-11-24)
+
+
+### Features
+
+* add audit refresh commands and deduplicate hook warnings ([#62](https://github.com/KSEGIT/Version-Sentinel/issues/62)) ([f28c4bf](https://github.com/KSEGIT/Version-Sentinel/commit/f28c4bf8470707e4eb3d41ca536a705f94b8a926))
+
+
+### Bug Fixes
+
+* add marketplace website links and refresh listing status ([5d305f5](https://github.com/KSEGIT/Version-Sentinel/commit/5d305f50c6dd7236cc62ca14f58b351a860db8ef))
+* add marketplace website metadata and refresh listing status ([cb33819](https://github.com/KSEGIT/Version-Sentinel/commit/cb338194c3d1db7264900544420e127318721c3b))
+* emit Codex-compatible hook JSON ([80c091f](https://github.com/KSEGIT/Version-Sentinel/commit/80c091f36b608716153f30a7eea956ec13510ef0))
+* emit Codex-compatible hook JSON ([fc6c15d](https://github.com/KSEGIT/Version-Sentinel/commit/fc6c15dd01e752691c2f03e8263ee1a7c72279c7))
+
 ## [0.7.0](https://github.com/KSEGIT/Version-Sentinel/compare/version-sentinel-v0.6.1...version-sentinel-v0.7.0) (2026-11-19)
 
 
